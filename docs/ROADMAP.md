@@ -25,11 +25,13 @@ demo. Each phase ends with a build that can be installed and used.
 
 - [x] Download queue for chapter pages, pause/resume/retry/delete, persisted
   across launches.
+- [x] Bulk "download all chapters" with a confirmation, and "delete finished".
 - [x] The reader prefers finished downloads and falls back to partial pages when
   the source is unreachable.
-- [ ] Wi-Fi-only scheduling and a per-download data estimate.
-- [ ] Storage accounting, per-work size, automatic eviction of finished
-  downloads.
+- [x] Storage accounting: bytes per download and total used on the Downloads
+  screen, backfilled for downloads written before 0.2.1.
+- [ ] Wi-Fi-only scheduling.
+- [ ] Per-work size and automatic eviction of finished downloads.
 - [ ] Background isolate for downloads and image decoding; the current queue
   runs while the app process is alive.
 - [ ] Integrity check per file; today a page is written atomically and a

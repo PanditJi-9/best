@@ -16,6 +16,7 @@ class DownloadTask {
     required this.unitTitle,
     required this.total,
     this.completed = 0,
+    this.bytes = 0,
     this.status = DownloadStatus.queued,
     this.error,
     this.directory,
@@ -40,6 +41,11 @@ class DownloadTask {
   /// the source answers, which is why it is not `final` in the database sense.
   final int total;
   final int completed;
+
+  /// Bytes written for this unit so far. Storage accounting and the Downloads
+  /// screen read this; it is not derived from the page count because pages
+  /// differ in size and a resumed download must not double-count.
+  final int bytes;
 
   final DownloadStatus status;
 
@@ -67,6 +73,7 @@ class DownloadTask {
   DownloadTask copyWith({
     int? total,
     int? completed,
+    int? bytes,
     DownloadStatus? status,
     String? error,
     bool clearError = false,
@@ -83,6 +90,7 @@ class DownloadTask {
       unitTitle: unitTitle,
       total: total ?? this.total,
       completed: completed ?? this.completed,
+      bytes: bytes ?? this.bytes,
       status: status ?? this.status,
       error: clearError ? null : (error ?? this.error),
       directory: directory ?? this.directory,

@@ -5,6 +5,8 @@ import 'package:best_domain/best_domain.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 
+import 'local_pages.dart';
+
 /// A failure worth showing under a download row, without a stack trace.
 class DownloadException implements Exception {
   const DownloadException(this.message);
@@ -51,6 +53,13 @@ class DownloadManager {
     final tasks = await _repository.downloads();
     final now = _now();
     for (final task in tasks) {
+      if (task.isFinished && task.bytes == 0 && task.directory != null) {
+        final bytes = await directoryBytes(task.directory!);
+        if (bytes > 0) {
+          await _repository.saveDownload(task.copyWith(bytes: bytes));
+        }
+        continue;
+      }
       if (task.status == DownloadStatus.running ||
           task.status == DownloadStatus.queued) {
         await _repository.saveDownload(
@@ -80,6 +89,7 @@ class DownloadManager {
       unitTitle: unit.displayTitle,
       total: unit.pageCount > 0 ? unit.pageCount : (existing?.total ?? 0),
       completed: existing?.completed ?? 0,
+      bytes: existing?.bytes ?? 0,
       status: DownloadStatus.queued,
       directory: existing?.directory,
       updatedAt: _now(),
@@ -205,6 +215,7 @@ class DownloadManager {
       await _repository.saveDownload(task);
 
       var completed = 0;
+      var written = await directoryBytes(directory.path);
       for (var index = 0; index < pages.length; index++) {
         if (_disposed) return;
         if (_cancelled.contains(unitId)) return;
@@ -239,6 +250,7 @@ class DownloadManager {
             current.copyWith(
               completed: completed + 1,
               total: pages.length,
+              bytes: written + bytes.length,
               directory: directory.path,
               updatedAt: _now(),
             ),
@@ -249,10 +261,12 @@ class DownloadManager {
 
         await _write(file, bytes);
         completed++;
+        written += bytes.length;
         await _repository.saveDownload(
           current.copyWith(
             completed: completed,
             total: pages.length,
+            bytes: written,
             status: DownloadStatus.running,
             directory: directory.path,
             updatedAt: _now(),
@@ -267,6 +281,7 @@ class DownloadManager {
         current.copyWith(
           total: pages.length,
           completed: pages.length,
+          bytes: written,
           status: DownloadStatus.done,
           clearError: true,
           directory: directory.path,

@@ -56,7 +56,11 @@ void main() {
       },
       {
         'id': 'ch1-dup',
-        'attributes': {'chapter': '1', 'title': 'Duplicate scanlator', 'pages': 3},
+        'attributes': {
+          'chapter': '1',
+          'title': 'Duplicate scanlator',
+          'pages': 3
+        },
       },
       {
         'id': 'ch2',
@@ -82,9 +86,12 @@ void main() {
       onRequest?.call(request.url);
       if (status != 200) return http.Response('nope', status);
       final path = request.url.path;
-      if (path == '/manga') return http.Response(jsonEncode(manga), 200, headers: _jsonHeaders);
-      if (path == '/manga/abc/feed') return http.Response(jsonEncode(feed), 200, headers: _jsonHeaders);
-      if (path == '/at-home/server/ch1') return http.Response(jsonEncode(atHome), 200, headers: _jsonHeaders);
+      if (path == '/manga')
+        return http.Response(jsonEncode(manga), 200, headers: _jsonHeaders);
+      if (path == '/manga/abc/feed')
+        return http.Response(jsonEncode(feed), 200, headers: _jsonHeaders);
+      if (path == '/at-home/server/ch1')
+        return http.Response(jsonEncode(atHome), 200, headers: _jsonHeaders);
       return http.Response('not found', 404);
     });
     return MangaDexSource(client: client, language: 'en');
@@ -100,19 +107,22 @@ void main() {
     expect(work.status, MediaStatus.ongoing);
     expect(work.year, 2025);
     expect(work.genres, ['Fantasy']);
-    expect(work.coverUrl, 'https://uploads.mangadex.org/covers/abc/cover.jpg.256.jpg');
+    expect(work.coverUrl,
+        'https://uploads.mangadex.org/covers/abc/cover.jpg.256.jpg');
     expect(work.id, 'mangadex::abc');
   });
 
   test('sends the search term as a title filter', () async {
     Uri? seen;
-    final works = await source(onRequest: (uri) => seen = uri).search('  blue  ');
+    final works =
+        await source(onRequest: (uri) => seen = uri).search('  blue  ');
     expect(works, hasLength(1));
     expect(seen, isNotNull);
     expect(seen!.queryParameters['title'], 'blue');
   });
 
-  test('parses chapters, dedupes numbers and skips external-only entries', () async {
+  test('parses chapters, dedupes numbers and skips external-only entries',
+      () async {
     final work = (await source().popular()).single;
     final units = await source().units(work);
 

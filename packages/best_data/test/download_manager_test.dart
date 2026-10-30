@@ -101,6 +101,7 @@ void main() {
     expect(task!.status, DownloadStatus.done);
     expect(task.completed, 3);
     expect(task.total, 3);
+    expect(task.bytes, 12);
     expect(task.directory, isNotNull);
 
     final files = Directory(task.directory!)
@@ -140,6 +141,7 @@ void main() {
     final paused = await repository.downloadFor(unit.id);
     expect(paused!.status, DownloadStatus.paused);
     expect(paused.completed, 1);
+    expect(paused.bytes, 4);
 
     await manager.resume(unit.id);
     await manager.pump();
@@ -173,6 +175,7 @@ void main() {
     final done = await repository.downloadFor(unit.id);
     expect(done!.status, DownloadStatus.done);
     expect(done.completed, 3);
+    expect(done.bytes, 12);
   });
 
   test('cancel removes the row and the bytes', () async {
@@ -212,5 +215,6 @@ void main() {
     final task = await repository.downloadFor(unit.id);
     expect(task!.status, DownloadStatus.done);
     expect(task.completed, 3);
+    expect(task.bytes, 12);
   });
 }

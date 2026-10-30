@@ -7,7 +7,8 @@ nothing is downloaded without a tap.
 ## What a download is
 
 A download is a `DownloadTask` row, keyed by `unitId` (`mediaId::unitUrl`). It
-carries the source addresses, copied titles, page counts and a state:
+carries the source addresses, copied titles, page counts, bytes written and a
+state:
 
 ```
 queued ──► running ──► done
@@ -44,6 +45,11 @@ from the files already on disk.
 - One chapter runs at a time; queued chapters wait in `updatedAt` order.
 - Every page is persisted before the next request starts. A crash loses at
   most the request in flight.
+- Bytes are counted as pages land and stored on the row. The Downloads screen
+  shows each download's size and the total on the device; a row written before
+  0.2.1 is backfilled from its directory on the next launch.
+- "Download all" queues every chapter that is not finished, after a
+  confirmation; "delete finished" removes them in one pass.
 - A failed page is retried once. A chapter that still fails becomes `failed`
   with a readable message; `retry` starts from the first missing page.
 - Pausing cannot cancel a request already in flight, so that page is kept and
@@ -57,7 +63,7 @@ from the files already on disk.
 - Downloads run while the app process is alive. A true background service
   (WorkManager/foreground service) is a later phase; the queue survives being
   killed and resumes, but it does not keep downloading while the app is gone.
-- No Wi-Fi-only switch and no storage estimate yet.
+- No Wi-Fi-only switch yet. Storage is measured but not capped.
 - No automatic eviction. Deleting a download is explicit.
 - Only `ImageResource` pages are stored. Episode files need the playback engine.
 
@@ -65,5 +71,5 @@ from the files already on disk.
 
 `packages/best_data/test/download_manager_test.dart` drives the real manager
 against a `MockClient` and a temp directory: full chapter, pause/resume,
-failure/retry, cancel, and restore-after-restart. `data_test.dart` covers the
+failure/retry, cancel, byte accounting, and restore-after-restart. `data_test.dart` covers the
 SQLite round-trip and the schema 1 → 2 migration.

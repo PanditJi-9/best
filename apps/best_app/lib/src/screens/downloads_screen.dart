@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../labels.dart';
 import '../navigation.dart';
 import '../providers.dart';
 
@@ -16,6 +17,9 @@ class DownloadsScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final downloads = ref.watch(downloadsProvider);
+    final current = downloads.value ?? const <DownloadTask>[];
+    final doneCount = current.where((task) => task.isFinished).length;
+    final totalBytes = current.fold<int>(0, (sum, task) => sum + task.bytes);
 
     return SafeArea(
       bottom: false,
@@ -23,13 +27,40 @@ class DownloadsScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-            child: Text(
-              l10n.downloadsTitle,
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -1,
-              ),
+            padding: const EdgeInsets.fromLTRB(20, 18, 14, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.downloadsTitle,
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -1,
+                        ),
+                      ),
+                      if (totalBytes > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            l10n.downloadsStorage(formatBytes(totalBytes)),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (doneCount > 0)
+                  IconButton(
+                    tooltip: l10n.downloadClearFinished,
+                    onPressed: () => _clearFinished(context, ref, current),
+                    icon: const Icon(Icons.delete_sweep_outlined),
+                  ),
+              ],
             ),
           ),
           Expanded(
@@ -94,6 +125,42 @@ class DownloadsScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _clearFinished(
+    BuildContext context,
+    WidgetRef ref,
+    List<DownloadTask> tasks,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final finished = tasks.where((task) => task.isFinished).toList();
+    if (finished.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.downloadClearTitle),
+        content: Text(l10n.downloadClearBody(finished.length)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final manager = ref.read(downloadManagerProvider);
+    for (final task in finished) {
+      await manager.cancel(task.unitId);
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.downloadClearDone)),
     );
   }
 
@@ -288,7 +355,7 @@ class _DownloadTile extends StatelessWidget {
   }
 
   String _statusLabel(AppLocalizations l10n) {
-    return switch (task.status) {
+    final label = switch (task.status) {
       DownloadStatus.queued => l10n.downloadQueued,
       DownloadStatus.running =>
         l10n.downloadProgress(task.completed, task.total),
@@ -296,6 +363,8 @@ class _DownloadTile extends StatelessWidget {
       DownloadStatus.done => l10n.downloadDone,
       DownloadStatus.failed => l10n.downloadFailed,
     };
+    if (task.bytes <= 0) return label;
+    return '$label · ${formatBytes(task.bytes)}';
   }
 }
 

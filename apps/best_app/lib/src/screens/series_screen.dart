@@ -58,6 +58,14 @@ class _SeriesBody extends ConsumerWidget {
     final downloads =
         ref.watch(downloadsProvider).value ?? const <DownloadTask>[];
     final tasks = {for (final task in downloads) task.unitId: task};
+    final canDownload = media.kind.isReading;
+    final offlineCount = tasks.values
+        .where((task) => task.mediaId == media.id && task.isFinished)
+        .length;
+    final pendingDownloads = units.where((unit) {
+      final task = tasks[unit.id];
+      return task == null || task.isFailed;
+    }).length;
     final next = _nextUnit(units, data.progress);
     final hasProgress = data.progress.values.any(
       (progress) => progress.position > 0 || progress.completed,
@@ -162,6 +170,11 @@ class _SeriesBody extends ConsumerWidget {
                             if (media.year != null)
                               _MetaPill(label: '${media.year}'),
                             _MetaPill(label: statusLabel(l10n, media.status)),
+                            if (offlineCount > 0)
+                              _MetaPill(
+                                label: l10n.offlineCount(offlineCount),
+                                muted: true,
+                              ),
                           ],
                         ),
                         if (media.author != null &&
@@ -280,11 +293,34 @@ class _SeriesBody extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: SectionHeader(
                 title: media.kind.isReading ? l10n.chapters : l10n.episodes,
-                trailing: Text(
-                  l10n.unitCount(units.length),
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      l10n.unitCount(units.length),
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    if (canDownload && pendingDownloads > 0) ...[
+                      const SizedBox(width: 2),
+                      IconButton(
+                        tooltip: l10n.downloadAll,
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => _downloadAll(
+                          context,
+                          ref,
+                          media,
+                          units,
+                          tasks,
+                        ),
+                        icon: const Icon(
+                          Icons.download_for_offline_outlined,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
@@ -306,6 +342,7 @@ class _SeriesBody extends ConsumerWidget {
                   unit: unit,
                   progress: data.progress[unit.id],
                   download: task,
+                  canDownload: canDownload,
                   onTap: () => openReader(context, ref, media, unit),
                   onDownload: () => _download(context, ref, media, unit),
                   onPause: task == null
@@ -322,6 +359,49 @@ class _SeriesBody extends ConsumerWidget {
           const SliverToBoxAdapter(child: SizedBox(height: 28)),
         ],
       ),
+    );
+  }
+
+  Future<void> _downloadAll(
+    BuildContext context,
+    WidgetRef ref,
+    Media media,
+    List<MediaUnit> units,
+    Map<String, DownloadTask> tasks,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final pending = units.where((unit) {
+      final task = tasks[unit.id];
+      return task == null || task.isFailed;
+    }).toList(growable: false);
+    if (pending.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.downloadAllTitle),
+        content: Text(l10n.downloadAllBody(pending.length)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.downloadAll),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final manager = ref.read(downloadManagerProvider);
+    for (final unit in pending) {
+      await manager.enqueue(media, unit);
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.downloadAllQueued(pending.length))),
     );
   }
 
@@ -391,6 +471,7 @@ class _UnitTile extends StatelessWidget {
     required this.unit,
     required this.progress,
     required this.download,
+    required this.canDownload,
     required this.onTap,
     required this.onDownload,
     required this.onPause,
@@ -400,6 +481,7 @@ class _UnitTile extends StatelessWidget {
   final MediaUnit unit;
   final UnitProgress? progress;
   final DownloadTask? download;
+  final bool canDownload;
   final VoidCallback onTap;
   final VoidCallback onDownload;
   final VoidCallback? onPause;
@@ -466,14 +548,16 @@ class _UnitTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            _DownloadControl(
-              unit: unit,
-              download: download,
-              onDownload: onDownload,
-              onPause: onPause,
-              onResume: onResume,
-            ),
-            const SizedBox(width: 2),
+            if (canDownload) ...[
+              _DownloadControl(
+                unit: unit,
+                download: download,
+                onDownload: onDownload,
+                onPause: onPause,
+                onResume: onResume,
+              ),
+              const SizedBox(width: 2),
+            ],
             if (completed)
               const Icon(Icons.check_circle, color: BestColors.jade, size: 22)
             else if (started)

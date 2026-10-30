@@ -49,7 +49,7 @@ metadata but cannot erase a favorite, an `addedAt`, or history.
 
 ## Storage
 
-Schema v2: `media`, `unit`, `progress`, `downloads`, plus indexes. Foreign keys
+Schema v3: `media`, `unit`, `progress`, `downloads`, plus indexes. Foreign keys
 are on. A v1 database is upgraded in place; the migration only adds the
 downloads table. The `DatabaseFactory` is injected, so the same schema runs on
 `sqflite` on a phone and `sqflite_common_ffi` in a test.

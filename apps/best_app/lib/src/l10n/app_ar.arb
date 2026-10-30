@@ -75,7 +75,7 @@
   "themeLight": "فاتح",
   "themeDark": "داكن",
   "about": "حول",
-  "aboutBody": "بست 0.2.0 — رفّ واحد للمانجا والمانهوا والأنمي والدراما الآسيوية. مبني ليبقى سريعاً على هاتف متوسط.",
+  "aboutBody": "بست 0.2.1 — رفّ واحد للمانجا والمانهوا والأنمي والدراما الآسيوية. مبني ليبقى سريعاً على هاتف متوسط.",
   "pageOf": "صفحة {current} من {total}",
   "@pageOf": {
     "placeholders": {
@@ -139,6 +139,51 @@
         "type": "int"
       },
       "total": {
+        "type": "int"
+      }
+    }
+  },
+  "downloadAll": "حمّل الكل",
+  "downloadAllTitle": "تحميل كل الفصول؟",
+  "downloadAllBody": "سيُضاف {count} فصلاً إلى الطابور. تُحمَّل واحداً تلو الآخر، ويمكنك إيقافها أو حذفها من التحميلات.",
+  "downloadAllQueued": "أُضيف {count} فصلاً إلى التحميلات",
+  "downloadsStorage": "{size} على هذا الجهاز",
+  "offlineCount": "{count} دون اتصال",
+  "downloadClearFinished": "حذف التحميلات المكتملة",
+  "downloadClearTitle": "حذف التحميلات المكتملة؟",
+  "downloadClearBody": "سيُحذف {count} فصلاً مكتملاً من هذا الجهاز.",
+  "downloadClearDone": "حُذفت التحميلات المكتملة",
+  "@downloadAllBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@downloadAllQueued": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@downloadsStorage": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "@offlineCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@downloadClearBody": {
+    "placeholders": {
+      "count": {
         "type": "int"
       }
     }

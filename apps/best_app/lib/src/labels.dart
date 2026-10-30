@@ -55,3 +55,18 @@ String shortDate(int epochMillis) {
   final day = date.day.toString().padLeft(2, '0');
   return '${date.year}-$month-$day';
 }
+
+/// Storage sizes are units, not prose: the same "12.4 MB" reads correctly in
+/// both languages and matches what the system settings show.
+String formatBytes(int bytes) {
+  if (bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  var value = bytes.toDouble();
+  var unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  final decimals = unit == 0 || value >= 100 ? 0 : 1;
+  return '${value.toStringAsFixed(decimals)} ${units[unit]}';
+}

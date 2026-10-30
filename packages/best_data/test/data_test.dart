@@ -198,6 +198,7 @@ void main() {
       unitTitle: 'Chapter 1',
       total: 20,
       completed: 4,
+      bytes: 4096,
       status: DownloadStatus.paused,
       directory: '/tmp/a',
       updatedAt: 7,
@@ -208,6 +209,7 @@ void main() {
     expect(stored, isNotNull);
     expect(stored!.status, DownloadStatus.paused);
     expect(stored.completed, 4);
+    expect(stored.bytes, 4096);
     expect(stored.mediaUrl, 'a');
     expect(stored.unitUrl, 'unit-1');
     expect(await repository.downloads(), hasLength(1));
@@ -251,12 +253,15 @@ void main() {
         mediaTitle: 'a',
         unitTitle: 'Chapter 1',
         total: 2,
+        bytes: 8,
         status: DownloadStatus.queued,
         updatedAt: 1,
       ),
     );
 
-    expect(await migrated.downloads(), hasLength(1));
+    final rows = await migrated.downloads();
+    expect(rows, hasLength(1));
+    expect(rows.single.bytes, 8);
   });
 
   test('the guide has units and generated pages', () async {

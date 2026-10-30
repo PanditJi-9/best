@@ -75,7 +75,7 @@
   "themeLight": "Light",
   "themeDark": "Dark",
   "about": "About",
-  "aboutBody": "Best 0.2.0 — one shelf for manga, manhwa, anime and Asian drama. Built to stay fast on a mid-range phone.",
+  "aboutBody": "Best 0.2.1 — one shelf for manga, manhwa, anime and Asian drama. Built to stay fast on a mid-range phone.",
   "pageOf": "Page {current} of {total}",
   "@pageOf": {
     "placeholders": {
@@ -139,6 +139,51 @@
         "type": "int"
       },
       "total": {
+        "type": "int"
+      }
+    }
+  },
+  "downloadAll": "Download all",
+  "downloadAllTitle": "Download every chapter?",
+  "downloadAllBody": "This queues {count} chapters. They download one at a time, and you can pause or delete them from Downloads.",
+  "downloadAllQueued": "Added {count} chapters to downloads",
+  "downloadsStorage": "{size} on this device",
+  "offlineCount": "{count} offline",
+  "downloadClearFinished": "Delete finished downloads",
+  "downloadClearTitle": "Delete finished downloads?",
+  "downloadClearBody": "This removes {count} finished chapters from this device.",
+  "downloadClearDone": "Finished downloads deleted",
+  "@downloadAllBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@downloadAllQueued": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@downloadsStorage": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "@offlineCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@downloadClearBody": {
+    "placeholders": {
+      "count": {
         "type": "int"
       }
     }

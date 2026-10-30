@@ -9,8 +9,23 @@ import 'package:path/path.dart' as p;
 /// opening a downloaded chapter never touches the network. Names are written
 /// zero-padded by the manager, which is what makes a plain name sort correct.
 Future<List<MediaResource>> downloadedPages(String directory) async {
+  final files = await _pageFiles(directory);
+  return <MediaResource>[for (final file in files) FileResource(file.path)];
+}
+
+/// Bytes of finished pages in [directory]. Used by storage accounting and to
+/// backfill rows written before byte tracking existed.
+Future<int> directoryBytes(String directory) async {
+  var total = 0;
+  for (final file in await _pageFiles(directory)) {
+    total += await file.length();
+  }
+  return total;
+}
+
+Future<List<File>> _pageFiles(String directory) async {
   final folder = Directory(directory);
-  if (!await folder.exists()) return const <MediaResource>[];
+  if (!await folder.exists()) return const <File>[];
 
   final files = <File>[];
   await for (final entity in folder.list(followLinks: false)) {
@@ -20,5 +35,5 @@ Future<List<MediaResource>> downloadedPages(String directory) async {
     files.add(entity);
   }
   files.sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
-  return <MediaResource>[for (final file in files) FileResource(file.path)];
+  return files;
 }

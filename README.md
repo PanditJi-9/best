@@ -6,7 +6,7 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 0.2.0 — the offline slice.** The shelf, the reader, the bilingual UI,
+**Status: 0.2.1 — the offline slice.** The shelf, the reader, the bilingual UI,
 local progress, the bundled guide, one real catalogue (MangaDex), source packs
 and the download queue are implemented and covered by tests. The video player,
 the extension host and sync are scheduled, not pretended.
@@ -29,10 +29,10 @@ the extension host and sync are scheduled, not pretended.
   [docs/SOURCE-PACKS.md](docs/SOURCE-PACKS.md).
 - **Merge-safe progress.** A stale write can never move a reader backwards, and
   a catalogue refresh can never erase a favorite or a finished chapter.
-- **Real downloads.** Queue a chapter from any series, watch per-page progress,
-  pause, resume, retry or delete it, and read it with no connection. The queue
-  is persisted, so closing the app resumes from the last saved page. See
-  [docs/OFFLINE.md](docs/OFFLINE.md).
+- **Real downloads.** Queue one chapter or every chapter from a series, watch
+  per-page progress and storage use, pause, resume, retry or delete, and read
+  with no connection. The queue is persisted, so closing the app resumes from
+  the last saved page. See [docs/OFFLINE.md](docs/OFFLINE.md).
 - **Offline-first storage.** SQLite through `sqflite`; an in-memory repository
   keeps the app usable if the database cannot be opened.
 

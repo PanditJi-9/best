@@ -8,7 +8,7 @@ import 'package:sqflite_common/sqlite_api.dart';
 class AppDatabase {
   AppDatabase._(this.db);
 
-  static const int schemaVersion = 2;
+  static const int schemaVersion = 3;
   static const String fileName = 'best.db';
 
   final Database db;
@@ -30,6 +30,9 @@ class AppDatabase {
         onUpgrade: (db, oldVersion, newVersion) async {
           if (oldVersion < 2) {
             await _createDownloads(db);
+          }
+          if (oldVersion < 3) {
+            await _addDownloadBytes(db);
           }
         },
       ),
@@ -104,6 +107,7 @@ class AppDatabase {
         unit_title TEXT NOT NULL,
         total INTEGER NOT NULL DEFAULT 0,
         completed INTEGER NOT NULL DEFAULT 0,
+        bytes INTEGER NOT NULL DEFAULT 0,
         status TEXT NOT NULL,
         error TEXT,
         directory TEXT,
@@ -113,6 +117,18 @@ class AppDatabase {
     await db.execute(
       'CREATE INDEX IF NOT EXISTS downloads_recent ON downloads (updated_at DESC)',
     );
+  }
+
+  /// Version 2 shipped without byte accounting. A fresh install already has
+  /// the column; an upgrade adds it in place.
+  static Future<void> _addDownloadBytes(Database db) async {
+    final columns = await db.rawQuery('PRAGMA table_info(downloads)');
+    final hasBytes = columns.any((column) => column['name'] == 'bytes');
+    if (!hasBytes) {
+      await db.execute(
+        'ALTER TABLE downloads ADD COLUMN bytes INTEGER NOT NULL DEFAULT 0',
+      );
+    }
   }
 
   Future<void> close() => db.close();
