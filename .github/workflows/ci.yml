@@ -68,6 +68,11 @@ jobs:
         run: sh tool/bootstrap_android.sh
 
       - name: Configure release signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: sh tool/configure_signing.sh
 
       - name: Dependencies and localization
@@ -87,6 +92,15 @@ jobs:
       - name: Build release APK
         working-directory: apps/best_app
         run: flutter build apk --release
+
+      # A release signed with the runner's throwaway debug key cannot be
+      # updated in place, so publishing stops before the upload.
+      - name: Verify the release signature
+        working-directory: apps/best_app
+        run: |
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk | tee certs.txt
+          grep -q "CN=Best App" certs.txt
 
       - uses: actions/upload-artifact@v4
         with:
