@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:best_data/best_data.dart';
 import 'package:best_domain/best_domain.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Replaced in `main()` after the database is open. A provider that throws
@@ -23,6 +25,26 @@ final Provider<http.Client> httpClientProvider = Provider<http.Client>((ref) {
   final client = http.Client();
   ref.onDispose(client.close);
   return client;
+});
+
+/// Where finished pages live. `main()` overrides this with the app documents
+/// directory; the temp fallback keeps tests and a broken platform store
+/// working for the session instead of disabling downloads.
+final Provider<Directory> downloadRootProvider = Provider<Directory>((ref) {
+  return Directory(p.join(Directory.systemTemp.path, 'best-downloads'));
+});
+
+final Provider<DownloadManager> downloadManagerProvider =
+    Provider<DownloadManager>((ref) {
+  final manager = DownloadManager(
+    repository: ref.watch(repositoryProvider),
+    registry: ref.watch(sourceRegistryProvider),
+    client: ref.watch(httpClientProvider),
+    root: ref.watch(downloadRootProvider),
+  );
+  ref.onDispose(manager.dispose);
+  unawaited(manager.restore().catchError((Object _) {}));
+  return manager;
 });
 
 /// Packs the person installed, newest last. Broken documents are dropped on
@@ -213,6 +235,13 @@ final FutureProvider<List<ContinueEntry>> continueProvider =
   return ref.watch(repositoryProvider).continueReading();
 });
 
+/// Re-read after every write, including the one the manager makes per page.
+final FutureProvider<List<DownloadTask>> downloadsProvider =
+    FutureProvider<List<DownloadTask>>((ref) async {
+  ref.watch(libraryChangesProvider);
+  return ref.watch(repositoryProvider).downloads();
+});
+
 typedef BrowseKey = ({String sourceId, String query});
 
 /// One provider for both the landing page and a search. Splitting them meant
@@ -290,12 +319,16 @@ class ReaderData {
     required this.unit,
     required this.resources,
     required this.progress,
+    this.offline = false,
   });
 
   final Media media;
   final MediaUnit unit;
   final List<MediaResource> resources;
   final UnitProgress? progress;
+
+  /// True when the pages came from a finished download, not a source.
+  final bool offline;
 }
 
 final readerProvider = FutureProvider.family<ReaderData, ReaderKey>((
@@ -321,13 +354,42 @@ final readerProvider = FutureProvider.family<ReaderData, ReaderKey>((
     orElse: () => throw StateError('This unit is not in the local catalogue.'),
   );
 
-  final resources = await source.resources(unit);
-  final progress = await repository.progressFor(unit.id);
+  final task = await repository.downloadFor(unit.id);
+  if (task != null && task.isFinished && task.directory != null) {
+    final local = await downloadedPages(task.directory!);
+    if (local.isNotEmpty) {
+      return ReaderData(
+        media: media,
+        unit: unit,
+        resources: local,
+        progress: await repository.progressFor(unit.id),
+        offline: true,
+      );
+    }
+  }
+
+  List<MediaResource> resources;
+  try {
+    resources = await source.resources(unit);
+  } catch (error) {
+    // A paused or partially written download is still better than an error
+    // page when the network is the thing that failed.
+    if (task?.directory == null) rethrow;
+    final local = await downloadedPages(task!.directory!);
+    if (local.isEmpty) rethrow;
+    return ReaderData(
+      media: media,
+      unit: unit,
+      resources: local,
+      progress: await repository.progressFor(unit.id),
+      offline: true,
+    );
+  }
 
   return ReaderData(
     media: media,
     unit: unit,
     resources: resources,
-    progress: progress,
+    progress: await repository.progressFor(unit.id),
   );
 });

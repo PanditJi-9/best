@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../providers.dart';
 
 /// The four destinations are the whole information architecture: what you own,
 /// what exists, what is offline, and how the app behaves. Anything deeper is a
@@ -15,6 +16,10 @@ class ShellScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+
+    // Keeps the offline queue alive while any tab is open: leaving Downloads
+    // must not pause a chapter that is already downloading.
+    ref.watch(downloadManagerProvider);
 
     return Scaffold(
       body: navigationShell,

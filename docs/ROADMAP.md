@@ -21,13 +21,20 @@ demo. Each phase ends with a build that can be installed and used.
 - Bulk refresh of followed works with a per-source rate limit.
 - Better Arabic metadata normalization (author names, status, genres).
 
-## 2. Offline engine
+## 2. Offline engine — first slice in 0.2.0
 
-- Download queue for chapter pages and episode files, pause/resume, Wi-Fi only.
-- Storage accounting, per-work size, automatic eviction of finished downloads.
-- Background isolate for downloads and image decoding.
-- Integrity check per file; a corrupt page is re-fetched, not shown as blank.
-- "Available offline" is a real filter on the shelf.
+- [x] Download queue for chapter pages, pause/resume/retry/delete, persisted
+  across launches.
+- [x] The reader prefers finished downloads and falls back to partial pages when
+  the source is unreachable.
+- [ ] Wi-Fi-only scheduling and a per-download data estimate.
+- [ ] Storage accounting, per-work size, automatic eviction of finished
+  downloads.
+- [ ] Background isolate for downloads and image decoding; the current queue
+  runs while the app process is alive.
+- [ ] Integrity check per file; today a page is written atomically and a
+  missing page is fetched again on resume, but a corrupt image is not detected.
+- [ ] "Available offline" is a real filter on the shelf.
 
 ## 3. Playback
 

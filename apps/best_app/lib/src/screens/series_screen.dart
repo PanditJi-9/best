@@ -55,6 +55,9 @@ class _SeriesBody extends ConsumerWidget {
     final theme = Theme.of(context);
     final media = data.media;
     final units = data.units;
+    final downloads =
+        ref.watch(downloadsProvider).value ?? const <DownloadTask>[];
+    final tasks = {for (final task in downloads) task.unitId: task};
     final next = _nextUnit(units, data.progress);
     final hasProgress = data.progress.values.any(
       (progress) => progress.position > 0 || progress.completed,
@@ -298,16 +301,40 @@ class _SeriesBody extends ConsumerWidget {
             SliverList(
               delegate: SliverChildBuilderDelegate((context, index) {
                 final unit = units[index];
+                final task = tasks[unit.id];
                 return _UnitTile(
                   unit: unit,
                   progress: data.progress[unit.id],
+                  download: task,
                   onTap: () => openReader(context, ref, media, unit),
+                  onDownload: () => _download(context, ref, media, unit),
+                  onPause: task == null
+                      ? null
+                      : () =>
+                          ref.read(downloadManagerProvider).pause(task.unitId),
+                  onResume: task == null
+                      ? null
+                      : () =>
+                          ref.read(downloadManagerProvider).resume(task.unitId),
                 );
               }, childCount: units.length),
             ),
           const SliverToBoxAdapter(child: SizedBox(height: 28)),
         ],
       ),
+    );
+  }
+
+  Future<void> _download(
+    BuildContext context,
+    WidgetRef ref,
+    Media media,
+    MediaUnit unit,
+  ) async {
+    await ref.read(downloadManagerProvider).enqueue(media, unit);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppLocalizations.of(context).downloadStarted)),
     );
   }
 
@@ -363,12 +390,20 @@ class _UnitTile extends StatelessWidget {
   const _UnitTile({
     required this.unit,
     required this.progress,
+    required this.download,
     required this.onTap,
+    required this.onDownload,
+    required this.onPause,
+    required this.onResume,
   });
 
   final MediaUnit unit;
   final UnitProgress? progress;
+  final DownloadTask? download;
   final VoidCallback onTap;
+  final VoidCallback onDownload;
+  final VoidCallback? onPause;
+  final VoidCallback? onResume;
 
   @override
   Widget build(BuildContext context) {
@@ -431,6 +466,14 @@ class _UnitTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
+            _DownloadControl(
+              unit: unit,
+              download: download,
+              onDownload: onDownload,
+              onPause: onPause,
+              onResume: onResume,
+            ),
+            const SizedBox(width: 2),
             if (completed)
               const Icon(Icons.check_circle, color: BestColors.jade, size: 22)
             else if (started)
@@ -460,5 +503,84 @@ class _UnitTile extends StatelessWidget {
     if (date.isNotEmpty) parts.add(date);
     if (unit.pageCount > 0) parts.add(l10n.pages(unit.pageCount));
     return parts.join(' · ');
+  }
+}
+
+class _DownloadControl extends StatelessWidget {
+  const _DownloadControl({
+    required this.unit,
+    required this.download,
+    required this.onDownload,
+    required this.onPause,
+    required this.onResume,
+  });
+
+  final MediaUnit unit;
+  final DownloadTask? download;
+  final VoidCallback onDownload;
+  final VoidCallback? onPause;
+  final VoidCallback? onResume;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final task = download;
+
+    if (task == null) {
+      return IconButton(
+        tooltip: unit.kind == UnitKind.episode
+            ? l10n.downloadEpisode
+            : l10n.downloadChapter,
+        visualDensity: VisualDensity.compact,
+        onPressed: onDownload,
+        icon: const Icon(Icons.download_outlined, size: 20),
+      );
+    }
+    if (task.isFinished) {
+      return Tooltip(
+        message: l10n.downloadDone,
+        child: const Padding(
+          padding: EdgeInsets.all(12),
+          child: Icon(
+            Icons.download_done_rounded,
+            color: BestColors.jade,
+            size: 20,
+          ),
+        ),
+      );
+    }
+    if (task.isFailed) {
+      return IconButton(
+        tooltip: l10n.downloadRetry,
+        visualDensity: VisualDensity.compact,
+        onPressed: onResume,
+        icon: Icon(
+          Icons.refresh_rounded,
+          size: 20,
+          color: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+    if (task.isPaused) {
+      return IconButton(
+        tooltip: l10n.downloadResume,
+        visualDensity: VisualDensity.compact,
+        onPressed: onResume,
+        icon: const Icon(Icons.play_arrow_rounded, size: 22),
+      );
+    }
+    return IconButton(
+      tooltip: l10n.downloadPause,
+      visualDensity: VisualDensity.compact,
+      onPressed: onPause,
+      icon: SizedBox(
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(
+          value: task.progress,
+          strokeWidth: 2.2,
+        ),
+      ),
+    );
   }
 }

@@ -17,6 +17,7 @@ class MemoryLibraryRepository implements LibraryRepository {
   final Map<String, Media> _media = {};
   final Map<String, MediaUnit> _units = {};
   final Map<String, UnitProgress> _progress = {};
+  final Map<String, DownloadTask> _downloads = {};
   final StreamController<void> _changes = StreamController<void>.broadcast();
 
   @override
@@ -157,12 +158,36 @@ class MemoryLibraryRepository implements LibraryRepository {
       if (media == null || !media.inLibrary) continue;
       entries.add(ContinueEntry(media: media, unit: unit, progress: progress));
     }
-    entries.sort((a, b) => b.progress.updatedAt.compareTo(a.progress.updatedAt));
+    entries
+        .sort((a, b) => b.progress.updatedAt.compareTo(a.progress.updatedAt));
     return List.unmodifiable(entries.take(limit));
   }
 
   @override
-  Future<void> removeFromLibrary(String mediaId) => setInLibrary(mediaId, false);
+  Future<void> removeFromLibrary(String mediaId) =>
+      setInLibrary(mediaId, false);
+
+  @override
+  Future<List<DownloadTask>> downloads() async {
+    final rows = _downloads.values.toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return List.unmodifiable(rows);
+  }
+
+  @override
+  Future<DownloadTask?> downloadFor(String unitId) async => _downloads[unitId];
+
+  @override
+  Future<void> saveDownload(DownloadTask task) async {
+    _downloads[task.unitId] = task;
+    _notify();
+  }
+
+  @override
+  Future<void> deleteDownload(String unitId) async {
+    _downloads.remove(unitId);
+    _notify();
+  }
 
   @override
   Future<void> close() async {

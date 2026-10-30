@@ -49,7 +49,8 @@ class SqfliteLibraryRepository implements LibraryRepository {
 
   @override
   Future<Media?> mediaById(String id) async {
-    final rows = await _db.query('media', where: 'id = ?', whereArgs: [id], limit: 1);
+    final rows =
+        await _db.query('media', where: 'id = ?', whereArgs: [id], limit: 1);
     return rows.isEmpty ? null : _mediaFromRow(rows.first);
   }
 
@@ -67,7 +68,8 @@ class SqfliteLibraryRepository implements LibraryRepository {
   @override
   Future<void> saveMedia(Media media) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    final addedAt = media.addedAt > 0 ? media.addedAt : (media.inLibrary ? now : 0);
+    final addedAt =
+        media.addedAt > 0 ? media.addedAt : (media.inLibrary ? now : 0);
 
     await _db.rawInsert(
       '''
@@ -121,7 +123,8 @@ class SqfliteLibraryRepository implements LibraryRepository {
         [now, mediaId],
       );
     } else {
-      await _db.rawUpdate('UPDATE media SET in_library = 0 WHERE id = ?', [mediaId]);
+      await _db
+          .rawUpdate('UPDATE media SET in_library = 0 WHERE id = ?', [mediaId]);
     }
     _notify();
   }
@@ -258,12 +261,78 @@ class SqfliteLibraryRepository implements LibraryRepository {
   }
 
   @override
-  Future<void> removeFromLibrary(String mediaId) => setInLibrary(mediaId, false);
+  Future<void> removeFromLibrary(String mediaId) =>
+      setInLibrary(mediaId, false);
+
+  @override
+  Future<List<DownloadTask>> downloads() async {
+    final rows = await _db.query('downloads', orderBy: 'updated_at DESC');
+    return rows.map(_downloadFromRow).toList(growable: false);
+  }
+
+  @override
+  Future<DownloadTask?> downloadFor(String unitId) async {
+    final rows = await _db.query(
+      'downloads',
+      where: 'unit_id = ?',
+      whereArgs: [unitId],
+      limit: 1,
+    );
+    return rows.isEmpty ? null : _downloadFromRow(rows.first);
+  }
+
+  @override
+  Future<void> saveDownload(DownloadTask task) async {
+    await _db.insert(
+      'downloads',
+      {
+        'unit_id': task.unitId,
+        'media_id': task.mediaId,
+        'source_id': task.sourceId,
+        'media_url': task.mediaUrl,
+        'unit_url': task.unitUrl,
+        'media_title': task.mediaTitle,
+        'unit_title': task.unitTitle,
+        'total': task.total,
+        'completed': task.completed,
+        'status': task.status.name,
+        'error': task.error,
+        'directory': task.directory,
+        'updated_at': task.updatedAt,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    _notify();
+  }
+
+  @override
+  Future<void> deleteDownload(String unitId) async {
+    await _db.delete('downloads', where: 'unit_id = ?', whereArgs: [unitId]);
+    _notify();
+  }
 
   @override
   Future<void> close() async {
     await _changes.close();
     await _db.close();
+  }
+
+  static DownloadTask _downloadFromRow(Map<String, Object?> row) {
+    return DownloadTask(
+      unitId: row['unit_id'] as String,
+      mediaId: row['media_id'] as String,
+      sourceId: row['source_id'] as String,
+      mediaUrl: row['media_url'] as String,
+      unitUrl: row['unit_url'] as String,
+      mediaTitle: row['media_title'] as String,
+      unitTitle: row['unit_title'] as String,
+      total: (row['total'] as int?) ?? 0,
+      completed: (row['completed'] as int?) ?? 0,
+      status: DownloadStatus.values.byName(row['status'] as String),
+      error: row['error'] as String?,
+      directory: row['directory'] as String?,
+      updatedAt: (row['updated_at'] as int?) ?? 0,
+    );
   }
 
   static Media _mediaFromRow(Map<String, Object?> row) {

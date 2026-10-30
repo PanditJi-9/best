@@ -82,6 +82,39 @@ void main() {
     );
   });
 
+  testWidgets('downloads tab lists a finished chapter', (tester) async {
+    final repository = MemoryLibraryRepository();
+    final media = Media(
+      ref: const SourceRef('test', 'blue-echo'),
+      title: 'Blue Echo',
+      kind: MediaKind.manhwa,
+    );
+    await repository.saveMedia(media);
+    await repository.saveDownload(
+      DownloadTask(
+        unitId: '${media.id}::unit-1',
+        mediaId: media.id,
+        sourceId: media.ref.sourceId,
+        mediaUrl: media.ref.url,
+        unitUrl: 'unit-1',
+        mediaTitle: media.title,
+        unitTitle: 'Chapter 1',
+        total: 10,
+        completed: 10,
+        status: DownloadStatus.done,
+        updatedAt: 10,
+      ),
+    );
+
+    await _pumpApp(tester, repository: repository);
+    await tester.tap(find.text('Downloads').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Blue Echo'), findsOneWidget);
+    expect(find.text('Chapter 1'), findsOneWidget);
+    expect(find.text('Downloaded'), findsOneWidget);
+  });
+
   testWidgets('the guide opens a series and a readable page', (tester) async {
     await _pumpApp(tester);
 

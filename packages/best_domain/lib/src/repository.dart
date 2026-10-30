@@ -1,3 +1,4 @@
+import 'downloads.dart';
 import 'library.dart';
 import 'media.dart';
 import 'progress.dart';
@@ -39,6 +40,16 @@ abstract interface class LibraryRepository {
   Future<List<ContinueEntry>> continueReading({int limit = 6});
 
   Future<void> removeFromLibrary(String mediaId);
+
+  /// Every download, newest first. The manager owns transitions; the UI only
+  /// reads and asks for pause/resume/cancel.
+  Future<List<DownloadTask>> downloads();
+
+  Future<DownloadTask?> downloadFor(String unitId);
+
+  Future<void> saveDownload(DownloadTask task);
+
+  Future<void> deleteDownload(String unitId);
 
   Future<void> close();
 }

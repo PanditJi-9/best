@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:best_data/best_data.dart';
 import 'package:best_domain/best_domain.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -27,12 +29,14 @@ void main() {
 
       final repository = await _openRepository();
       final preferences = await _openPreferences();
+      final downloads = await _openDownloadRoot();
 
       runApp(
         ProviderScope(
           overrides: [
             repositoryProvider.overrideWithValue(repository),
             preferencesProvider.overrideWithValue(preferences),
+            downloadRootProvider.overrideWithValue(downloads),
           ],
           child: const BestApp(),
         ),
@@ -76,6 +80,26 @@ Future<SharedPreferences?> _openPreferences() async {
   } catch (error, stack) {
     debugPrint('Best: preferences unavailable. $error\n$stack');
     return null;
+  }
+}
+
+/// Downloads need a directory that survives a restart. If the platform store
+/// cannot provide one, the queue still runs from the cache for this session;
+/// a read-only download is better than a disabled feature that looks broken.
+Future<Directory> _openDownloadRoot() async {
+  try {
+    final documents = await getApplicationDocumentsDirectory().timeout(
+      const Duration(seconds: 5),
+    );
+    final directory = Directory(p.join(documents.path, 'downloads'));
+    await directory.create(recursive: true);
+    return directory;
+  } catch (error, stack) {
+    debugPrint('Best: downloads use the temp directory. $error\n$stack');
+    final directory =
+        Directory(p.join(Directory.systemTemp.path, 'best-downloads'));
+    await directory.create(recursive: true);
+    return directory;
   }
 }
 

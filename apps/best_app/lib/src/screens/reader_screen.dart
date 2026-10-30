@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:best_domain/best_domain.dart';
 import 'package:best_ui/best_ui.dart';
@@ -144,6 +145,32 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
           ],
         ),
         actions: [
+          if (widget.data.offline)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 10),
+              child: Center(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: BestColors.jade.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(BestRadius.pill),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    child: Text(
+                      l10n.offlineBadge,
+                      style: const TextStyle(
+                        color: BestColors.jade,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           if (total > 0)
             Padding(
               padding: const EdgeInsetsDirectional.only(end: 16),
@@ -210,6 +237,23 @@ class _ResourcePage extends StatelessWidget {
                   child: CircularProgressIndicator(color: Colors.white54),
                 );
               },
+              errorBuilder: (context, error, stack) => const Center(
+                child: Icon(
+                  Icons.broken_image_outlined,
+                  color: Colors.white38,
+                  size: 40,
+                ),
+              ),
+            ),
+          ),
+        ),
+      FileResource(:final path) => InteractiveViewer(
+          minScale: 1,
+          maxScale: 4,
+          child: Center(
+            child: Image.file(
+              File(path),
+              fit: BoxFit.contain,
               errorBuilder: (context, error, stack) => const Center(
                 child: Icon(
                   Icons.broken_image_outlined,

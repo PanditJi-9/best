@@ -1,3 +1,4 @@
+export 'src/downloads.dart';
 export 'src/ids.dart';
 export 'src/library.dart';
 export 'src/media.dart';

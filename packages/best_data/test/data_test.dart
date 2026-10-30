@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:best_data/best_data.dart';
 import 'package:best_domain/best_domain.dart';
+import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:test/test.dart';
 
@@ -47,7 +50,12 @@ void main() {
     await repository.saveMedia(work('a'));
     await repository.saveUnits([unit('a', 1), unit('a', 2), unit('a', 3)]);
     await repository.saveProgress(
-      UnitProgress(unitId: unit('a', 1).id, position: 19, total: 20, completed: true, updatedAt: 10),
+      UnitProgress(
+          unitId: unit('a', 1).id,
+          position: 19,
+          total: 20,
+          completed: true,
+          updatedAt: 10),
     );
 
     final shelf = await repository.library();
@@ -82,10 +90,12 @@ void main() {
     await repository.saveUnits([unit('a', 1), unit('b', 1)]);
 
     await repository.saveProgress(
-      UnitProgress(unitId: unit('a', 1).id, position: 4, total: 20, updatedAt: 100),
+      UnitProgress(
+          unitId: unit('a', 1).id, position: 4, total: 20, updatedAt: 100),
     );
     await repository.saveProgress(
-      UnitProgress(unitId: unit('b', 1).id, position: 7, total: 20, updatedAt: 300),
+      UnitProgress(
+          unitId: unit('b', 1).id, position: 7, total: 20, updatedAt: 300),
     );
 
     final rows = await repository.continueReading();
@@ -118,7 +128,8 @@ void main() {
     await repository.saveMedia(work('a'));
     await repository.saveUnits([unit('a', 1)]);
     await repository.saveProgress(
-      UnitProgress(unitId: unit('a', 1).id, position: 3, total: 20, updatedAt: 10),
+      UnitProgress(
+          unitId: unit('a', 1).id, position: 3, total: 20, updatedAt: 10),
     );
 
     await repository.removeFromLibrary('test::a');
@@ -174,6 +185,78 @@ void main() {
     expect(await memory.mediaById(media.id), isNotNull);
     expect(await memory.progressFor(unit('a', 1).id), isNotNull);
     await memory.close();
+  });
+
+  test('stores a download and reads it back', () async {
+    final task = DownloadTask(
+      unitId: unit('a', 1).id,
+      mediaId: 'test::a',
+      sourceId: 'test',
+      mediaUrl: 'a',
+      unitUrl: 'unit-1',
+      mediaTitle: 'a',
+      unitTitle: 'Chapter 1',
+      total: 20,
+      completed: 4,
+      status: DownloadStatus.paused,
+      directory: '/tmp/a',
+      updatedAt: 7,
+    );
+    await repository.saveDownload(task);
+
+    final stored = await repository.downloadFor(task.unitId);
+    expect(stored, isNotNull);
+    expect(stored!.status, DownloadStatus.paused);
+    expect(stored.completed, 4);
+    expect(stored.mediaUrl, 'a');
+    expect(stored.unitUrl, 'unit-1');
+    expect(await repository.downloads(), hasLength(1));
+
+    await repository.deleteDownload(task.unitId);
+    expect(await repository.downloadFor(task.unitId), isNull);
+  });
+
+  test('upgrading a version 1 database adds the downloads table', () async {
+    final folder = await Directory.systemTemp.createTemp('best-migrate-test');
+    addTearDown(() async {
+      if (await folder.exists()) await folder.delete(recursive: true);
+    });
+    final path = p.join(folder.path, 'best.db');
+
+    final old = await databaseFactoryFfi.openDatabase(
+      path,
+      options: OpenDatabaseOptions(
+        version: 1,
+        onCreate: (db, version) async {
+          await db.execute('CREATE TABLE media (id TEXT PRIMARY KEY)');
+        },
+      ),
+    );
+    await old.close();
+
+    final upgraded = await AppDatabase.open(
+      factory: databaseFactoryFfi,
+      path: path,
+    );
+    final migrated = SqfliteLibraryRepository(upgraded.db);
+    addTearDown(migrated.close);
+
+    await migrated.saveDownload(
+      DownloadTask(
+        unitId: 'test::a::unit-1',
+        mediaId: 'test::a',
+        sourceId: 'test',
+        mediaUrl: 'a',
+        unitUrl: 'unit-1',
+        mediaTitle: 'a',
+        unitTitle: 'Chapter 1',
+        total: 2,
+        status: DownloadStatus.queued,
+        updatedAt: 1,
+      ),
+    );
+
+    expect(await migrated.downloads(), hasLength(1));
   });
 
   test('the guide has units and generated pages', () async {

@@ -8,7 +8,7 @@ import 'package:sqflite_common/sqlite_api.dart';
 class AppDatabase {
   AppDatabase._(this.db);
 
-  static const int schemaVersion = 1;
+  static const int schemaVersion = 2;
   static const String fileName = 'best.db';
 
   final Database db;
@@ -26,6 +26,11 @@ class AppDatabase {
         },
         onCreate: (db, version) async {
           await _create(db);
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await _createDownloads(db);
+          }
         },
       ),
     );
@@ -79,9 +84,35 @@ class AppDatabase {
       )
     ''');
 
+    await _createDownloads(db);
+
     await db.execute('CREATE INDEX media_library ON media (in_library, title)');
     await db.execute('CREATE INDEX unit_media ON unit (media_id, number)');
-    await db.execute('CREATE INDEX progress_recent ON progress (updated_at DESC)');
+    await db
+        .execute('CREATE INDEX progress_recent ON progress (updated_at DESC)');
+  }
+
+  static Future<void> _createDownloads(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS downloads (
+        unit_id TEXT PRIMARY KEY,
+        media_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        media_url TEXT NOT NULL,
+        unit_url TEXT NOT NULL,
+        media_title TEXT NOT NULL,
+        unit_title TEXT NOT NULL,
+        total INTEGER NOT NULL DEFAULT 0,
+        completed INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL,
+        error TEXT,
+        directory TEXT,
+        updated_at INTEGER NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS downloads_recent ON downloads (updated_at DESC)',
+    );
   }
 
   Future<void> close() => db.close();

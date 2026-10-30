@@ -63,8 +63,8 @@
   "sortRecentlyRead": "Recently read",
   "sortRecentlyAdded": "Recently added",
   "downloadsTitle": "Downloads",
-  "downloadsEmptyTitle": "Offline is not wired yet",
-  "downloadsEmptyBody": "The download queue arrives with the offline engine. Nothing is downloaded behind your back.",
+  "downloadsEmptyTitle": "Nothing downloaded yet",
+  "downloadsEmptyBody": "Download a chapter from any series. It stays readable without a connection, and you can pause or delete it at any time.",
   "settingsTitle": "Settings",
   "language": "Language",
   "languageSystem": "System",
@@ -75,7 +75,7 @@
   "themeLight": "Light",
   "themeDark": "Dark",
   "about": "About",
-  "aboutBody": "Best 0.1.0 — one shelf for manga, manhwa, anime and Asian drama. Built to stay fast on a mid-range phone.",
+  "aboutBody": "Best 0.2.0 — one shelf for manga, manhwa, anime and Asian drama. Built to stay fast on a mid-range phone.",
   "pageOf": "Page {current} of {total}",
   "@pageOf": {
     "placeholders": {
@@ -114,5 +114,33 @@
   "builtIn": "Built-in",
   "add": "Add",
   "cancel": "Cancel",
-  "delete": "Delete"
+  "delete": "Delete",
+  "downloadChapter": "Download chapter",
+  "downloadEpisode": "Download episode",
+  "downloadQueued": "Queued",
+  "downloadPaused": "Paused",
+  "downloadFailed": "Download failed",
+  "downloadDone": "Downloaded",
+  "downloadStarted": "Added to downloads",
+  "downloadRemoved": "Download deleted",
+  "downloadPause": "Pause download",
+  "downloadResume": "Resume download",
+  "downloadRetry": "Retry download",
+  "downloadDelete": "Delete download",
+  "downloadDeleteTitle": "Delete this download?",
+  "downloadDeleteBody": "The pages are removed from this device. You can download the chapter again later.",
+  "downloadOpen": "Read offline",
+  "downloadsNote": "Keep Best open while a chapter downloads. If the app closes, it resumes from the last saved page.",
+  "offlineBadge": "Offline",
+  "downloadProgress": "{done} of {total} pages",
+  "@downloadProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  }
 }

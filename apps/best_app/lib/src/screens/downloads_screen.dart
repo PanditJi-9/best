@@ -1,15 +1,21 @@
+import 'package:best_domain/best_domain.dart';
 import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../navigation.dart';
+import '../providers.dart';
 
-class DownloadsScreen extends StatelessWidget {
+class DownloadsScreen extends ConsumerWidget {
   const DownloadsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final downloads = ref.watch(downloadsProvider);
 
     return SafeArea(
       bottom: false,
@@ -27,17 +33,387 @@ class DownloadsScreen extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Center(
-              child: SingleChildScrollView(
+            child: downloads.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => Center(
                 child: EmptyState(
-                  icon: Icons.download_for_offline_outlined,
-                  title: l10n.downloadsEmptyTitle,
-                  body: l10n.downloadsEmptyBody,
+                  icon: Icons.error_outline,
+                  title: l10n.sourceError,
+                  body: '$error',
                 ),
+              ),
+              data: (tasks) {
+                if (tasks.isEmpty) {
+                  return Center(
+                    child: SingleChildScrollView(
+                      child: EmptyState(
+                        icon: Icons.download_for_offline_outlined,
+                        title: l10n.downloadsEmptyTitle,
+                        body: l10n.downloadsEmptyBody,
+                      ),
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  itemCount: tasks.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return _OfflineNote(text: l10n.downloadsNote);
+                    }
+                    final task = tasks[index - 1];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _DownloadTile(
+                        task: task,
+                        onPause: () => ref
+                            .read(downloadManagerProvider)
+                            .pause(task.unitId),
+                        onResume: () => ref
+                            .read(downloadManagerProvider)
+                            .resume(task.unitId),
+                        onRetry: () => ref
+                            .read(downloadManagerProvider)
+                            .retry(task.unitId),
+                        onDelete: () => _delete(context, ref, task),
+                        onOpen: task.isFinished
+                            ? () => context.push(
+                                  Routes.reader(
+                                    sourceId: task.sourceId,
+                                    url: task.mediaUrl,
+                                    unitUrl: task.unitUrl,
+                                  ),
+                                )
+                            : null,
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _delete(
+    BuildContext context,
+    WidgetRef ref,
+    DownloadTask task,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.downloadDeleteTitle),
+        content: Text(l10n.downloadDeleteBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref.read(downloadManagerProvider).cancel(task.unitId);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.downloadRemoved)),
+    );
+  }
+}
+
+class _OfflineNote extends StatelessWidget {
+  const _OfflineNote({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.offline_pin_outlined,
+            size: 16,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.5,
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DownloadTile extends StatelessWidget {
+  const _DownloadTile({
+    required this.task,
+    required this.onPause,
+    required this.onResume,
+    required this.onRetry,
+    required this.onDelete,
+    required this.onOpen,
+  });
+
+  final DownloadTask task;
+  final VoidCallback onPause;
+  final VoidCallback onResume;
+  final VoidCallback onRetry;
+  final VoidCallback onDelete;
+  final VoidCallback? onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final done = task.isFinished;
+    final failed = task.isFailed;
+
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(BestRadius.md),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 6, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: done
+                      ? BestColors.jade.withValues(alpha: 0.16)
+                      : theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: _StatusIcon(task: task),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.mediaTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      task.unitTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (failed)
+                      Text(
+                        task.error ?? l10n.downloadFailed,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                          height: 1.4,
+                        ),
+                      )
+                    else ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(BestRadius.pill),
+                        child: LinearProgressIndicator(
+                          value: done ? 1 : task.progress,
+                          minHeight: 4,
+                          backgroundColor:
+                              theme.colorScheme.outlineVariant.withValues(
+                            alpha: 0.5,
+                          ),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            done ? BestColors.jade : theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        _statusLabel(l10n),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: done
+                              ? BestColors.jade
+                              : theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              _Actions(
+                task: task,
+                onPause: onPause,
+                onResume: onResume,
+                onRetry: onRetry,
+                onDelete: onDelete,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _statusLabel(AppLocalizations l10n) {
+    return switch (task.status) {
+      DownloadStatus.queued => l10n.downloadQueued,
+      DownloadStatus.running =>
+        l10n.downloadProgress(task.completed, task.total),
+      DownloadStatus.paused => l10n.downloadPaused,
+      DownloadStatus.done => l10n.downloadDone,
+      DownloadStatus.failed => l10n.downloadFailed,
+    };
+  }
+}
+
+class _StatusIcon extends StatelessWidget {
+  const _StatusIcon({required this.task});
+
+  final DownloadTask task;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return switch (task.status) {
+      DownloadStatus.done => const Icon(
+          Icons.download_done_rounded,
+          color: BestColors.jade,
+          size: 22,
+        ),
+      DownloadStatus.failed => Icon(
+          Icons.error_outline,
+          color: theme.colorScheme.error,
+          size: 22,
+        ),
+      DownloadStatus.paused => Icon(
+          Icons.pause_rounded,
+          color: theme.colorScheme.onSurfaceVariant,
+          size: 22,
+        ),
+      DownloadStatus.queued => Icon(
+          Icons.schedule_rounded,
+          color: theme.colorScheme.onSurfaceVariant,
+          size: 21,
+        ),
+      DownloadStatus.running => SizedBox(
+          width: 21,
+          height: 21,
+          child: CircularProgressIndicator(
+            value: task.progress,
+            strokeWidth: 2.4,
+          ),
+        ),
+    };
+  }
+}
+
+class _Actions extends StatelessWidget {
+  const _Actions({
+    required this.task,
+    required this.onPause,
+    required this.onResume,
+    required this.onRetry,
+    required this.onDelete,
+  });
+
+  final DownloadTask task;
+  final VoidCallback onPause;
+  final VoidCallback onResume;
+  final VoidCallback onRetry;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (task.isFinished)
+          IconButton(
+            tooltip: l10n.downloadOpen,
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _open(context),
+            icon: const Icon(Icons.menu_book_outlined, size: 20),
+          )
+        else if (task.isFailed)
+          IconButton(
+            tooltip: l10n.downloadRetry,
+            visualDensity: VisualDensity.compact,
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded, size: 20),
+          )
+        else if (task.isPaused)
+          IconButton(
+            tooltip: l10n.downloadResume,
+            visualDensity: VisualDensity.compact,
+            onPressed: onResume,
+            icon: const Icon(Icons.play_arrow_rounded, size: 22),
+          )
+        else
+          IconButton(
+            tooltip: l10n.downloadPause,
+            visualDensity: VisualDensity.compact,
+            onPressed: onPause,
+            icon: const Icon(Icons.pause_rounded, size: 20),
+          ),
+        IconButton(
+          tooltip: l10n.downloadDelete,
+          visualDensity: VisualDensity.compact,
+          onPressed: onDelete,
+          icon: Icon(
+            Icons.delete_outline,
+            size: 20,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _open(BuildContext context) {
+    // The tile's InkWell handles taps on the row; the button is here so the
+    // action stays discoverable next to delete.
+    final router = GoRouter.of(context);
+    router.push(
+      Routes.reader(
+        sourceId: task.sourceId,
+        url: task.mediaUrl,
+        unitUrl: task.unitUrl,
       ),
     );
   }

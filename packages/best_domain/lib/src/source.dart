@@ -29,6 +29,15 @@ final class VideoResource extends MediaResource {
   final String? mimeType;
 }
 
+/// A page that already lives on this device, written by the download manager.
+/// The path is absolute and owned by the app; the reader never resolves it
+/// against a source.
+final class FileResource extends MediaResource {
+  const FileResource(this.path);
+
+  final String path;
+}
+
 /// A generated page used by the offline guide and by tests. It is explicit so
 /// the reader never pretends a missing image is a real page.
 final class SyntheticPage extends MediaResource {
@@ -73,7 +82,8 @@ abstract interface class SourceAdapter {
 class SourceRegistry {
   SourceRegistry(this._provider);
 
-  SourceRegistry.fixed(List<SourceAdapter> sources) : _provider = (() => sources);
+  SourceRegistry.fixed(List<SourceAdapter> sources)
+      : _provider = (() => sources);
 
   final List<SourceAdapter> Function() _provider;
 

@@ -49,13 +49,28 @@ metadata but cannot erase a favorite, an `addedAt`, or history.
 
 ## Storage
 
-Schema v1: `media`, `unit`, `progress`, plus three indexes. Foreign keys are on.
-The `DatabaseFactory` is injected, so the same schema runs on `sqflite` on a
-phone and `sqflite_common_ffi` in a test.
+Schema v2: `media`, `unit`, `progress`, `downloads`, plus indexes. Foreign keys
+are on. A v1 database is upgraded in place; the migration only adds the
+downloads table. The `DatabaseFactory` is injected, so the same schema runs on
+`sqflite` on a phone and `sqflite_common_ffi` in a test.
 
 `MemoryLibraryRepository` implements the same contract with the same merge
 rules. It is the widget-test repository and the fallback when the database
 cannot be opened — a failed open must not become a white screen.
+
+## Offline downloads
+
+`DownloadManager` owns the queue and is the only writer of download rows. It
+takes a `LibraryRepository`, a `SourceRegistry`, an `http.Client` and a root
+`Directory`, so a plain Dart test can run it against a mock client and a temp
+folder. It runs one chapter at a time, persists after every page, and treats a
+`running` row found at launch as queued work to resume.
+
+Finished pages are `FileResource` objects, a fourth `MediaResource` variant. The
+reader does not know whether a page came from a CDN or from the phone; it only
+sees the sealed type. The provider checks for a finished download first and
+never calls the source, which is what makes offline reading real rather than a
+cache with a network fallback. Details in [OFFLINE.md](OFFLINE.md).
 
 ## Sources
 

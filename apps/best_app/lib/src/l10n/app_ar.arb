@@ -63,8 +63,8 @@
   "sortRecentlyRead": "آخر قراءة",
   "sortRecentlyAdded": "آخر إضافة",
   "downloadsTitle": "التحميلات",
-  "downloadsEmptyTitle": "العمل دون اتصال لم يُوصَل بعد",
-  "downloadsEmptyBody": "طابور التحميل يأتي مع محرك العمل دون اتصال. لا يُحمَّل شيء من دون علمك.",
+  "downloadsEmptyTitle": "لا تحميلات بعد",
+  "downloadsEmptyBody": "حمّل فصلاً من أي عمل. يبقى مقروءاً دون اتصال، ويمكنك إيقافه مؤقتاً أو حذفه في أي وقت.",
   "settingsTitle": "الإعدادات",
   "language": "اللغة",
   "languageSystem": "حسب النظام",
@@ -75,7 +75,7 @@
   "themeLight": "فاتح",
   "themeDark": "داكن",
   "about": "حول",
-  "aboutBody": "بست 0.1.0 — رفّ واحد للمانجا والمانهوا والأنمي والدراما الآسيوية. مبني ليبقى سريعاً على هاتف متوسط.",
+  "aboutBody": "بست 0.2.0 — رفّ واحد للمانجا والمانهوا والأنمي والدراما الآسيوية. مبني ليبقى سريعاً على هاتف متوسط.",
   "pageOf": "صفحة {current} من {total}",
   "@pageOf": {
     "placeholders": {
@@ -114,5 +114,33 @@
   "builtIn": "مدمج",
   "add": "إضافة",
   "cancel": "إلغاء",
-  "delete": "حذف"
+  "delete": "حذف",
+  "downloadChapter": "حمّل الفصل",
+  "downloadEpisode": "حمّل الحلقة",
+  "downloadQueued": "في الانتظار",
+  "downloadPaused": "متوقف مؤقتاً",
+  "downloadFailed": "فشل التحميل",
+  "downloadDone": "مُحمَّل",
+  "downloadStarted": "أُضيف إلى التحميلات",
+  "downloadRemoved": "حُذف التحميل",
+  "downloadPause": "إيقاف التحميل مؤقتاً",
+  "downloadResume": "استئناف التحميل",
+  "downloadRetry": "إعادة محاولة التحميل",
+  "downloadDelete": "حذف التحميل",
+  "downloadDeleteTitle": "حذف هذا التحميل؟",
+  "downloadDeleteBody": "تُحذف الصفحات من هذا الجهاز. يمكنك تحميل الفصل مرة أخرى لاحقاً.",
+  "downloadOpen": "اقرأ دون اتصال",
+  "downloadsNote": "أبقِ «بست» مفتوحاً أثناء تحميل الفصل. إذا أُغلق التطبيق، يستأنف من آخر صفحة محفوظة.",
+  "offlineBadge": "دون اتصال",
+  "downloadProgress": "{done} من {total} صفحة",
+  "@downloadProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  }
 }
