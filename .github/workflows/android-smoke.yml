@@ -27,6 +27,9 @@ jobs:
       - name: Generate the Android platform
         run: sh tool/bootstrap_android.sh
 
+      - name: Configure release signing
+        run: sh tool/configure_signing.sh
+
       # The emulator system image does not fit next to the runner's preloaded
       # toolchains, so drop the ones this job never uses.
       - name: Free disk space
@@ -62,17 +65,15 @@ jobs:
             -no-boot-anim
           script: |
             set -x
-            APK=apps/best_app/build/app/outputs/flutter-apk/app-release.apk
-            unzip -l "$APK" | grep -E 'lib/(arm64-v8a|armeabi-v7a|x86_64)/lib(app|flutter)\.so' || true
-            adb install -r "$APK"
+            unzip -l apps/best_app/build/app/outputs/flutter-apk/app-release.apk | grep -E 'lib/(arm64-v8a|armeabi-v7a|x86_64)/lib(app|flutter)\.so' || true
+            adb install -r apps/best_app/build/app/outputs/flutter-apk/app-release.apk
             adb logcat -c
             adb shell am start -W -n app.best.best_app/.MainActivity
             sleep 25
             adb exec-out screencap -p > screenshot.png || true
             adb shell uiautomator dump /sdcard/window.xml || true
             adb shell cat /sdcard/window.xml | head -c 6000 || true
-            pid=$(adb shell pidof app.best.best_app || true)
-            echo "PID=$pid"
+            adb shell pidof app.best.best_app || true
             adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' || true
             adb logcat -d -v brief | grep -iE 'flutter|AndroidRuntime|best_app|FATAL|impeller|libflutter' | tail -200 || true
-            test -n "$pid"
+            test -n "$(adb shell pidof app.best.best_app)"

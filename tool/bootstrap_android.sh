@@ -27,5 +27,7 @@ flutter create \
 cp -R "$TMP/bootstrap/android" "$APP/android"
 cp "$ROOT/tool/android/AndroidManifest.xml" \
    "$APP/android/app/src/main/AndroidManifest.xml"
+cp "$ROOT/tool/android/app.build.gradle.kts" \
+   "$APP/android/app/build.gradle.kts"
 
 echo "android/ created for app.best.best_app"

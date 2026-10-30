@@ -67,6 +67,9 @@ jobs:
       - name: Generate the Android platform
         run: sh tool/bootstrap_android.sh
 
+      - name: Configure release signing
+        run: sh tool/configure_signing.sh
+
       - name: Dependencies and localization
         working-directory: apps/best_app
         run: |

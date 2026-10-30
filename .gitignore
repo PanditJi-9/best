@@ -33,3 +33,6 @@ apps/best_app/lib/src/l10n/generated/
 
 # Flutter crash logs
 flutter_*.log
+
+# Release keystores never enter the repository
+*.jks
