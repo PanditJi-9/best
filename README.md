@@ -23,6 +23,10 @@ host and sync are scheduled, not pretended.
   fresh install can be used before any source is configured.
 - **MangaDex.** Search, details, chapter feed and page images through the public
   API. No scraping and no bundled credentials.
+- **Source packs.** Install a third-party catalogue from a declarative JSON
+  manifest (Settings → Source packs). Packs execute nothing: five routes, three
+  field maps, validated before they are stored. See
+  [docs/SOURCE-PACKS.md](docs/SOURCE-PACKS.md).
 - **Merge-safe progress.** A stale write can never move a reader backwards, and
   a catalogue refresh can never erase a favorite or a finished chapter.
 - **Offline-first storage.** SQLite through `sqflite`; an in-memory repository
@@ -87,5 +91,7 @@ release APK. The APK is uploaded as the `best-release-apk` artifact.
 
 ## Roadmap
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) and
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+See [docs/ROADMAP.md](docs/ROADMAP.md),
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
+[docs/SOURCE-PACKS.md](docs/SOURCE-PACKS.md) and the
+[HikariManga reference study](docs/HIKARIMANGA-STUDY.md).

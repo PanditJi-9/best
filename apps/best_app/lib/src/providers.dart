@@ -26,12 +26,87 @@ final Provider<http.Client> httpClientProvider = Provider<http.Client>((ref) {
   return client;
 });
 
+/// Packs the person installed, newest last. Broken documents are dropped on
+/// load instead of blocking the app: a bad edit must never cost the library.
+class SourcePacksController extends Notifier<List<SourcePack>> {
+  static const String _key = 'source_packs_v1';
+  static const Set<String> _reserved = {'demo', 'mangadex'};
+
+  @override
+  List<SourcePack> build() {
+    final preferences = ref.watch(preferencesProvider);
+    return _parseAll(preferences.getStringList(_key) ?? const <String>[]);
+  }
+
+  List<SourcePack> _parseAll(List<String> raws) {
+    final packs = <SourcePack>[];
+    for (final raw in raws) {
+      try {
+        packs.add(SourcePack.parse(raw));
+      } on SourcePackException {
+        // Skip, keep the rest.
+      }
+    }
+    return List.unmodifiable(packs);
+  }
+
+  /// Returns `null` on success, or a message to show under the field.
+  String? add(String raw) {
+    final SourcePack pack;
+    try {
+      pack = SourcePack.parse(raw);
+    } on SourcePackException catch (error) {
+      return error.message;
+    }
+    if (_reserved.contains(pack.id)) {
+      return 'The id "${pack.id}" is reserved by a built-in source.';
+    }
+    final preferences = ref.read(preferencesProvider);
+    final raws = <String>[
+      ...?preferences.getStringList(_key),
+    ]..removeWhere((stored) {
+        try {
+          return SourcePack.parse(stored).id == pack.id;
+        } on SourcePackException {
+          return true;
+        }
+      });
+    raws.add(raw.trim());
+    unawaited(preferences.setStringList(_key, raws));
+    state = _parseAll(raws);
+    return null;
+  }
+
+  void remove(String id) {
+    final preferences = ref.read(preferencesProvider);
+    final raws = <String>[
+      ...?preferences.getStringList(_key),
+    ]..removeWhere((stored) {
+        try {
+          return SourcePack.parse(stored).id == id;
+        } on SourcePackException {
+          return true;
+        }
+      });
+    unawaited(preferences.setStringList(_key, raws));
+    state = _parseAll(raws);
+  }
+}
+
+final NotifierProvider<SourcePacksController, List<SourcePack>>
+    sourcePacksProvider =
+    NotifierProvider<SourcePacksController, List<SourcePack>>(
+  SourcePacksController.new,
+);
+
 final Provider<SourceRegistry> sourceRegistryProvider =
     Provider<SourceRegistry>((ref) {
   final client = ref.watch(httpClientProvider);
+  final packs = ref.watch(sourcePacksProvider);
   return SourceRegistry.fixed(<SourceAdapter>[
     const DemoSource(),
     MangaDexSource(client: client),
+    for (final pack in packs) JsonSourceAdapter(pack: pack, client: client),
   ]);
 });
 

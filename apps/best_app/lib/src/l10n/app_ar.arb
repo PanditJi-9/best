@@ -104,5 +104,15 @@
         "type": "int"
       }
     }
-  }
+  },
+  "sourcePacks": "حزم المصادر",
+  "sourcePacksBody": "كتالوجات مدمجة مع الحزم التي تضيفها. الحزمة JSON تصريحية: لا يُشغَّل أي كود، ولا تصل إلا إلى المضيف المذكور فيها.",
+  "addSourcePack": "أضف حزمة مصدر",
+  "sourcePackHint": "الصق JSON الحزمة هنا",
+  "sourcePackAdded": "أُضيف المصدر",
+  "sourcePackRemoved": "أُزيل المصدر",
+  "builtIn": "مدمج",
+  "add": "إضافة",
+  "cancel": "إلغاء",
+  "delete": "حذف"
 }

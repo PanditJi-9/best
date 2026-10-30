@@ -104,5 +104,15 @@
         "type": "int"
       }
     }
-  }
+  },
+  "sourcePacks": "Source packs",
+  "sourcePacksBody": "Built-in catalogues plus the packs you add. A pack is declarative JSON: no code runs, and it can only reach the host it names.",
+  "addSourcePack": "Add a source pack",
+  "sourcePackHint": "Paste the pack JSON here",
+  "sourcePackAdded": "Source added",
+  "sourcePackRemoved": "Source removed",
+  "builtIn": "Built-in",
+  "add": "Add",
+  "cancel": "Cancel",
+  "delete": "Delete"
 }

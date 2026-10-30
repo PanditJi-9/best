@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:best_app/src/app.dart';
 import 'package:best_app/src/providers.dart';
 import 'package:best_data/best_data.dart';
@@ -110,5 +112,55 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Appearance'), findsOneWidget);
     expect(find.text('Language'), findsOneWidget);
+  });
+
+  testWidgets('a source pack is validated, installed and listed', (
+    tester,
+  ) async {
+    final container = await _pumpApp(tester);
+
+    await tester.tap(find.text('Settings').last);
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('Add a source pack'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    // The bottom bar overlays the last row, so nudge the list once more.
+    await tester.drag(find.byType(ListView), const Offset(0, -160));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add a source pack'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '{"id":"example"');
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('not valid JSON'), findsOneWidget);
+
+    final pack = {
+      'id': 'example',
+      'name': 'Example',
+      'language': 'ar',
+      'baseUrl': 'https://api.example.com',
+      'routes': {
+        'popular': '/popular?page={page}',
+        'search': '/search?q={query}&page={page}',
+        'chapters': '/series/{id}/chapters',
+        'pages': '/chapter/{id}/pages',
+      },
+      'map': {
+        'media': {'list': 'data', 'id': 'slug', 'title': 'title'},
+        'unit': {'list': 'chapters', 'id': 'id'},
+        'page': {'list': 'pages', 'url': 'url'},
+      },
+    };
+    await tester.enterText(find.byType(TextField), jsonEncode(pack));
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Example'), findsOneWidget);
+    expect(container.read(sourcePacksProvider).single.id, 'example');
+    expect(container.read(sourceRegistryProvider).byId('example'), isNotNull);
   });
 }

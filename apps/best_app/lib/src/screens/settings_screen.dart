@@ -74,6 +74,64 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 18),
           _Section(
+            title: l10n.sourcePacks,
+            children: [
+              const _PackTile(
+                icon: Icons.auto_stories_outlined,
+                label: 'MangaDex',
+                detail: null,
+                builtIn: true,
+              ),
+              const _PackTile(
+                icon: Icons.menu_book_outlined,
+                label: 'Best Guide',
+                detail: null,
+                builtIn: true,
+              ),
+              for (final pack in ref.watch(sourcePacksProvider))
+                _PackTile(
+                  icon: Icons.extension_outlined,
+                  label: pack.name,
+                  detail: pack.language,
+                  onRemove: () {
+                    ref.read(sourcePacksProvider.notifier).remove(pack.id);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(l10n.sourcePackRemoved)),
+                    );
+                  },
+                ),
+              InkWell(
+                onTap: () => _openAddPack(context, ref),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.add_link,
+                        size: 20,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          l10n.addSourcePack,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          _Section(
             title: l10n.about,
             children: [
               Padding(
@@ -211,6 +269,149 @@ class _ChoiceTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+Future<void> _openAddPack(BuildContext context, WidgetRef ref) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final l10n = AppLocalizations.of(context);
+  final added = await showDialog<bool>(
+    context: context,
+    builder: (_) => const _AddPackDialog(),
+  );
+  if (added ?? false) {
+    messenger.showSnackBar(SnackBar(content: Text(l10n.sourcePackAdded)));
+  }
+}
+
+class _PackTile extends StatelessWidget {
+  const _PackTile({
+    required this.icon,
+    required this.label,
+    required this.detail,
+    this.builtIn = false,
+    this.onRemove,
+  });
+
+  final IconData icon;
+  final String label;
+  final String? detail;
+  final bool builtIn;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          if (builtIn)
+            Text(
+              l10n.builtIn,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            )
+          else if (detail != null)
+            Text(
+              detail!,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          if (onRemove != null)
+            IconButton(
+              onPressed: onRemove,
+              icon: const Icon(Icons.delete_outline, size: 20),
+              tooltip: l10n.delete,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddPackDialog extends ConsumerStatefulWidget {
+  const _AddPackDialog();
+
+  @override
+  ConsumerState<_AddPackDialog> createState() => _AddPackDialogState();
+}
+
+class _AddPackDialogState extends ConsumerState<_AddPackDialog> {
+  final TextEditingController _controller = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final error = ref.read(sourcePacksProvider.notifier).add(_controller.text);
+    if (error == null) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+    setState(() => _error = error);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Text(l10n.addSourcePack),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.sourcePacksBody,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _controller,
+              minLines: 6,
+              maxLines: 12,
+              autocorrect: false,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              decoration: InputDecoration(
+                hintText: l10n.sourcePackHint,
+                errorText: _error,
+                errorMaxLines: 3,
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(l10n.cancel),
+        ),
+        FilledButton(onPressed: _submit, child: Text(l10n.add)),
+      ],
     );
   }
 }
