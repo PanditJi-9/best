@@ -62,22 +62,17 @@ jobs:
             -no-boot-anim
           script: |
             set -x
-            adb install -r apps/best_app/build/app/outputs/flutter-apk/app-release.apk
+            APK=apps/best_app/build/app/outputs/flutter-apk/app-release.apk
+            unzip -l "$APK" | grep -E 'lib/(arm64-v8a|armeabi-v7a|x86_64)/lib(app|flutter)\.so' || true
+            adb install -r "$APK"
+            adb logcat -c
             adb shell am start -W -n app.best.best_app/.MainActivity
             sleep 25
+            adb exec-out screencap -p > screenshot.png || true
+            adb shell uiautomator dump /sdcard/window.xml || true
+            adb shell cat /sdcard/window.xml | head -c 6000 || true
             pid=$(adb shell pidof app.best.best_app || true)
             echo "PID=$pid"
             adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' || true
-            echo '--- logcat ---'
-            adb logcat -d -v brief \
-              | grep -iE 'flutter|AndroidRuntime|best_app|FATAL|impeller|libflutter' \
-              | tail -200 || true
-            adb exec-out screencap -p > screenshot.png || true
+            adb logcat -d -v brief | grep -iE 'flutter|AndroidRuntime|best_app|FATAL|impeller|libflutter' | tail -200 || true
             test -n "$pid"
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: android-smoke-screenshot
-          path: screenshot.png
-          if-no-files-found: warn

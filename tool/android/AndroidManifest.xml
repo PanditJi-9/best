@@ -25,5 +25,12 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Impeller's Vulkan path crashes on a subset of Android GPU drivers
+             before the first frame, and a reader must open everywhere. The
+             Skia backend is the compatibility path; remove this once the
+             device matrix in docs/ROADMAP.md is green. -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
     </application>
 </manifest>
