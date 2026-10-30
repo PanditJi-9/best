@@ -23,6 +23,10 @@ ThemeData bestTheme(Brightness brightness) {
     colorScheme: scheme,
     brightness: brightness,
     useMaterial3: true,
+    // InkSparkle compiles a fragment shader on first splash. That shader is
+    // missing in headless widget tests and some older devices, so the app uses
+    // the classic ripple: same feedback, no runtime shader dependency.
+    splashFactory: InkRipple.splashFactory,
   );
 
   return base.copyWith(
