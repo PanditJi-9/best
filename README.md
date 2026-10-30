@@ -68,14 +68,23 @@ flutter test
 flutter build apk --release
 ```
 
-The release APK is signed with the debug key until a keystore is configured, so
-it installs on a phone for testing but cannot be published to a store.
+Tagged builds are signed with a release key stored in Actions secrets
+(`tool/configure_signing.sh`); a local build without that secret stays
+debug-signed. The Android manifest opts out of Impeller because its Vulkan path
+crashes before the first frame on a subset of GPU drivers — see
+[the device matrix](docs/ROADMAP.md#device-matrix).
 
 ## CI
 
 `.github/workflows/ci.yml` runs four gates on every push: domain tests, data
 tests, Rust tests and formatting, then Flutter analyze, widget tests and a
-release APK. The APK is uploaded as the `best-release-apk` artifact.
+release APK. The APK is uploaded as the `best-release-apk` artifact, and a `v*`
+tag publishes it to Releases.
+
+`.github/workflows/android-smoke.yml` is the on-demand launch gate: it boots an
+API 30 emulator, installs the release APK, starts it, dumps the visible text and
+a screenshot, and fails if the process is gone. A green build is not proof that
+the app opens; this job is.
 
 ## Design rules
 

@@ -91,3 +91,20 @@ cost, not a promise.
 - F-Droid build after the dependency audit (no proprietary blobs).
 - iOS after the Android release is stable; the domain and data layers are
   already platform-neutral.
+
+### Device matrix
+
+The launch gate is `android-smoke.yml` (API 30, x86_64, clean install). Real
+devices still differ by GPU and vendor ROM, so every release records the devices
+it was opened on:
+
+| Device | Android | Renderer | Result |
+|---|---|---|---|
+| CI emulator | 11 (API 30) | Skia (Impeller opted out) | opens, shelf renders |
+| Owner phone | to be recorded | to be recorded | v0.1.2 pending |
+
+Impeller is opted out in `tool/android/AndroidManifest.xml` because its Vulkan
+path closed the app before the first frame on a real device while the same APK
+opened on the emulator. Skia is the compatibility path and Flutter marks the
+opt-out as deprecated: re-test on a device with `EnableImpeller=true`, and remove
+the opt-out once the matrix is green without it.
