@@ -14,11 +14,10 @@ final Provider<LibraryRepository> repositoryProvider =
   (ref) => throw StateError('repositoryProvider must be overridden in main().'),
 );
 
-final Provider<SharedPreferences> preferencesProvider =
-    Provider<SharedPreferences>(
-  (ref) =>
-      throw StateError('preferencesProvider must be overridden in main().'),
-);
+/// `null` means the platform store is unavailable; settings then live for the
+/// session only. Persistence is a convenience, never a reason to fail a launch.
+final Provider<SharedPreferences?> preferencesProvider =
+    Provider<SharedPreferences?>((ref) => null);
 
 final Provider<http.Client> httpClientProvider = Provider<http.Client>((ref) {
   final client = http.Client();
@@ -35,7 +34,9 @@ class SourcePacksController extends Notifier<List<SourcePack>> {
   @override
   List<SourcePack> build() {
     final preferences = ref.watch(preferencesProvider);
-    return _parseAll(preferences.getStringList(_key) ?? const <String>[]);
+    return _parseAll(
+      preferences?.getStringList(_key) ?? const <String>[],
+    );
   }
 
   List<SourcePack> _parseAll(List<String> raws) {
@@ -63,7 +64,7 @@ class SourcePacksController extends Notifier<List<SourcePack>> {
     }
     final preferences = ref.read(preferencesProvider);
     final raws = <String>[
-      ...?preferences.getStringList(_key),
+      ...?preferences?.getStringList(_key),
     ]..removeWhere((stored) {
         try {
           return SourcePack.parse(stored).id == pack.id;
@@ -72,7 +73,7 @@ class SourcePacksController extends Notifier<List<SourcePack>> {
         }
       });
     raws.add(raw.trim());
-    unawaited(preferences.setStringList(_key, raws));
+    unawaited(preferences?.setStringList(_key, raws));
     state = _parseAll(raws);
     return null;
   }
@@ -80,7 +81,7 @@ class SourcePacksController extends Notifier<List<SourcePack>> {
   void remove(String id) {
     final preferences = ref.read(preferencesProvider);
     final raws = <String>[
-      ...?preferences.getStringList(_key),
+      ...?preferences?.getStringList(_key),
     ]..removeWhere((stored) {
         try {
           return SourcePack.parse(stored).id == id;
@@ -88,7 +89,7 @@ class SourcePacksController extends Notifier<List<SourcePack>> {
           return true;
         }
       });
-    unawaited(preferences.setStringList(_key, raws));
+    unawaited(preferences?.setStringList(_key, raws));
     state = _parseAll(raws);
   }
 }
@@ -137,23 +138,23 @@ class SettingsController extends Notifier<AppSettings> {
   AppSettings build() {
     final preferences = ref.watch(preferencesProvider);
     return AppSettings(
-      languageCode: preferences.getString(_languageKey),
-      themeMode: _readTheme(preferences.getString(_themeKey)),
+      languageCode: preferences?.getString(_languageKey),
+      themeMode: _readTheme(preferences?.getString(_themeKey)),
     );
   }
 
   void setLanguage(String? code) {
     final preferences = ref.read(preferencesProvider);
     if (code == null) {
-      unawaited(preferences.remove(_languageKey));
+      unawaited(preferences?.remove(_languageKey));
     } else {
-      unawaited(preferences.setString(_languageKey, code));
+      unawaited(preferences?.setString(_languageKey, code));
     }
     state = AppSettings(languageCode: code, themeMode: state.themeMode);
   }
 
   void setThemeMode(ThemeMode mode) {
-    unawaited(ref.read(preferencesProvider).setString(_themeKey, mode.name));
+    unawaited(ref.read(preferencesProvider)?.setString(_themeKey, mode.name));
     state = AppSettings(languageCode: state.languageCode, themeMode: mode);
   }
 
