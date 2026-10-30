@@ -27,6 +27,15 @@ jobs:
       - name: Generate the Android platform
         run: sh tool/bootstrap_android.sh
 
+      # The emulator system image does not fit next to the runner's preloaded
+      # toolchains, so drop the ones this job never uses.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/lib/android/sdk/ndk
+          sudo rm -rf /usr/local/share/boost
+          df -h /
+
       - name: Build the release APK
         working-directory: apps/best_app
         run: |
@@ -44,8 +53,8 @@ jobs:
       - name: Boot, install and launch
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
-          target: google_apis
+          api-level: 30
+          target: default
           arch: x86_64
           disable-animations: true
           emulator-options: >-
