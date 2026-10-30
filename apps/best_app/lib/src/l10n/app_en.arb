@@ -1,0 +1,108 @@
+{
+  "@@locale": "en",
+  "appName": "Best",
+  "tagline": "Manga · Manhwa · Anime · Drama",
+  "startReading": "Start reading",
+  "backToSeries": "Back to series",
+  "allSources": "All sources",
+  "openInReader": "Open",
+  "navLibrary": "Library",
+  "navBrowse": "Browse",
+  "navDownloads": "Downloads",
+  "navSettings": "Settings",
+  "searchLibrary": "Search your library",
+  "searchSource": "Search {source}",
+  "@searchSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "continueReading": "Continue reading",
+  "shelfEmptyTitle": "Your shelf is waiting",
+  "shelfEmptyBody": "Add a work from Browse, or open the built-in guide to try the reader before connecting anything.",
+  "openGuide": "Open the guide",
+  "browseTitle": "Browse",
+  "sources": "Sources",
+  "sourceError": "The source did not answer",
+  "retry": "Try again",
+  "nothingHere": "Nothing here yet",
+  "nothingHereBody": "This source returned no works for this page.",
+  "addToLibrary": "Add to library",
+  "inLibrary": "In library",
+  "removeFromLibrary": "Remove from library",
+  "favorite": "Favorite",
+  "unfavorite": "Remove favorite",
+  "chapters": "Chapters",
+  "episodes": "Episodes",
+  "noUnits": "No chapters yet",
+  "aboutWork": "About",
+  "author": "Author",
+  "year": "Year",
+  "status": "Status",
+  "statusOngoing": "Ongoing",
+  "statusCompleted": "Completed",
+  "statusHiatus": "On hiatus",
+  "statusCancelled": "Cancelled",
+  "statusUnknown": "Unknown",
+  "kindManga": "Manga",
+  "kindManhwa": "Manhwa",
+  "kindManhua": "Manhua",
+  "kindWebtoon": "Webtoon",
+  "kindAnime": "Anime",
+  "kindDrama": "Drama",
+  "kindFilm": "Film",
+  "filterAll": "All",
+  "filterUnread": "Unread",
+  "filterInProgress": "In progress",
+  "filterCompleted": "Completed",
+  "filterFavorites": "Favorites",
+  "sort": "Sort",
+  "sortTitle": "Title",
+  "sortRecentlyRead": "Recently read",
+  "sortRecentlyAdded": "Recently added",
+  "downloadsTitle": "Downloads",
+  "downloadsEmptyTitle": "Offline is not wired yet",
+  "downloadsEmptyBody": "The download queue arrives with the offline engine. Nothing is downloaded behind your back.",
+  "settingsTitle": "Settings",
+  "language": "Language",
+  "languageSystem": "System",
+  "arabic": "العربية",
+  "english": "English",
+  "appearance": "Appearance",
+  "themeSystem": "System",
+  "themeLight": "Light",
+  "themeDark": "Dark",
+  "about": "About",
+  "aboutBody": "Best 0.1.0 — one shelf for manga, manhwa, anime and Asian drama. Built to stay fast on a mid-range phone.",
+  "pageOf": "Page {current} of {total}",
+  "@pageOf": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "readerEnd": "End of this unit",
+  "playerSoon": "The video player arrives with the playback engine.",
+  "pages": "{count} pages",
+  "@pages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unitCount": "{count} units",
+  "@unitCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
+}

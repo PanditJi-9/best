@@ -1,0 +1,35 @@
+# Dart and Flutter
+.dart_tool/
+.packages
+.pub-cache/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.g.dart
+*.freezed.dart
+
+# Generated per Flutter version, not owned by this repository.
+apps/best_app/android/
+apps/best_app/ios/
+apps/best_app/web/
+apps/best_app/linux/
+apps/best_app/macos/
+apps/best_app/windows/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Rust
+rust/best_core/target/
+
+# Generated localization output
+apps/best_app/lib/src/l10n/generated/
+
+# Flutter crash logs
+flutter_*.log

@@ -1,0 +1,19 @@
+name: best_data
+description: SQLite storage, backup and source adapters for Best.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  best_domain:
+    path: ../best_domain
+  http: ^1.2.0
+  path: ^1.9.0
+  sqflite_common: ^2.5.4
+
+dev_dependencies:
+  lints: ^5.0.0
+  sqflite_common_ffi: ^2.3.3
+  test: ^1.25.0

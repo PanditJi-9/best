@@ -1,0 +1,16 @@
+[package]
+name = "best_core"
+version = "0.1.0"
+edition = "2021"
+description = "Deterministic, allocation-light core routines shared by every Best target."
+license = "LicenseRef-Proprietary"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = "symbols"
+panic = "abort"

@@ -1,0 +1,108 @@
+{
+  "@@locale": "ar",
+  "appName": "بست",
+  "tagline": "مانجا · مانهوا · أنمي · دراما",
+  "startReading": "ابدأ القراءة",
+  "backToSeries": "رجوع إلى العمل",
+  "allSources": "كل المصادر",
+  "openInReader": "افتح",
+  "navLibrary": "المكتبة",
+  "navBrowse": "تصفّح",
+  "navDownloads": "التحميلات",
+  "navSettings": "الإعدادات",
+  "searchLibrary": "ابحث في مكتبتك",
+  "searchSource": "ابحث في {source}",
+  "@searchSource": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "continueReading": "متابعة القراءة",
+  "shelfEmptyTitle": "رفّك في انتظارك",
+  "shelfEmptyBody": "أضف عملاً من «تصفّح»، أو افتح الدليل المدمج لتجربة القارئ قبل ربط أي مصدر.",
+  "openGuide": "افتح الدليل",
+  "browseTitle": "تصفّح",
+  "sources": "المصادر",
+  "sourceError": "لم يستجب المصدر",
+  "retry": "إعادة المحاولة",
+  "nothingHere": "لا شيء هنا بعد",
+  "nothingHereBody": "لم يُعد هذا المصدر أي عمل في هذه الصفحة.",
+  "addToLibrary": "أضف إلى المكتبة",
+  "inLibrary": "في المكتبة",
+  "removeFromLibrary": "أزل من المكتبة",
+  "favorite": "المفضلة",
+  "unfavorite": "أزل من المفضلة",
+  "chapters": "الفصول",
+  "episodes": "الحلقات",
+  "noUnits": "لا فصول بعد",
+  "aboutWork": "عن العمل",
+  "author": "المؤلف",
+  "year": "السنة",
+  "status": "الحالة",
+  "statusOngoing": "مستمر",
+  "statusCompleted": "مكتمل",
+  "statusHiatus": "متوقف مؤقتاً",
+  "statusCancelled": "ملغى",
+  "statusUnknown": "غير معروف",
+  "kindManga": "مانجا",
+  "kindManhwa": "مانهوا",
+  "kindManhua": "مانهوا صينية",
+  "kindWebtoon": "ويب تون",
+  "kindAnime": "أنمي",
+  "kindDrama": "دراما",
+  "kindFilm": "فيلم",
+  "filterAll": "الكل",
+  "filterUnread": "غير مقروء",
+  "filterInProgress": "قيد القراءة",
+  "filterCompleted": "مكتمل",
+  "filterFavorites": "المفضلة",
+  "sort": "ترتيب",
+  "sortTitle": "العنوان",
+  "sortRecentlyRead": "آخر قراءة",
+  "sortRecentlyAdded": "آخر إضافة",
+  "downloadsTitle": "التحميلات",
+  "downloadsEmptyTitle": "العمل دون اتصال لم يُوصَل بعد",
+  "downloadsEmptyBody": "طابور التحميل يأتي مع محرك العمل دون اتصال. لا يُحمَّل شيء من دون علمك.",
+  "settingsTitle": "الإعدادات",
+  "language": "اللغة",
+  "languageSystem": "حسب النظام",
+  "arabic": "العربية",
+  "english": "English",
+  "appearance": "المظهر",
+  "themeSystem": "حسب النظام",
+  "themeLight": "فاتح",
+  "themeDark": "داكن",
+  "about": "حول",
+  "aboutBody": "بست 0.1.0 — رفّ واحد للمانجا والمانهوا والأنمي والدراما الآسيوية. مبني ليبقى سريعاً على هاتف متوسط.",
+  "pageOf": "صفحة {current} من {total}",
+  "@pageOf": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "readerEnd": "نهاية هذه الوحدة",
+  "playerSoon": "مشغل الفيديو يأتي مع محرك التشغيل.",
+  "pages": "{count} صفحة",
+  "@pages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unitCount": "{count} وحدة",
+  "@unitCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
+}
