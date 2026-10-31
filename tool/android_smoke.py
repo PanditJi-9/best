@@ -67,6 +67,25 @@ def find_contains(root: ET.Element, wanted: str) -> ET.Element | None:
     return None
 
 
+def find_any(root: ET.Element, wanted: str) -> ET.Element | None:
+    """Exact first, then substring.
+
+    Flutter's navigation destinations expose a label together with a position
+    hint ("Browse, tab 2 of 4") on some platform versions, so an exact match is
+    not something the harness should depend on.
+    """
+    return find(root, wanted) or find_contains(root, wanted)
+
+
+def debug_texts(root: ET.Element) -> None:
+    print("visible semantics:")
+    for node in nodes(root):
+        text = (node.get("text") or "").strip()
+        desc = (node.get("content-desc") or "").strip()
+        if text or desc:
+            print(f"  text={text!r} desc={desc!r} bounds={node.get('bounds')}")
+
+
 def center(node: ET.Element) -> tuple[int, int]:
     numbers = [int(value) for value in re.findall(r"\d+", node.get("bounds", ""))]
     if len(numbers) != 4:
@@ -110,7 +129,7 @@ def wait_for(
     attempts = 0
     while time.time() < deadline:
         root = dump()
-        node = find_contains(root, wanted) if contains else find(root, wanted)
+        node = find_contains(root, wanted) if contains else find_any(root, wanted)
         if node is not None:
             return node
         if attempts < scrolls:
@@ -118,6 +137,7 @@ def wait_for(
             attempts += 1
         else:
             time.sleep(1.5)
+    debug_texts(root)
     raise SystemExit(f"could not find {wanted!r} after {timeout:.0f}s")
 
 
@@ -136,50 +156,72 @@ def fail_if_playback_error() -> None:
         raise SystemExit("a fatal playback error was logged")
 
 
+def screenshot(path: str) -> None:
+    result = subprocess.run(
+        ["adb", "exec-out", "screencap", "-p"],
+        capture_output=True,
+        timeout=60,
+    )
+    if result.returncode == 0 and result.stdout.startswith(b"\x89PNG"):
+        with open(path, "wb") as handle:
+            handle.write(result.stdout)
+        print(f"saved {path}")
+
+
 def main() -> int:
+    try:
+        return _run()
+    finally:
+        screenshot("playback.png")
+
+
+def _run() -> int:
     adb("shell", "am", "force-stop", PACKAGE, check=False)
     adb("shell", "am", "start", "-W", "-n", ACTIVITY)
     time.sleep(14)
 
-    tap(wait_for("Browse", timeout=30), wait=3)
+    size = adb("shell", "wm", "size")
+    match = re.search(r"(\d+)x(\d+)", size)
+    width, height = (320, 640) if not match else map(int, match.groups())
+
+    # The bottom bar's accessibility label is not stable across Flutter
+    # versions, so fall back to its fixed position on this emulator.
+    browse = find_any(dump(), "Browse")
+    if browse is not None:
+        tap(browse, wait=3)
+    else:
+        adb("shell", "input", "tap", str(width * 3 // 8), str(height * 19 // 20))
+        time.sleep(3)
+
     tap(wait_for("Neon Seoul", timeout=30, scrolls=3), wait=5)
 
     # A rerun against an emulator with saved data offers "Continue watching".
-    cta = find(dump(), "Watch now")
-    if cta is None:
-        cta = find(dump(), "Continue watching")
+    cta = find_any(dump(), "Watch now") or find_any(dump(), "Continue watching")
     if cta is None:
         cta = wait_for("Watch now", timeout=30, scrolls=4)
     tap(cta, wait=18)
 
-    # Controls auto-hide after three seconds. Each attempt taps to reveal them,
-    # dumps immediately, then waits long enough for a failed attempt to hide
-    # them again before the next tap.
-    size = adb("shell", "wm", "size")
-    match = re.search(r"(\d+)x(\d+)", size)
-    width, height = (320, 640) if not match else map(int, match.groups())
+    # Controls auto-hide after three seconds while the video plays. Tap once to
+    # reveal them, then tap the centre again: when the controls are visible the
+    # big play/pause button sits exactly there, so the second tap pauses the
+    # video and the overlay stops hiding. That makes the dump deterministic
+    # instead of racing a three-second timer.
     expected = ["Neon Seoul", "Episode 1", "Sample video"]
     missing = expected
     root = dump()
-    for _ in range(3):
+    for _ in range(4):
         adb("shell", "input", "tap", str(width // 2), str(height // 2))
-        time.sleep(0.5)
+        time.sleep(0.4)
+        adb("shell", "input", "tap", str(width // 2), str(height // 2))
+        time.sleep(0.6)
         root = dump()
-        missing = [
-            text
-            for text in expected
-            if find(root, text) is None and find_contains(root, text) is None
-        ]
+        missing = [text for text in expected if find_any(root, text) is None]
         if not missing:
             break
-        time.sleep(4)
+        time.sleep(3)
 
     if missing:
-        print("visible text:")
-        for node in nodes(root):
-            text = (node.get("text") or "").strip()
-            if text:
-                print(f"  {text!r}")
+        debug_texts(root)
         raise SystemExit(f"the player did not render: {missing}")
 
     fail_if_playback_error()

@@ -82,12 +82,8 @@ jobs:
             adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' || true
             adb logcat -d -v brief | grep -iE 'flutter|AndroidRuntime|best_app|FATAL|impeller|libflutter' | tail -200 || true
             test -n "$(adb shell pidof app.best.best_app)"
-            set +e
-            python3 tool/android_smoke.py
-            playback=$?
-            adb exec-out screencap -p > playback.png || true
             adb logcat -d -v brief | grep -iE 'ExoPlayer|MediaCodec|Playback|FATAL|AndroidRuntime' | tail -120 || true
-            exit $playback
+            python3 tool/android_smoke.py
 
       - name: Keep the screenshots
         if: always()
