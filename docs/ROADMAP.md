@@ -5,7 +5,8 @@ demo. Each phase ends with a build that can be installed and used.
 
 ## 0. Foundation — shipped in 0.1.0
 
-- Flutter app, four-tab shell, series and reader routes.
+- Flutter app, shell, series and reader routes (four tabs at the time;
+  Home became the fifth in 0.4.0).
 - Arabic + English, RTL, language and theme settings.
 - SQLite shelf, merge-safe progress, continue-reading rail.
 - Bundled guide with generated pages.

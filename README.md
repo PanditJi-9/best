@@ -6,7 +6,7 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 0.4.1 — the identity slice.** The shelf, the reader, the video player,
+**Status: 0.4.2 — the identity slice.** The shelf, the reader, the video player,
 the bilingual UI, local progress, the bundled guide, one real catalogue
 (MangaDex), source packs and the download queue are implemented and covered by
 tests. The extension host and sync are scheduled, not pretended.
@@ -93,10 +93,13 @@ crashes before the first frame on a subset of GPU drivers — see
 
 ## CI
 
-`.github/workflows/ci.yml` runs four gates on every push: domain tests, data
-tests, Rust tests and formatting, then Flutter analyze, widget tests and a
-release APK. The APK is uploaded as the `best-release-apk` artifact, and a `v*`
-tag publishes it to Releases.
+`.github/workflows/ci.yml` runs five gates on every push: a ranged probe of
+every demo stream in the bundled guide, domain tests, data tests, Rust tests and
+formatting, then Flutter analyze, widget tests and a release APK. The APK is
+uploaded as the `best-release-apk` artifact, and a `v*` tag publishes it to
+Releases. The stream probe exists because a hard-coded demo URL that starts
+answering 403 turns the first-run play button into an error screen; it fails in
+seconds instead of after an emulator boot.
 
 `.github/workflows/android-smoke.yml` is the on-demand launch gate: it boots an
 API 30 emulator, installs the release APK, starts it, dumps the visible text and

@@ -107,29 +107,38 @@ class BestWordmark extends StatelessWidget {
       children: [
         BestMark(size: markSize),
         const SizedBox(width: BestSpace.md),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w900,
-                letterSpacing: -1.4,
-                height: 0.95,
-              ),
-            ),
-            if (tagline != null) ...[
-              const SizedBox(height: 4),
+        // The lockup sits in an `Expanded` on the home header, so it has to be
+        // able to give up width: a long tagline or a large system text scale
+        // would otherwise overflow the row instead of ellipsizing.
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Text(
-                tagline!,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  letterSpacing: 0.5,
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -1.4,
+                  height: 0.95,
                 ),
               ),
+              if (tagline != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  tagline!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ],
     );

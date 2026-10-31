@@ -91,6 +91,56 @@ void main() {
     );
   });
 
+  testWidgets('the five destinations fit a 320 dp phone', (tester) async {
+    // The emulator is 320 dp wide. Material's default nav label wraps
+    // "Downloads" onto two lines at that width, which is a visible defect, so
+    // pin the small-phone layout in a test.
+    //
+    // The test font draws every glyph one em wide, which makes this double as a
+    // large-text-scale stress test: anything that fits here also fits a reader
+    // who has raised their system font size.
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final container = await _pumpApp(tester);
+
+    for (final label in [
+      'Home',
+      'Library',
+      'Browse',
+      'Downloads',
+      'Settings',
+    ]) {
+      expect(find.text(label), findsWidgets, reason: '$label tab is missing');
+    }
+    expect(tester.takeException(), isNull, reason: 'Home overflows at 320 dp');
+
+    // Every destination has to survive the narrow phone, not just Home: the
+    // library header, the source pills and the settings segments are all rows
+    // that can overflow.
+    for (final label in ['Library', 'Browse', 'Downloads', 'Settings']) {
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: '$label overflows at 320 dp',
+      );
+    }
+
+    // Arabic is the other first-class locale and its longest tab is the one
+    // that has to fit: check the RTL bar on the same narrow phone.
+    container.read(settingsProvider.notifier).setLanguage('ar');
+    await tester.pumpAndSettle();
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: 'the Arabic bar overflows at 320 dp',
+    );
+    expect(find.text('التحميلات'), findsWidgets);
+  });
+
   testWidgets('downloads tab lists a finished chapter', (tester) async {
     final repository = MemoryLibraryRepository();
     final media = Media(

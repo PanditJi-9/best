@@ -112,10 +112,14 @@ ThemeData bestTheme(Brightness brightness) {
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
+        // Five destinations on a 320 dp phone leave ~56 px per label, so the
+        // Material default wraps "Downloads" onto two lines. A 10 px label with
+        // no tracking fits every English and Arabic tab on one line.
         return text.labelSmall?.copyWith(
+          fontSize: 10,
           fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
           color: selected ? scheme.primary : scheme.onSurfaceVariant,
-          letterSpacing: 0.2,
+          letterSpacing: 0,
         );
       }),
       iconTheme: WidgetStateProperty.resolveWith((states) {

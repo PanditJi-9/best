@@ -139,6 +139,20 @@ media app can make. Home earns the first slot by giving a fresh install a
 spotlight, the sample films and one obvious "open the guide" action. Downloads
 keeps its own tab because offline is a promise, not a preference.
 
+### The bottom bar
+
+- 74 px tall, flat (no shadow, no tint), a one-pixel `outlineVariant` hairline
+  on top, and the page background behind it.
+- Selected destination: a jade stadium indicator at 18% (dark) / 14% (light),
+  filled icon, `labelSmall` at weight 800. Unselected: outlined icon, muted
+  label at weight 600.
+- Labels are always shown. They are 10 px with **zero tracking**, because five
+  destinations on a 320 dp phone leave roughly 56 px per label and Material's
+  default size wraps "Downloads" onto two lines. A widget test at 320×640 pins
+  that layout, so the fix cannot regress silently.
+- Arabic labels use the same 10 px size: the shortest Arabic tab (الرئيسية) and
+  the longest (التنزيلات) both fit one line.
+
 ---
 
 ## 5. Screen blueprints

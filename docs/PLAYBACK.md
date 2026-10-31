@@ -1,12 +1,12 @@
 # Playback
 
 Best plays episodes in a native full-screen route, `/watch`. The screen is
-outside the four-tab shell, so the bottom bar disappears while a video is on.
+outside the five-tab shell, so the bottom bar disappears while a video is on.
 Chapters keep the page reader; `openUnit` chooses the engine from
 `MediaKind.isReading`, and every entry point (series page, continue rail, deep
 link) goes through it.
 
-## What ships in 0.3.0
+## What ships
 
 - `video_player` with ExoPlayer/Media3 on Android. HLS (`.m3u8`) and progressive
   MP4 both play.
@@ -16,10 +16,28 @@ link) goes through it.
   episode restarts from zero when opened again.
 - ±10 second seeking, 0.75×–2× speed, fullscreen landscape, keep-screen-on
   while playing, buffering and error states with retry.
-- The bundled guide streams three public-domain films (Big Buck Bunny,
-  Elephants Dream and Sintel) from Google's and Mux's public test buckets. The
-  player labels them as samples instead of pretending they are licensed
-  episodes.
+- The bundled guide streams public-domain films (Sintel from Blender, two Mux
+  HLS test streams). The player labels them as samples instead of pretending
+  they are licensed episodes.
+
+## Sample streams rot
+
+The guide's three streams are the only video a fresh install can play without
+a source, so a dead URL is a broken first impression. Google's
+`gtv-videos-bucket` samples used to serve Big Buck Bunny and Elephants Dream;
+the bucket was later made private and answered **403**, which the emulator
+smoke caught as `VideoError … Source error`.
+
+Two guards now exist:
+
+- `samples` in `.github/workflows/ci.yml` sends a ranged `GET` to every URL
+  found in `demo_source.dart` and fails the run on any non-2xx/3xx answer.
+- `android_smoke.yml` still plays the first sample end to end on a real
+  emulator, which is the only way to catch a codec or transport problem that a
+  status code cannot see.
+
+To replace a dead stream, change the constants at the top of
+`packages/best_data/lib/src/sources/demo_source.dart` and let CI probe them.
 
 ## Why `video_player`, not `media_kit`
 

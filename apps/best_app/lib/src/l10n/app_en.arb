@@ -73,7 +73,7 @@
   "themeLight": "Light",
   "themeDark": "Dark",
   "about": "About",
-  "aboutBody": "Best 0.4.1 — one shelf for manga, manhwa, anime and Asian drama, with a real video player. Built to stay fast on a mid-range phone.",
+  "aboutBody": "Best 0.4.2 — one shelf for manga, manhwa, anime and Asian drama, with a real video player. Built to stay fast on a mid-range phone.",
   "pageOf": "Page {current} of {total}",
   "@pageOf": {
     "placeholders": {
