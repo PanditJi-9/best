@@ -621,10 +621,10 @@ class _WatchViewState extends ConsumerState<_WatchView> {
                     child: SliderTheme(
                       data: SliderTheme.of(context).copyWith(
                         trackHeight: 3,
-                        activeTrackColor: Colors.white,
+                        activeTrackColor: BestColors.jade,
                         inactiveTrackColor: Colors.white24,
-                        thumbColor: Colors.white,
-                        overlayColor: Colors.white12,
+                        thumbColor: BestColors.jade,
+                        overlayColor: BestColors.jade.withValues(alpha: 0.18),
                         thumbShape: const RoundSliderThumbShape(
                           enabledThumbRadius: 6,
                         ),
@@ -749,8 +749,9 @@ class _RoundButton extends StatelessWidget {
       onPressed: onPressed,
       iconSize: big ? 38 : 24,
       style: IconButton.styleFrom(
-        backgroundColor: Colors.black.withValues(alpha: big ? 0.55 : 0.35),
-        foregroundColor: Colors.white,
+        backgroundColor:
+            big ? BestColors.jade : Colors.black.withValues(alpha: 0.35),
+        foregroundColor: big ? BestColors.ink : Colors.white,
         fixedSize: Size(size, size),
       ),
       icon: Icon(icon),
@@ -762,6 +763,6 @@ void _leave(BuildContext context) {
   if (context.canPop()) {
     context.pop();
   } else {
-    context.go(Routes.library);
+    context.go(Routes.home);
   }
 }

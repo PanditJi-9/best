@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:best_domain/best_domain.dart';
 import 'package:best_ui/best_ui.dart';
@@ -125,8 +126,18 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.black.withValues(alpha: 0.55),
+        backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
+        flexibleSpace: ClipRect(
+          child: BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.45),
+              ),
+            ),
+          ),
+        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -147,12 +158,15 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
         actions: [
           if (widget.data.offline)
             Padding(
-              padding: const EdgeInsetsDirectional.only(end: 10),
+              padding: const EdgeInsetsDirectional.only(end: 14),
               child: Center(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: BestColors.jade.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(BestRadius.pill),
+                    border: Border.all(
+                      color: BestColors.jade.withValues(alpha: 0.35),
+                    ),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -171,16 +185,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                 ),
               ),
             ),
-          if (total > 0)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(end: 16),
-              child: Center(
-                child: Text(
-                  l10n.pageOf(_index + 1, total),
-                  style: const TextStyle(fontSize: 12, color: Colors.white70),
-                ),
-              ),
-            ),
         ],
       ),
       body: total == 0
@@ -196,15 +200,100 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                 ),
               ),
             )
-          : PageView.builder(
-              controller: _controller,
-              onPageChanged: _onPageChanged,
-              itemCount: total,
-              itemBuilder: (context, index) => _ResourcePage(
-                resource: _resources[index],
-                index: index,
-                total: total,
-              ),
+          : Stack(
+              children: [
+                PageView.builder(
+                  controller: _controller,
+                  onPageChanged: _onPageChanged,
+                  itemCount: total,
+                  itemBuilder: (context, index) => _ResourcePage(
+                    resource: _resources[index],
+                    index: index,
+                    total: total,
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: IgnorePointer(
+                    child: Container(
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        34,
+                        20,
+                        12 + MediaQuery.paddingOf(context).bottom,
+                      ),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.82),
+                          ],
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              if (_index + 1 >= total) ...[
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  size: 13,
+                                  color: BestColors.jade,
+                                ),
+                                const SizedBox(width: 6),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  _index + 1 >= total
+                                      ? l10n.readerEnd
+                                      : l10n.pageOf(_index + 1, total),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: BestSpace.md),
+                              Flexible(
+                                child: Text(
+                                  widget.data.media.displayTitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.end,
+                                  style: const TextStyle(
+                                    color: Colors.white38,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius:
+                                BorderRadius.circular(BestRadius.pill),
+                            child: LinearProgressIndicator(
+                              value: (_index + 1) / total,
+                              minHeight: 3,
+                              backgroundColor: Colors.white24,
+                              color: BestColors.jade,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
     );
   }

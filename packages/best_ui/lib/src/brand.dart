@@ -1,0 +1,262 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+
+import 'cover.dart';
+import 'tokens.dart';
+
+/// The Best mark: a four-point sparkle cut out of the signature gradient.
+/// Drawn rather than shipped as an asset so it stays sharp at every size and
+/// costs the bundle nothing.
+class BestMark extends StatelessWidget {
+  const BestMark({super.key, this.size = 36});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: size,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: BestColors.aurora,
+          ),
+          borderRadius: BorderRadius.circular(size * 0.32),
+        ),
+        child: CustomPaint(
+          painter: _SparkPainter(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? BestColors.ink
+                : Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SparkPainter extends CustomPainter {
+  const _SparkPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide * 0.28;
+    final path = Path()
+      ..moveTo(center.dx, center.dy - radius)
+      ..quadraticBezierTo(
+        center.dx + radius * 0.18,
+        center.dy - radius * 0.18,
+        center.dx + radius,
+        center.dy,
+      )
+      ..quadraticBezierTo(
+        center.dx + radius * 0.18,
+        center.dy + radius * 0.18,
+        center.dx,
+        center.dy + radius,
+      )
+      ..quadraticBezierTo(
+        center.dx - radius * 0.18,
+        center.dy + radius * 0.18,
+        center.dx - radius,
+        center.dy,
+      )
+      ..quadraticBezierTo(
+        center.dx - radius * 0.18,
+        center.dy - radius * 0.18,
+        center.dx,
+        center.dy - radius,
+      )
+      ..close();
+    canvas.drawPath(path, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SparkPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+/// Mark plus wordmark. The tagline is optional because the same lockup is used
+/// on the home header and in the about card.
+class BestWordmark extends StatelessWidget {
+  const BestWordmark({
+    super.key,
+    this.markSize = 34,
+    this.tagline,
+    this.label = 'Best',
+  });
+
+  final double markSize;
+  final String? tagline;
+
+  /// Localized product name. Latin "Best" is the default so the package stays
+  /// usable without the app's localizations.
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        BestMark(size: markSize),
+        const SizedBox(width: BestSpace.md),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+                letterSpacing: -1.4,
+                height: 0.95,
+              ),
+            ),
+            if (tagline != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                tagline!,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// A cover used as atmosphere: blurred, dimmed and scrimmed so the title above
+/// it stays readable. Falls back to the deterministic gradient when the source
+/// has no artwork.
+class BestBackdrop extends StatelessWidget {
+  const BestBackdrop({
+    super.key,
+    required this.title,
+    this.url,
+    this.blur = 26,
+    this.opacity = 0.55,
+  });
+
+  final String title;
+  final String? url;
+  final double blur;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Opacity(
+          opacity: opacity,
+          child: ImageFiltered(
+            imageFilter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+            child: BestCover(title: title, url: url, radius: 0),
+          ),
+        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                theme.colorScheme.surface.withValues(alpha: 0.15),
+                theme.colorScheme.surface.withValues(alpha: 0.65),
+                theme.colorScheme.surface,
+              ],
+              stops: const [0, 0.55, 1],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Three numbers on one card. HikariManga uses the same device on its profile
+/// and series pages; it reads faster than three separate tiles.
+class StatStrip extends StatelessWidget {
+  const StatStrip({super.key, required this.stats});
+
+  final List<StatItem> stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: BestSpace.lg),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(BestRadius.lg),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          for (var index = 0; index < stats.length; index++) ...[
+            if (index > 0)
+              Container(
+                width: 1,
+                height: 30,
+                color: theme.colorScheme.outlineVariant,
+              ),
+            Expanded(child: _Stat(item: stats[index])),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class StatItem {
+  const StatItem({required this.value, required this.label});
+
+  final String value;
+  final String label;
+}
+
+class _Stat extends StatelessWidget {
+  const _Stat({required this.item});
+
+  final StatItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            item.value,
+            maxLines: 1,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+              fontFeatures: const [ui.FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          item.label,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}

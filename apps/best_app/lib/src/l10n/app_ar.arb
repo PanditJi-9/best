@@ -4,8 +4,6 @@
   "tagline": "مانجا · مانهوا · أنمي · دراما",
   "startReading": "ابدأ القراءة",
   "backToSeries": "رجوع إلى العمل",
-  "allSources": "كل المصادر",
-  "openInReader": "افتح",
   "navLibrary": "المكتبة",
   "navBrowse": "تصفّح",
   "navDownloads": "التحميلات",
@@ -75,7 +73,7 @@
   "themeLight": "فاتح",
   "themeDark": "داكن",
   "about": "حول",
-  "aboutBody": "بست 0.3.0 — رفّ واحد للمانجا والمانهوا والأنمي والدراما الآسيوية، مع مشغل فيديو حقيقي. مبني ليبقى سريعاً على هاتف متوسط.",
+  "aboutBody": "بست 0.4.0 — رفّ واحد للمانجا والمانهوا والأنمي والدراما الآسيوية، مع مشغل فيديو حقيقي. مبني ليبقى سريعاً على هاتف متوسط.",
   "pageOf": "صفحة {current} من {total}",
   "@pageOf": {
     "placeholders": {
@@ -88,7 +86,7 @@
     }
   },
   "readerEnd": "نهاية هذه الوحدة",
-  "pages": "{count} صفحة",
+  "pages": "{count, plural, zero{لا صفحات} one{صفحة واحدة} two{صفحتان} few{{count} صفحات} many{{count} صفحة} other{{count} صفحة}}",
   "@pages": {
     "placeholders": {
       "count": {
@@ -96,7 +94,7 @@
       }
     }
   },
-  "unitCount": "{count} وحدة",
+  "unitCount": "{count, plural, zero{لا وحدات} one{وحدة واحدة} two{وحدتان} few{{count} وحدات} many{{count} وحدة} other{{count} وحدة}}",
   "@unitCount": {
     "placeholders": {
       "count": {
@@ -211,5 +209,49 @@
         "type": "String"
       }
     }
-  }
+  },
+  "navHome": "الرئيسية",
+  "trendingTitle": "الأكثر رواجاً هذا الأسبوع",
+  "samplesTitle": "جرّب المشغّل",
+  "samplesBody": "ثلاثة أفلام مفتوحة المصدر تُبثّ فوراً. بلا إعداد مصدر ولا حساب.",
+  "seeAll": "عرض الكل",
+  "statsWorks": "أعمال",
+  "statsDownloads": "دون اتصال",
+  "more": "المزيد",
+  "less": "أقل",
+  "progressLabel": "التقدّم",
+  "offlineLabel": "دون اتصال",
+  "profileReader": "قارئ",
+  "sampleFilmBadge": "فيلم تجريبي",
+  "searchAll": "ابحث في كل المصادر",
+  "libraryWaiting": "رفّك ينتظر",
+  "libraryWaitingBody": "افتح الدليل لتجربة القارئ والمشغّل، أو أضف مصدراً من تصفّح.",
+  "librarySummary": "{count, plural, zero{لا أعمال في مكتبتك} one{عمل واحد في مكتبتك} two{عملان في مكتبتك} few{{count} أعمال في مكتبتك} many{{count} عملاً في مكتبتك} other{{count} عمل في مكتبتك}}",
+  "@librarySummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "downloadsInProgress": "قيد التنزيل",
+  "downloadsFinished": "جاهز دون اتصال",
+  "browseSubtitle": "{count, plural, zero{لا مصادر جاهزة} one{مصدر واحد جاهز} two{مصدران جاهزان} few{{count} مصادر جاهزة} many{{count} مصدراً جاهزاً} other{{count} مصدر جاهز}}",
+  "@browseSubtitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "resultCount": "{count, plural, zero{لا نتائج} one{نتيجة واحدة} two{نتيجتان} few{{count} نتائج} many{{count} نتيجة} other{{count} نتيجة}}",
+  "@resultCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsSubtitle": "اجعل بست على ذوقك",
+  "storageLabel": "التخزين"
 }

@@ -13,6 +13,7 @@ class MediaCard extends StatelessWidget {
     this.coverUrl,
     this.badge,
     this.progress = 0,
+    this.rank,
     this.onTap,
   });
 
@@ -23,6 +24,10 @@ class MediaCard extends StatelessWidget {
 
   /// 0..1. A zero value hides the bar entirely; an empty work is not "0% read".
   final double progress;
+
+  /// 1-based position in a ranked rail. Drawn as an outlined numeral so the
+  /// artwork stays the loudest thing on the card.
+  final int? rank;
   final VoidCallback? onTap;
 
   @override
@@ -43,16 +48,30 @@ class MediaCard extends StatelessWidget {
               aspectRatio: 2 / 3,
               child: Stack(
                 fit: StackFit.expand,
+                clipBehavior: Clip.none,
                 children: [
-                  BestCover(title: title, url: coverUrl),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(BestRadius.md),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: BestCover(
+                      title: title,
+                      url: coverUrl,
+                      radius: BestRadius.md,
+                    ),
+                  ),
                   if (badge != null)
                     PositionedDirectional(
                       top: BestSpace.sm,
                       start: BestSpace.sm,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.62),
+                          color: Colors.black.withValues(alpha: 0.58),
                           borderRadius: BorderRadius.circular(BestRadius.pill),
+                          border: Border.all(color: Colors.white12),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
@@ -70,10 +89,34 @@ class MediaCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                  if (rank != null)
+                    PositionedDirectional(
+                      bottom: -10,
+                      end: 6,
+                      child: Text(
+                        '$rank',
+                        style: TextStyle(
+                          fontSize: 56,
+                          height: 1,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -3,
+                          foreground: Paint()
+                            ..style = PaintingStyle.stroke
+                            ..strokeWidth = 2
+                            ..color = Colors.white.withValues(alpha: 0.9),
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.5),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
-            const SizedBox(height: BestSpace.sm),
+            const SizedBox(height: BestSpace.sm + 2),
             Text(
               title,
               maxLines: 2,
@@ -98,7 +141,8 @@ class MediaCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(BestRadius.pill),
                 child: LinearProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
-                  minHeight: 3,
+                  minHeight: 4,
+                  color: BestColors.jade,
                 ),
               ),
             ],

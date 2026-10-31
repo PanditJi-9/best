@@ -2,6 +2,7 @@ import 'package:best_domain/best_domain.dart';
 import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../actions.dart';
 import '../l10n/generated/app_localizations.dart';
@@ -70,145 +71,110 @@ class _SeriesBody extends ConsumerWidget {
     final hasProgress = data.progress.values.any(
       (progress) => progress.position > 0 || progress.completed,
     );
+    final completed = units
+        .where((unit) => data.progress[unit.id]?.completed ?? false)
+        .length;
+    final percent =
+        units.isEmpty ? 0 : (completed * 100 / units.length).round();
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            expandedHeight: 300,
-            backgroundColor: BestColors.ink,
-            foregroundColor: Colors.white,
-            title: Text(
-              media.displayTitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  BestCover(
-                    title: media.displayTitle,
-                    url: media.coverUrl,
-                    radius: 0,
-                  ),
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.black12, Colors.black, Colors.black87],
-                        stops: [0.25, 0.75, 1],
-                      ),
-                    ),
-                  ),
-                ],
+      body: Stack(
+        children: [
+          CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: _Hero(
+                  title: media.displayTitle,
+                  coverUrl: media.coverUrl,
+                ),
               ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 112,
-                    height: 168,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(BestRadius.md),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.22),
-                            blurRadius: 18,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        media.displayTitle,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.8,
+                          height: 1.08,
+                        ),
                       ),
-                      child: BestCover(
-                        title: media.displayTitle,
-                        url: media.coverUrl,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+                      if (media.nativeTitle != null &&
+                          media.nativeTitle!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 6),
                         Text(
-                          media.displayTitle,
-                          maxLines: 3,
+                          media.nativeTitle!,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            height: 1.15,
-                            letterSpacing: -0.6,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
-                        if (media.nativeTitle != null &&
-                            media.nativeTitle!.trim().isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            media.nativeTitle!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                      ],
+                      const SizedBox(height: 10),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          _MetaDot(label: kindLabel(l10n, media.kind)),
+                          if (media.year != null)
+                            _MetaDot(label: '${media.year}'),
+                          _MetaDot(label: statusLabel(l10n, media.status)),
+                          if (offlineCount > 0)
+                            _MetaDot(
+                              label: l10n.offlineCount(offlineCount),
+                              accent: true,
                             ),
-                          ),
                         ],
-                        const SizedBox(height: 12),
+                      ),
+                      if (media.author != null &&
+                          media.author!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          media.author!,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                      if (media.genres.isNotEmpty) ...[
+                        const SizedBox(height: 14),
                         Wrap(
+                          alignment: WrapAlignment.center,
                           spacing: 8,
-                          runSpacing: 6,
+                          runSpacing: 8,
                           children: [
-                            _MetaPill(label: kindLabel(l10n, media.kind)),
-                            if (media.year != null)
-                              _MetaPill(label: '${media.year}'),
-                            _MetaPill(label: statusLabel(l10n, media.status)),
-                            if (offlineCount > 0)
-                              _MetaPill(
-                                label: l10n.offlineCount(offlineCount),
-                                muted: true,
-                              ),
+                            for (final genre in media.genres.take(5))
+                              _GenrePill(label: genre),
                           ],
                         ),
-                        if (media.author != null &&
-                            media.author!.trim().isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          Text(
-                            media.author!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
                       ],
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-              child: Row(
-                children: [
-                  Expanded(
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                  child: SizedBox(
+                    width: double.infinity,
                     child: FilledButton.icon(
                       onPressed: next == null
                           ? null
                           : () => openUnit(context, ref, media, next),
                       icon: Icon(
                         media.kind.isReading
-                            ? Icons.menu_book_outlined
+                            ? Icons.menu_book_rounded
                             : Icons.play_arrow_rounded,
                         size: 20,
                       ),
@@ -223,146 +189,168 @@ class _SeriesBody extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    tooltip: media.favorite ? l10n.unfavorite : l10n.favorite,
-                    onPressed: () async {
-                      await ref
-                          .read(repositoryProvider)
-                          .setFavorite(media.id, !media.favorite);
-                      if (!context.mounted) return;
-                      ref.invalidate(seriesProvider(seriesKey));
-                    },
-                    icon: Icon(
-                      media.favorite ? Icons.favorite : Icons.favorite_border,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    tooltip: media.inLibrary
-                        ? l10n.removeFromLibrary
-                        : l10n.addToLibrary,
-                    onPressed: () async {
-                      await ref
-                          .read(repositoryProvider)
-                          .setInLibrary(media.id, !media.inLibrary);
-                      if (!context.mounted) return;
-                      ref.invalidate(seriesProvider(seriesKey));
-                    },
-                    icon: Icon(
-                      media.inLibrary
-                          ? Icons.library_add_check
-                          : Icons.library_add_outlined,
-                      size: 20,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (media.genres.isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final genre in media.genres)
-                      _MetaPill(label: genre, muted: true),
-                  ],
                 ),
               ),
-            ),
-          if (media.synopsis != null && media.synopsis!.trim().isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SectionHeader(title: l10n.aboutWork),
-                    Text(
-                      media.synopsis!,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        height: 1.65,
-                        color: theme.colorScheme.onSurfaceVariant,
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                  child: StatStrip(
+                    stats: [
+                      StatItem(
+                        value: '${units.length}',
+                        label: media.kind.isReading
+                            ? l10n.chapters
+                            : l10n.episodes,
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: SectionHeader(
-                title: media.kind.isReading ? l10n.chapters : l10n.episodes,
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      l10n.unitCount(units.length),
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                      StatItem(
+                        value: '$offlineCount',
+                        label: l10n.offlineLabel,
                       ),
-                    ),
-                    if (canDownload && pendingDownloads > 0) ...[
-                      const SizedBox(width: 2),
-                      IconButton(
-                        tooltip: l10n.downloadAll,
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () => _downloadAll(
-                          context,
-                          ref,
-                          media,
-                          units,
-                          tasks,
-                        ),
-                        icon: const Icon(
-                          Icons.download_for_offline_outlined,
-                          size: 20,
-                        ),
-                      ),
+                      StatItem(value: '$percent%', label: l10n.progressLabel),
                     ],
-                  ],
+                  ),
                 ),
               ),
+              if (media.synopsis != null && media.synopsis!.trim().isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SectionHeader(title: l10n.aboutWork),
+                        _Synopsis(text: media.synopsis!),
+                      ],
+                    ),
+                  ),
+                ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: SectionHeader(
+                    title: media.kind.isReading ? l10n.chapters : l10n.episodes,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          l10n.unitCount(units.length),
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        if (canDownload && pendingDownloads > 0) ...[
+                          const SizedBox(width: 2),
+                          IconButton(
+                            tooltip: l10n.downloadAll,
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => _downloadAll(
+                              context,
+                              ref,
+                              media,
+                              units,
+                              tasks,
+                            ),
+                            icon: const Icon(
+                              Icons.download_for_offline_outlined,
+                              size: 20,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (units.isEmpty)
+                SliverToBoxAdapter(
+                  child: EmptyState(
+                    icon: Icons.inbox_outlined,
+                    title: l10n.noUnits,
+                    body: l10n.nothingHereBody,
+                  ),
+                )
+              else
+                SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final unit = units[index];
+                    final task = tasks[unit.id];
+                    return _UnitTile(
+                      unit: unit,
+                      progress: data.progress[unit.id],
+                      download: task,
+                      canDownload: canDownload,
+                      onTap: () => openUnit(context, ref, media, unit),
+                      onDownload: () => _download(context, ref, media, unit),
+                      onPause: task == null
+                          ? null
+                          : () => ref
+                              .read(downloadManagerProvider)
+                              .pause(task.unitId),
+                      onResume: task == null
+                          ? null
+                          : () => ref
+                              .read(downloadManagerProvider)
+                              .resume(task.unitId),
+                    );
+                  }, childCount: units.length),
+                ),
+              const SliverToBoxAdapter(child: SizedBox(height: 28)),
+            ],
+          ),
+          PositionedDirectional(
+            top: MediaQuery.paddingOf(context).top + 8,
+            start: 12,
+            child: _GlassCircle(
+              tooltip: l10n.backToSeries,
+              icon: Icons.arrow_back_rounded,
+              onTap: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  Navigator.of(context).maybePop();
+                }
+              },
             ),
           ),
-          if (units.isEmpty)
-            SliverToBoxAdapter(
-              child: EmptyState(
-                icon: Icons.inbox_outlined,
-                title: l10n.noUnits,
-                body: l10n.nothingHereBody,
-              ),
-            )
-          else
-            SliverList(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final unit = units[index];
-                final task = tasks[unit.id];
-                return _UnitTile(
-                  unit: unit,
-                  progress: data.progress[unit.id],
-                  download: task,
-                  canDownload: canDownload,
-                  onTap: () => openUnit(context, ref, media, unit),
-                  onDownload: () => _download(context, ref, media, unit),
-                  onPause: task == null
-                      ? null
-                      : () =>
-                          ref.read(downloadManagerProvider).pause(task.unitId),
-                  onResume: task == null
-                      ? null
-                      : () =>
-                          ref.read(downloadManagerProvider).resume(task.unitId),
-                );
-              }, childCount: units.length),
+          PositionedDirectional(
+            top: MediaQuery.paddingOf(context).top + 8,
+            end: 12,
+            child: Column(
+              children: [
+                _GlassCircle(
+                  tooltip: media.favorite ? l10n.unfavorite : l10n.favorite,
+                  icon: media.favorite
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  active: media.favorite,
+                  onTap: () async {
+                    await ref
+                        .read(repositoryProvider)
+                        .setFavorite(media.id, !media.favorite);
+                    if (!context.mounted) return;
+                    ref.invalidate(seriesProvider(seriesKey));
+                  },
+                ),
+                const SizedBox(height: BestSpace.sm),
+                _GlassCircle(
+                  tooltip: media.inLibrary
+                      ? l10n.removeFromLibrary
+                      : l10n.addToLibrary,
+                  icon: media.inLibrary
+                      ? Icons.library_add_check_rounded
+                      : Icons.library_add_outlined,
+                  active: media.inLibrary,
+                  onTap: () async {
+                    await ref
+                        .read(repositoryProvider)
+                        .setInLibrary(media.id, !media.inLibrary);
+                    if (!context.mounted) return;
+                    ref.invalidate(seriesProvider(seriesKey));
+                  },
+                ),
+              ],
             ),
-          const SliverToBoxAdapter(child: SizedBox(height: 28)),
+          ),
         ],
       ),
     );
@@ -440,34 +428,168 @@ class _SeriesBody extends ConsumerWidget {
   }
 }
 
-class _MetaPill extends StatelessWidget {
-  const _MetaPill({required this.label, this.muted = false});
+/// A cover floating over the blurred artwork. The 420px block is deliberately
+/// taller than the backdrop so the cover can sit half-in, half-out without a
+/// negative margin or an overflow.
+class _Hero extends StatelessWidget {
+  const _Hero({required this.title, required this.coverUrl});
+
+  final String title;
+  final String? coverUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 416,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          SizedBox(
+            height: 300,
+            child: BestBackdrop(title: title, url: coverUrl),
+          ),
+          Positioned(
+            top: 222,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                width: 124,
+                height: 186,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(BestRadius.md),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      blurRadius: 26,
+                      offset: const Offset(0, 14),
+                    ),
+                  ],
+                ),
+                child: BestCover(title: title, url: coverUrl),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetaDot extends StatelessWidget {
+  const _MetaDot({required this.label, this.accent = false});
 
   final String label;
-  final bool muted;
+  final bool accent;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: muted
-            ? theme.colorScheme.surfaceContainerHighest
-            : theme.colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(BestRadius.pill),
+    return Text(
+      label,
+      style: theme.textTheme.labelMedium?.copyWith(
+        color: accent ? BestColors.jade : theme.colorScheme.onSurfaceVariant,
+        fontWeight: accent ? FontWeight.w700 : FontWeight.w500,
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        child: Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: muted
-                ? theme.colorScheme.onSurfaceVariant
-                : theme.colorScheme.onPrimaryContainer,
-          ),
+    );
+  }
+}
+
+class _GenrePill extends StatelessWidget {
+  const _GenrePill({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(BestRadius.pill),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
         ),
       ),
+    );
+  }
+}
+
+class _GlassCircle extends StatelessWidget {
+  const _GlassCircle({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+    this.active = false,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onTap,
+      style: IconButton.styleFrom(
+        fixedSize: const Size(42, 42),
+        backgroundColor:
+            active ? BestColors.jade : Colors.black.withValues(alpha: 0.5),
+        foregroundColor: active ? BestColors.ink : Colors.white,
+        side: BorderSide(
+          color:
+              active ? BestColors.jade : Colors.white.withValues(alpha: 0.18),
+        ),
+      ),
+      icon: Icon(icon, size: 20),
+    );
+  }
+}
+
+class _Synopsis extends StatefulWidget {
+  const _Synopsis({required this.text});
+
+  final String text;
+
+  @override
+  State<_Synopsis> createState() => _SynopsisState();
+}
+
+class _SynopsisState extends State<_Synopsis> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.text,
+          maxLines: _open ? null : 4,
+          overflow: _open ? null : TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            height: 1.7,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        TextButton(
+          onPressed: () => setState(() => _open = !_open),
+          style: TextButton.styleFrom(
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+          ),
+          child: Text(_open ? l10n.less : l10n.more),
+        ),
+      ],
     );
   }
 }
@@ -501,87 +623,101 @@ class _UnitTile extends StatelessWidget {
     final completed = saved?.completed ?? false;
     final started = saved != null && saved.position > 0 && !completed;
 
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 20),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: Material(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(BestRadius.md),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(BestRadius.md),
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 34,
+                  height: 34,
+                  child: Center(
+                    child: completed
+                        ? const Icon(
+                            Icons.check_circle_rounded,
+                            color: BestColors.jade,
+                            size: 26,
+                          )
+                        : started
+                            ? SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  value: saved.fraction,
+                                  strokeWidth: 2.6,
+                                ),
+                              )
+                            : Icon(
+                                Icons.radio_button_unchecked,
+                                size: 21,
+                                color: theme.colorScheme.outlineVariant,
+                              ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        unit.displayTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _subtitle(l10n, unit),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                if (canDownload)
+                  _DownloadControl(
+                    unit: unit,
+                    download: download,
+                    onDownload: onDownload,
+                    onPause: onPause,
+                    onResume: onResume,
+                  ),
+                const SizedBox(width: 4),
+                Container(
+                  width: 38,
+                  height: 38,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(BestRadius.sm),
+                  ),
+                  child: Text(
+                    shortNumber(unit.number),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                shortNumber(unit.number),
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    unit.displayTitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _subtitle(l10n, unit),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            if (canDownload) ...[
-              _DownloadControl(
-                unit: unit,
-                download: download,
-                onDownload: onDownload,
-                onPause: onPause,
-                onResume: onResume,
-              ),
-              const SizedBox(width: 2),
-            ],
-            if (completed)
-              const Icon(Icons.check_circle, color: BestColors.jade, size: 22)
-            else if (started)
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  value: saved.fraction,
-                  strokeWidth: 2.6,
-                ),
-              )
-            else
-              Icon(
-                Icons.chevron_right,
-                color: theme.colorScheme.onSurfaceVariant,
-                size: 20,
-              ),
-          ],
         ),
       ),
     );

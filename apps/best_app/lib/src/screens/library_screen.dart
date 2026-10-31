@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../actions.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../labels.dart';
+import '../progress_label.dart';
 import '../providers.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -71,19 +72,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        l10n.appName,
+                        l10n.navLibrary,
                         style: theme.textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w900,
                           letterSpacing: -1.2,
                           height: 1,
                         ),
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        l10n.tagline,
+                        shelfCount == null
+                            ? l10n.tagline
+                            : l10n.librarySummary(shelfCount),
                         style: theme.textTheme.labelMedium?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
-                          letterSpacing: 0.4,
+                          letterSpacing: 0.2,
                         ),
                       ),
                     ],
@@ -311,21 +314,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 }
 
-String _progressLabel(AppLocalizations l10n, ContinueEntry entry) {
-  if (entry.media.kind.isWatching) {
-    if (entry.progress.total <= 0) return l10n.continueWatching;
-    return l10n.watchProgress(
-      formatClock(entry.progress.position),
-      formatClock(entry.progress.total),
-    );
-  }
-  if (entry.progress.total <= 0) return l10n.continueReading;
-  return l10n.pageOf(
-    (entry.progress.position + 1).clamp(1, entry.progress.total),
-    entry.progress.total,
-  );
-}
-
 class _ContinueRail extends StatelessWidget {
   const _ContinueRail({required this.entries, required this.onOpen});
 
@@ -335,8 +323,6 @@ class _ContinueRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -345,82 +331,23 @@ class _ContinueRail extends StatelessWidget {
           child: SectionHeader(title: l10n.continueTitle),
         ),
         SizedBox(
-          height: 132,
+          height: 172,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
             itemCount: entries.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 12),
+            separatorBuilder: (context, index) =>
+                const SizedBox(width: BestSpace.md),
             itemBuilder: (context, index) {
               final entry = entries[index];
-              return SizedBox(
-                width: 286,
-                child: Material(
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(16),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: () => onOpen(entry),
-                    child: Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 76,
-                            height: 112,
-                            child: BestCover(
-                              title: entry.media.displayTitle,
-                              url: entry.media.coverUrl,
-                              radius: 12,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  entry.media.displayTitle,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    height: 1.2,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  entry.unit.displayTitle,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(99),
-                                  child: LinearProgressIndicator(
-                                    value: entry.progress.fraction,
-                                    minHeight: 4,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  _progressLabel(l10n, entry),
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+              return ContinueCard(
+                title: entry.media.displayTitle,
+                subtitle: entry.unit.displayTitle,
+                coverUrl: entry.media.coverUrl,
+                progress: entry.progress.fraction,
+                progressLabel: continueProgressLabel(l10n, entry),
+                isVideo: entry.media.kind.isWatching,
+                onOpen: () => onOpen(entry),
               );
             },
           ),

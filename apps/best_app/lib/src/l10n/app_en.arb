@@ -4,8 +4,6 @@
   "tagline": "Manga · Manhwa · Anime · Drama",
   "startReading": "Start reading",
   "backToSeries": "Back to series",
-  "allSources": "All sources",
-  "openInReader": "Open",
   "navLibrary": "Library",
   "navBrowse": "Browse",
   "navDownloads": "Downloads",
@@ -75,7 +73,7 @@
   "themeLight": "Light",
   "themeDark": "Dark",
   "about": "About",
-  "aboutBody": "Best 0.3.0 — one shelf for manga, manhwa, anime and Asian drama, with a real video player. Built to stay fast on a mid-range phone.",
+  "aboutBody": "Best 0.4.0 — one shelf for manga, manhwa, anime and Asian drama, with a real video player. Built to stay fast on a mid-range phone.",
   "pageOf": "Page {current} of {total}",
   "@pageOf": {
     "placeholders": {
@@ -211,5 +209,49 @@
         "type": "String"
       }
     }
-  }
+  },
+  "navHome": "Home",
+  "trendingTitle": "Trending this week",
+  "samplesTitle": "Try the player",
+  "samplesBody": "Three public-domain films stream instantly. No source setup, no account.",
+  "seeAll": "See all",
+  "statsWorks": "Works",
+  "statsDownloads": "Offline",
+  "more": "More",
+  "less": "Less",
+  "progressLabel": "Progress",
+  "offlineLabel": "Offline",
+  "profileReader": "Reader",
+  "sampleFilmBadge": "Sample film",
+  "searchAll": "Search all sources",
+  "libraryWaiting": "Your shelf is waiting",
+  "libraryWaitingBody": "Open the guide to try the reader and the player, or add a source from Browse.",
+  "librarySummary": "{count} works in your library",
+  "@librarySummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "downloadsInProgress": "In progress",
+  "downloadsFinished": "Ready offline",
+  "browseSubtitle": "{count} sources ready",
+  "@browseSubtitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "resultCount": "{count} results",
+  "@resultCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsSubtitle": "Make Best yours",
+  "storageLabel": "Storage"
 }

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'navigation.dart';
 import 'screens/browse_screen.dart';
 import 'screens/downloads_screen.dart';
+import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
 import 'screens/reader_screen.dart';
 import 'screens/series_screen.dart';
@@ -16,12 +17,20 @@ import 'screens/watch_screen.dart';
 /// the navigation stack; a new app instance (a test, a second window) starts
 /// at the shelf instead of inheriting another instance's location.
 GoRouter buildRouter() => GoRouter(
-      initialLocation: Routes.library,
+      initialLocation: Routes.home,
       routes: [
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) =>
               ShellScreen(navigationShell: navigationShell),
           branches: [
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: Routes.home,
+                  builder: (context, state) => const HomeScreen(),
+                ),
+              ],
+            ),
             StatefulShellBranch(
               routes: [
                 GoRoute(

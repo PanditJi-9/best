@@ -6,7 +6,8 @@ import 'package:best_domain/best_domain.dart';
 /// url can contain slashes and dots, and encoding it into a path is how a
 /// deep link turns into a 404.
 abstract final class Routes {
-  static const String library = '/';
+  static const String home = '/';
+  static const String library = '/library';
   static const String browse = '/browse';
   static const String downloads = '/downloads';
   static const String settings = '/settings';
