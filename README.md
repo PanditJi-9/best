@@ -6,13 +6,21 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 0.3.0 — the playback slice.** The shelf, the reader, the video player,
+**Status: 0.4.0 — the identity slice.** The shelf, the reader, the video player,
 the bilingual UI, local progress, the bundled guide, one real catalogue
 (MangaDex), source packs and the download queue are implemented and covered by
 tests. The extension host and sync are scheduled, not pretended.
 
 ## What works today
 
+- **A front door.** Home opens on one editorial spotlight, the resume rail, a
+  ranked trending row and three sample films, so a fresh install has something
+  to do before any source is configured. Five tabs: Home, Library, Browse,
+  Downloads, Settings.
+- **One visual system.** "Ink & Jade": a near-black canvas, jade for action and
+  progress, vermilion only for new/live, gold for ranks. The mark, wordmark,
+  spotlight, stat strip, cards and reader chrome are shared components, not
+  per-screen styling. See [docs/DESIGN.md](docs/DESIGN.md).
 - **A real shelf.** Add, remove, favorite, search, filter and sort. Counts and
   progress come from the local database, not from a widget's memory.
 - **A real reader.** Page-by-page reading, zoom, page restore, completion
@@ -109,9 +117,9 @@ the app opens; this job is.
 
 ## Roadmap
 
-See [docs/ROADMAP.md](docs/ROADMAP.md),
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
-[docs/OFFLINE.md](docs/OFFLINE.md),
-[docs/PLAYBACK.md](docs/PLAYBACK.md),
-[docs/SOURCE-PACKS.md](docs/SOURCE-PACKS.md) and the
+Start with the [design blueprint](docs/DESIGN.md) and the
+[170-app competitor study](docs/COMPETITORS.md). Then:
+[roadmap](docs/ROADMAP.md), [architecture](docs/ARCHITECTURE.md),
+[offline](docs/OFFLINE.md), [playback](docs/PLAYBACK.md),
+[source packs](docs/SOURCE-PACKS.md) and the
 [HikariManga reference study](docs/HIKARIMANGA-STUDY.md).

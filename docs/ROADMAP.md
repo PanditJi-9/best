@@ -13,6 +13,23 @@ demo. Each phase ends with a build that can be installed and used.
 - Rust core with tests and a C ABI, not yet on the FFI path.
 - CI: analyze, tests, Rust, release APK artifact.
 
+## Identity and Home — shipped in 0.4.0
+
+- [x] "Ink & Jade" design tokens, one theme builder, and a shared `best_ui`
+  layer: mark, wordmark, backdrop, stat strip, spotlight, continue card.
+- [x] Five destinations with Home first: Home, Library, Browse, Downloads,
+  Settings. Home opens on a spotlight, the resume rail, ranked trending and
+  three sample films.
+- [x] Series, Browse, Downloads, Settings and the reader chrome rebuilt on the
+  shared components.
+- [x] Arabic-first ICU plurals for works, sources, results, units and pages.
+- [x] A 170-app competitor study and a written design contract, so the next
+  screen has a rule to follow instead of a taste debate.
+- [ ] Per-screen motion polish (shared-element cover transitions) once the
+  routes are stable.
+- [ ] Tablet layout: the grids scale, but the series page still assumes one
+  column.
+
 ## 1. Library depth
 
 - Import/export a JSON backup; restore on a new phone without an account.
