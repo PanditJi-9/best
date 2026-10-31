@@ -137,6 +137,25 @@ cost, not a promise.
   review pipeline; a script host that can read the library is not a feature to
   ship quickly.
 
+## 0.8.0 — real books behind the front door
+
+0.7.0 could read MangaDex, but Home still opened on the bundled guide, so a
+first launch looked like a demo. 0.8.0 makes the live catalogue the front door
+and gives the reader one search box over everything installed.
+
+- [x] Home is fed by every enabled source (`discoverProvider`), merged and
+  de-duplicated by title, with the guide only as the offline fallback.
+- [x] Browse opens on **All sources**: the merged catalogue while the query is
+  empty, one search across every source while it is not.
+- [x] The catalogue follows the interface language: Arabic readers get Arabic
+  chapters first and English only as the fallback track, never a mixed shelf.
+- [x] MangaDex hardening: 512 px covers, one retry on a 429/503, a user agent
+  that names the app, and a language-aware chapter feed.
+- [x] Settings leads with language and appearance; data, sources and about move
+  below the controls a reader changes often.
+- [ ] Scripted sources stay behind the sandbox gate. The app ships official and
+  free catalogues, not scrapers for aggregators.
+
 ## 7. Growth
 
 - Arabic-first discovery: curated lists for manhwa/manhua that actually update.

@@ -162,10 +162,20 @@ final Provider<SourceRegistry> sourceRegistryProvider =
     Provider<SourceRegistry>((ref) {
   final client = ref.watch(httpClientProvider);
   final packs = ref.watch(sourcePacksProvider);
+  // The catalogue follows the interface language: an Arabic reader gets the
+  // Arabic scanlations first, and English stays as the fallback chapter track.
+  final settings = ref.watch(settingsProvider);
+  final language = settings.languageCode ??
+      WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+  // Real catalogues lead: Browse opens on MangaDex, and the bundled guide sits
+  // last as the offline demo instead of the first thing a reader sees.
   return SourceRegistry.fixed(<SourceAdapter>[
-    const DemoSource(),
-    MangaDexSource(client: client),
+    MangaDexSource(
+      client: client,
+      language: language == 'ar' ? 'ar' : 'en',
+    ),
     for (final pack in packs) JsonSourceAdapter(pack: pack, client: client),
+    const DemoSource(),
   ]);
 });
 
@@ -320,6 +330,74 @@ final browseProvider = FutureProvider.family<List<Media>, BrowseKey>((
   if (source == null) return const <Media>[];
   final query = key.query.trim();
   return query.isEmpty ? source.popular() : source.search(query);
+});
+
+/// What the front door shows: the live catalogue of every enabled source,
+/// merged and de-duplicated by title.
+///
+/// Home used to show the bundled guide, which is honest but looks like a demo.
+/// This walks the real sources instead, one failure at a time, and only falls
+/// back to the guide when nothing answered — offline, or every source down.
+class DiscoverFeed {
+  const DiscoverFeed({required this.works, required this.live});
+
+  final List<Media> works;
+
+  /// False when the guide stood in for the live catalogue.
+  final bool live;
+}
+
+final FutureProvider<DiscoverFeed> discoverProvider =
+    FutureProvider<DiscoverFeed>((ref) async {
+  final registry = ref.watch(sourceRegistryProvider);
+  final works = <Media>[];
+  final seen = <String>{};
+
+  for (final source in registry.all) {
+    if (source.id == DemoSource.sourceId) continue;
+    try {
+      final page = await source.popular();
+      for (final media in page) {
+        final key = '${media.title.toLowerCase().trim()}|${media.kind.name}';
+        if (seen.add(key)) works.add(media);
+      }
+    } catch (_) {
+      // One dead source must not empty the front door.
+    }
+  }
+
+  if (works.isEmpty) {
+    return DiscoverFeed(
+      works: await const DemoSource().popular(),
+      live: false,
+    );
+  }
+  return DiscoverFeed(works: List.unmodifiable(works.take(40)), live: true);
+});
+
+/// One search box over every installed source. Sources answer in parallel, so
+/// a slow pack cannot hold back the catalogue; a failure only removes that
+/// source's rows.
+final searchAllProvider =
+    FutureProvider.family<List<Media>, String>((ref, rawQuery) async {
+  final query = rawQuery.trim();
+  if (query.isEmpty) return const <Media>[];
+  final registry = ref.watch(sourceRegistryProvider);
+  final pages = await Future.wait(<Future<List<Media>>>[
+    for (final source in registry.all)
+      if (source.id != DemoSource.sourceId)
+        source.search(query).catchError((Object _) => const <Media>[]),
+  ]);
+
+  final merged = <Media>[];
+  final seen = <String>{};
+  for (final page in pages) {
+    for (final media in page) {
+      final key = '${media.title.toLowerCase().trim()}|${media.kind.name}';
+      if (seen.add(key)) merged.add(media);
+    }
+  }
+  return List.unmodifiable(merged.take(60));
 });
 
 typedef SeriesKey = ({String sourceId, String url});

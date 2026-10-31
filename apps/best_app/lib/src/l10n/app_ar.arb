@@ -224,6 +224,8 @@
   "profileReader": "قارئ",
   "sampleFilmBadge": "فيلم تجريبي",
   "searchAll": "ابحث في كل المصادر",
+  "allSources": "كل المصادر",
+  "guideFallback": "لم يجب أي مصدر — نعرض الدليل المحلي.",
   "libraryWaiting": "رفّك ينتظر",
   "libraryWaitingBody": "افتح الدليل لتجربة القارئ والمشغّل، أو أضف مصدراً من تصفّح.",
   "librarySummary": "{count, plural, zero{لا أعمال في مكتبتك} one{عمل واحد في مكتبتك} two{عملان في مكتبتك} few{{count} أعمال في مكتبتك} many{{count} عملاً في مكتبتك} other{{count} عمل في مكتبتك}}",

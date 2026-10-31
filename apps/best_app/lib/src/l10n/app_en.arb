@@ -224,6 +224,8 @@
   "profileReader": "Reader",
   "sampleFilmBadge": "Sample film",
   "searchAll": "Search all sources",
+  "allSources": "All sources",
+  "guideFallback": "No source answered — showing the offline guide.",
   "libraryWaiting": "Your shelf is waiting",
   "libraryWaitingBody": "Open the guide to try the reader and the player, or add a source from Browse.",
   "librarySummary": "{count} works in your library",

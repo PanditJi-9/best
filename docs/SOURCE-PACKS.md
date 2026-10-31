@@ -56,6 +56,45 @@ the clipboard or any host it does not name, because nothing in it executes.
 }
 ```
 
+### Format 2 — a streaming pack
+
+Version 2 adds `routes.watch` and `map.video`; everything else is unchanged. A
+pack is either a page pack or a video pack, never both, because a work is either
+read or watched.
+
+```json
+{
+  "version": 2,
+  "id": "example-video",
+  "name": "Example Video",
+  "language": "ar",
+  "baseUrl": "https://api.example.com",
+  "kind": "anime",
+  "unitKind": "episode",
+  "routes": {
+    "popular": "/shows?page={page}",
+    "search": "/shows?q={query}&page={page}",
+    "chapters": "/shows/{id}/episodes",
+    "pages": "/unused",
+    "watch": "/episodes/{id}/stream"
+  },
+  "map": {
+    "media": { "list": "data", "id": "id", "title": "title" },
+    "unit": {
+      "list": "episodes",
+      "id": "id",
+      "number": "number",
+      "title": "title"
+    },
+    "page": { "list": "pages", "url": "url" },
+    "video": { "list": "sources", "url": "file", "subtitle": "captions" }
+  }
+}
+```
+
+`map.video.subtitle` is optional. When present it points at a WebVTT or SRT
+track, and the player offers the CC toggle. `routes.watch` must contain `{id}`.
+
 ### Rules
 
 - `id` — 2–40 characters, `[a-z0-9._-]`, cannot be `demo` or `mangadex`.
@@ -103,5 +142,22 @@ UI process.
 - Storage: `SharedPreferences` key `source_packs_v1`, raw documents only, no
   credentials.
 
-Packs are per-device in 0.1.0. Export/import and a signed pack index arrive with
-sync, so a pack never silently changes under a running library.
+Packs travel: a backup exports each one in its canonical form, and an encrypted
+sync uploads them with the shelf, so a new phone gets the library and the sources
+that made it. A signed pack index — one URL that lists reviewed packs — is the
+next step, not a promise.
+
+## What ships built in
+
+| Source | Kind | Why it is built in |
+|---|---|---|
+| **MangaDex** | native adapter | A documented public API, a catalogue of tens of thousands of works, free chapters in many languages, and a takedown process the app can point at. |
+| **Best Guide** | native adapter | Seven generated works and three public-domain films. Offline, no network, no account: it exists so a fresh install can open a chapter before anything is configured. |
+| **Your packs** | declarative JSON | Whatever catalogue you add in Settings. |
+
+Best does **not** bundle scrapers for manga aggregators or pirate sites. That is
+a deliberate product decision, not a missing feature: a scraper for a site that
+hosts unlicensed scans is both a legal risk and a maintenance treadmill, and it
+is the first thing a store review removes. The pack format exists so a catalogue
+that publishes a JSON API can be added without shipping code, and the sandboxed
+script host (tier 2) is the path for sites that only publish HTML.

@@ -108,7 +108,7 @@ void main() {
     expect(work.year, 2025);
     expect(work.genres, ['Fantasy']);
     expect(work.coverUrl,
-        'https://uploads.mangadex.org/covers/abc/cover.jpg.256.jpg');
+        'https://uploads.mangadex.org/covers/abc/cover.jpg.512.jpg');
     expect(work.id, 'mangadex::abc');
   });
 
@@ -143,6 +143,34 @@ void main() {
       (pages.first as ImageResource).url,
       'https://cdn.example/data/hash/1.png',
     );
+  });
+
+  test('keeps one chapter language and falls back to English only when empty',
+      () async {
+    final asked = <String>[];
+    final client = MockClient((request) async {
+      final language =
+          request.url.queryParametersAll['translatedLanguage[]']?.first ?? '';
+      asked.add(language);
+      final path = request.url.path;
+      if (path == '/manga') {
+        return http.Response(jsonEncode(manga), 200, headers: _jsonHeaders);
+      }
+      if (path == '/manga/abc/feed') {
+        final body = language == 'ar'
+            ? {'result': 'ok', 'data': <Object>[]}
+            : feed;
+        return http.Response(jsonEncode(body), 200, headers: _jsonHeaders);
+      }
+      return http.Response('not found', 404);
+    });
+
+    final arabic = MangaDexSource(client: client, language: 'ar');
+    final work = (await arabic.popular()).single;
+    final units = await arabic.units(work);
+
+    expect(asked, containsAllInOrder(['ar', 'en']));
+    expect(units.map((unit) => unit.number), [1, 2.5]);
   });
 
   test('turns a non-200 answer into a typed failure', () async {

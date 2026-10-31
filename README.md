@@ -6,19 +6,23 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 0.7.0 — the shelf that travels.** The shelf, the reader, the video
-player with captions, the bilingual UI, local progress, statistics, JSON
-backup/restore, the bundled guide, one real catalogue (MangaDex), declarative
-source packs (format 2, including streaming packs) and encrypted WebDAV sync are
-implemented and covered by tests. Scripted extension hosting is scheduled, not
-pretended.
+**Status: 0.8.0 — real books behind the front door.** The shelf, the reader,
+the video player with captions, the bilingual UI, local progress, statistics,
+JSON backup/restore, one real catalogue (MangaDex) and declarative source packs
+(format 2, including streaming packs) are implemented and covered by tests. Home
+and Browse now open on the live catalogue instead of the bundled guide, and one
+search box covers every installed source. Scripted extension hosting is
+scheduled, not pretended.
 
 ## What works today
 
-- **A front door.** Home opens on one editorial spotlight, the resume rail, a
-  ranked trending row and three sample films, so a fresh install has something
-  to do before any source is configured. Five tabs: Home, Library, Browse,
+- **A front door with real content.** Home is fed by every enabled source,
+  merged and de-duplicated: one spotlight, the resume rail and a ranked trending
+  row. The bundled guide stands in only when nothing answers, and three sample
+  films keep the player usable offline. Five tabs: Home, Library, Browse,
   Downloads, Settings.
+- **One search, every source.** Browse opens on **All sources** and searches
+  them in parallel, so a slow pack cannot hold back the catalogue.
 - **One visual system.** "Ink & Jade": a near-black canvas, jade for action and
   progress, vermilion only for new/live, gold for ranks. The mark, wordmark,
   spotlight, stat strip, cards and reader chrome are shared components, not
@@ -36,8 +40,9 @@ pretended.
 - **A first-run guide.** Seven generated works with chapters, pages and three
   public-domain sample films, so a fresh install can be used — and watched —
   before any source is configured.
-- **MangaDex.** Search, details, chapter feed and page images through the public
-  API. No scraping and no bundled credentials.
+- **MangaDex.** Search, details, a language-aware chapter feed and page images
+  through the public API. Arabic chapters come first when the interface is
+  Arabic; English is the fallback track. No scraping and no bundled credentials.
 - **Source packs.** Install a third-party catalogue from a declarative JSON
   manifest (Settings → Source packs). Packs execute nothing: five routes, three
   field maps, validated before they are stored. See

@@ -55,34 +55,6 @@ class SettingsScreen extends ConsumerWidget {
             sources: sources.length,
           ),
           _Group(
-            title: l10n.dataGroup,
-            icon: Icons.shield_moon_outlined,
-            child: Column(
-              children: [
-                _LinkTile(
-                  icon: Icons.insights_outlined,
-                  title: l10n.statsTitle,
-                  subtitle: l10n.statsSubtitle,
-                  onTap: () => context.push(Routes.stats),
-                ),
-                const Divider(height: 1, indent: 52),
-                _LinkTile(
-                  icon: Icons.settings_backup_restore,
-                  title: l10n.backupTitle,
-                  subtitle: l10n.backupShort,
-                  onTap: () => context.push(Routes.backup),
-                ),
-                const Divider(height: 1, indent: 52),
-                _LinkTile(
-                  icon: Icons.sync_rounded,
-                  title: l10n.syncTitle,
-                  subtitle: l10n.syncShort,
-                  onTap: () => context.push(Routes.sync),
-                ),
-              ],
-            ),
-          ),
-          _Group(
             title: l10n.language,
             icon: Icons.translate_rounded,
             child: Padding(
@@ -208,6 +180,34 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+                ),
+              ],
+            ),
+          ),
+          _Group(
+            title: l10n.dataGroup,
+            icon: Icons.shield_moon_outlined,
+            child: Column(
+              children: [
+                _LinkTile(
+                  icon: Icons.insights_outlined,
+                  title: l10n.statsTitle,
+                  subtitle: l10n.statsSubtitle,
+                  onTap: () => context.push(Routes.stats),
+                ),
+                const Divider(height: 1, indent: 52),
+                _LinkTile(
+                  icon: Icons.settings_backup_restore,
+                  title: l10n.backupTitle,
+                  subtitle: l10n.backupShort,
+                  onTap: () => context.push(Routes.backup),
+                ),
+                const Divider(height: 1, indent: 52),
+                _LinkTile(
+                  icon: Icons.sync_rounded,
+                  title: l10n.syncTitle,
+                  subtitle: l10n.syncShort,
+                  onTap: () => context.push(Routes.sync),
                 ),
               ],
             ),

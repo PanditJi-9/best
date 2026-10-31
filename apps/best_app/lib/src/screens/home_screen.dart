@@ -31,24 +31,35 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final guide = ref.watch(browseProvider(_guideKey));
+    final discover = ref.watch(discoverProvider);
     final continuing =
         ref.watch(continueProvider).value ?? const <ContinueEntry>[];
     final shelf = ref.watch(libraryProvider).value ?? const <LibraryEntry>[];
-    final works = guide.value ?? const <Media>[];
+    final works = discover.value?.works ?? const <Media>[];
     final featured = works.isEmpty ? null : works.first;
-    final trending = works.length <= 1 ? const <Media>[] : works.sublist(1);
-    final samples = works.where((media) => media.kind.isWatching).toList();
+    final trending = works.length <= 1
+        ? const <Media>[]
+        : works.sublist(1, works.length > 14 ? 14 : works.length);
+
+    // The watching samples stay on the guide: they exist to prove the player,
+    // and a real source may have no free stream to demo.
+    final samples = ref
+            .watch(browseProvider(_guideKey))
+            .value
+            ?.where((media) => media.kind.isWatching)
+            .toList() ??
+        const <Media>[];
 
     return SafeArea(
       bottom: false,
       child: RefreshIndicator(
         onRefresh: () async {
+          ref.invalidate(discoverProvider);
           ref.invalidate(browseProvider(_guideKey));
           ref.invalidate(continueProvider);
           ref.invalidate(libraryProvider);
           try {
-            await ref.read(browseProvider(_guideKey).future);
+            await ref.read(discoverProvider.future);
           } catch (_) {
             // The error state is rendered inline.
           }
@@ -82,21 +93,45 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            if (guide.isLoading)
+            if (discover.value != null && !discover.value!.live)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.cloud_off_outlined,
+                        size: 16,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          l10n.guideFallback,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (discover.isLoading)
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 80),
                   child: Center(child: CircularProgressIndicator()),
                 ),
               )
-            else if (guide.hasError)
+            else if (discover.hasError)
               SliverToBoxAdapter(
                 child: EmptyState(
                   icon: Icons.cloud_off_outlined,
                   title: l10n.sourceError,
-                  body: '${guide.error}',
+                  body: '${discover.error}',
                   action: FilledButton.icon(
-                    onPressed: () => ref.invalidate(browseProvider(_guideKey)),
+                    onPressed: () => ref.invalidate(discoverProvider),
                     icon: const Icon(Icons.refresh, size: 18),
                     label: Text(l10n.retry),
                   ),

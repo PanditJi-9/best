@@ -65,10 +65,47 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
       );
     }
 
-    final sourceId = _sourceId ?? sources.first.id;
-    final source = registry.byId(sourceId) ?? sources.first;
-    final key = (sourceId: source.id, query: _searchTerm);
-    final results = ref.watch(browseProvider(key));
+    // `null` means "all sources": the default view is the merged catalogue of
+    // everything installed, and typing searches all of it at once.
+    final source = _sourceId == null ? null : registry.byId(_sourceId!);
+    final AsyncValue<List<Media>> results;
+    if (source == null) {
+      results = _searchTerm.isEmpty
+          ? ref.watch(discoverProvider).whenData((feed) => feed.works)
+          : ref.watch(searchAllProvider(_searchTerm));
+    } else {
+      results = ref.watch(
+        browseProvider((sourceId: source.id, query: _searchTerm)),
+      );
+    }
+
+    Future<void> reload() async {
+      if (source == null) {
+        if (_searchTerm.isEmpty) {
+          ref.invalidate(discoverProvider);
+          try {
+            await ref.read(discoverProvider.future);
+          } catch (_) {
+            // The error state is rendered inline.
+          }
+        } else {
+          ref.invalidate(searchAllProvider(_searchTerm));
+          try {
+            await ref.read(searchAllProvider(_searchTerm).future);
+          } catch (_) {
+            // The error state is rendered inline.
+          }
+        }
+        return;
+      }
+      final key = (sourceId: source.id, query: _searchTerm);
+      ref.invalidate(browseProvider(key));
+      try {
+        await ref.read(browseProvider(key).future);
+      } catch (_) {
+        // The error state is rendered inline.
+      }
+    }
 
     return SafeArea(
       bottom: false,
@@ -112,13 +149,20 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: sources.length,
+              itemCount: sources.length + 1,
               separatorBuilder: (context, index) => const SizedBox(width: 8),
               itemBuilder: (context, index) {
-                final candidate = sources[index];
+                if (index == 0) {
+                  return _SourcePill(
+                    label: l10n.allSources,
+                    selected: source == null,
+                    onTap: () => setState(() => _sourceId = null),
+                  );
+                }
+                final candidate = sources[index - 1];
                 return _SourcePill(
                   label: candidate.name,
-                  selected: candidate.id == source.id,
+                  selected: candidate.id == source?.id,
                   onTap: () => setState(() => _sourceId = candidate.id),
                 );
               },
@@ -135,7 +179,9 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                 setState(() => _searchTerm = value.trim());
               },
               decoration: InputDecoration(
-                hintText: l10n.searchSource(source.name),
+                hintText: source == null
+                    ? l10n.searchAll
+                    : l10n.searchSource(source.name),
                 prefixIcon: const Icon(Icons.search, size: 20),
                 suffixIcon: _query.isEmpty
                     ? null
@@ -155,7 +201,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                 title: l10n.sourceError,
                 body: '$error',
                 action: FilledButton.icon(
-                  onPressed: () => ref.invalidate(browseProvider(key)),
+                  onPressed: reload,
                   icon: const Icon(Icons.refresh, size: 18),
                   label: Text(l10n.retry),
                 ),
@@ -164,7 +210,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                 if (works.isEmpty) {
                   return EmptyState(
                     icon: Icons.travel_explore_outlined,
-                    eyebrow: source.name.toUpperCase(),
+                    eyebrow: (source?.name ?? l10n.sources).toUpperCase(),
                     title: l10n.nothingHere,
                     body: l10n.nothingHereBody,
                   );
@@ -186,14 +232,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                       child: _BrowseGrid(
                         works: works,
                         onOpen: (media) => openSeries(context, ref, media),
-                        onRefresh: () async {
-                          ref.invalidate(browseProvider(key));
-                          try {
-                            await ref.read(browseProvider(key).future);
-                          } catch (_) {
-                            // The error state is rendered above.
-                          }
-                        },
+                        onRefresh: reload,
                       ),
                     ),
                   ],

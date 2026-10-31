@@ -169,7 +169,9 @@ void main() {
     await tester.tap(find.text('Downloads').last);
     await tester.pumpAndSettle();
 
-    expect(find.text('Blue Echo'), findsOneWidget);
+    // Downloads are grouped by work, so the title appears once in the group
+    // header and once on the chapter row.
+    expect(find.text('Blue Echo'), findsWidgets);
     expect(find.text('Chapter 1'), findsOneWidget);
     expect(find.text('Downloaded'), findsOneWidget);
   });

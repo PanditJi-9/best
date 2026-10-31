@@ -30,7 +30,7 @@ class MangaDexSource implements SourceAdapter {
   static const String _uploads = 'https://uploads.mangadex.org';
 
   static const Map<String, String> _headers = {
-    'User-Agent': 'Best/0.1.0 (https://github.com/PanditJi-9/best)',
+    'User-Agent': 'Best/0.8 (https://github.com/PanditJi-9/best)',
     'Accept': 'application/json',
   };
 
@@ -59,6 +59,9 @@ class MangaDexSource implements SourceAdapter {
       'offset': '${(page - 1) * 24}',
       'includes[]': ['cover_art', 'author'],
       'contentRating[]': ['safe', 'suggestive'],
+      // Only works that actually have a chapter in the reader's language: a
+      // beautiful cover with no readable chapter is a dead end.
+      'availableTranslatedLanguage[]': [_language],
       'order[followedCount]': 'desc',
     };
     final trimmed = query?.trim();
@@ -93,9 +96,17 @@ class MangaDexSource implements SourceAdapter {
 
   @override
   Future<List<MediaUnit>> units(Media media) async {
+    // One language per shelf, not a mix: an Arabic reader should not find
+    // chapter 3 only in English and chapter 4 only in Arabic. English is the
+    // fallback when the work has no chapter in the interface language.
+    final units = await _feed(media, _language);
+    if (units.isEmpty && _language != 'en') return _feed(media, 'en');
+    return units;
+  }
+
+  Future<List<MediaUnit>> _feed(Media media, String language) async {
     final units = <MediaUnit>[];
     final seenNumbers = <double>{};
-    final languages = <String>{_language, 'en'}.toList(growable: false);
     var offset = 0;
 
     // A work with more than 2,000 chapters is not a phone-sized read; the cap
@@ -105,7 +116,7 @@ class MangaDexSource implements SourceAdapter {
         Uri.https(_host, '/manga/${media.ref.url}/feed', {
           'limit': '100',
           'offset': '$offset',
-          'translatedLanguage[]': languages,
+          'translatedLanguage[]': [language],
           'order[volume]': 'asc',
           'order[chapter]': 'asc',
           'includeExternalUrl': '0',
@@ -172,7 +183,13 @@ class MangaDexSource implements SourceAdapter {
   }
 
   Future<Map<String, dynamic>> _getJson(Uri uri) async {
-    final response = await _client.get(uri, headers: _headers);
+    var response = await _client.get(uri, headers: _headers);
+    // MangaDex throttles bursts. One short retry turns a rate-limit into a
+    // slightly slower screen instead of an error page.
+    if (response.statusCode == 429 || response.statusCode == 503) {
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      response = await _client.get(uri, headers: _headers);
+    }
     if (response.statusCode != 200) {
       throw MangaDexException('HTTP ${response.statusCode} for ${uri.path}');
     }
@@ -247,7 +264,8 @@ class MangaDexSource implements SourceAdapter {
       final attributes = _asMap(entry['attributes']);
       final file = attributes['fileName'];
       if (file is String && file.isNotEmpty) {
-        return '$_uploads/covers/$id/$file.256.jpg';
+        // 512 keeps a hero sharp on a phone without shipping a 1 MB cover.
+        return '$_uploads/covers/$id/$file.512.jpg';
       }
     }
     return null;
