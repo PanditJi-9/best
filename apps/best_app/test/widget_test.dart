@@ -66,8 +66,17 @@ void main() {
 
     final container = await _pumpApp(tester, repository: repository);
 
+    // Home is the front door now: the wordmark and the five destinations are
+    // on screen before the shelf is.
+    expect(find.text('Best'), findsWidgets);
+    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('Search all sources'), findsOneWidget);
+
+    // The shelf is one tab away, with its resume rail and real progress.
+    await tester.tap(find.text('Library').last);
+    await tester.pumpAndSettle();
+
     expect(find.text('Blue Echo'), findsWidgets);
-    expect(find.text('Continue'), findsOneWidget);
     expect(find.text('Library'), findsWidgets);
     expect(find.text('Page 4 of 10'), findsOneWidget);
 
@@ -77,7 +86,7 @@ void main() {
     expect(find.text('متابعة'), findsOneWidget);
     expect(find.text('المكتبة'), findsWidgets);
     expect(
-      Directionality.of(tester.element(find.text('بست'))),
+      Directionality.of(tester.element(find.text('المكتبة').first)),
       TextDirection.rtl,
     );
   });
@@ -118,6 +127,15 @@ void main() {
   testWidgets('the guide opens a series and a readable page', (tester) async {
     await _pumpApp(tester);
 
+    // The empty-shelf card sits under the spotlight and the rails, so reach it
+    // the way a reader would instead of assuming it is above the fold.
+    await tester.scrollUntilVisible(
+      find.text('Open the guide'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
     expect(find.text('Your shelf is waiting'), findsOneWidget);
     await tester.tap(find.text('Open the guide'));
     await tester.pumpAndSettle();
@@ -138,7 +156,10 @@ void main() {
 
     await tester.pageBack();
     await tester.pumpAndSettle();
-    await tester.pageBack();
+
+    // The series page uses its own glass back control over the hero instead of
+    // an app bar, so tap the control a reader would tap.
+    await tester.tap(find.byTooltip('Back to series'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Settings').last);
@@ -167,6 +188,10 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.pumpAndSettle();
+    // The scroll stops as soon as the first row is visible, which can leave the
+    // section header just above the viewport; pull it back into view.
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, 80));
     await tester.pumpAndSettle();
     expect(find.text('Episodes'), findsOneWidget);
     expect(find.text('Episode 1'), findsOneWidget);

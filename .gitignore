@@ -36,3 +36,7 @@ flutter_*.log
 
 # Release keystores never enter the repository
 *.jks
+
+# Python bytecode from the emulator smoke tooling
+__pycache__/
+*.pyc

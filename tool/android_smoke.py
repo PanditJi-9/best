@@ -70,8 +70,8 @@ def find_contains(root: ET.Element, wanted: str) -> ET.Element | None:
 def find_prefix(root: ET.Element, wanted: str) -> ET.Element | None:
     """The first label that starts with `wanted`.
 
-    Flutter's navigation destinations expose `Browse\nTab 2 of 4`, so the
-    exact label is not stable. Prefix matching is still precise: a paragraph
+    Flutter's navigation destinations append `Tab N of M`, so the exact
+    label is not stable. Prefix matching is still precise: a paragraph
     that merely mentions "Browse" does not start with it.
     """
     for node in nodes(root):
@@ -205,7 +205,7 @@ def _run() -> int:
     if browse is not None:
         tap(browse, wait=3)
     else:
-        adb("shell", "input", "tap", str(width * 3 // 8), str(height * 19 // 20))
+        adb("shell", "input", "tap", str(width // 2), str(height * 19 // 20))
         time.sleep(3)
 
     tap(wait_for("Neon Seoul", timeout=30, scrolls=3), wait=5)
