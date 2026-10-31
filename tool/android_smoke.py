@@ -156,6 +156,45 @@ def wait_for(
     raise SystemExit(f"could not find {wanted!r} after {timeout:.0f}s")
 
 
+def dismiss_anr() -> None:
+    """Close a "… isn't responding" dialog.
+
+    The emulator's launcher ANRs under load and its dialog steals the screen,
+    which makes every later tap land on the dialog instead of the app.
+    """
+    for _ in range(3):
+        node = find_any(dump(), "Wait")
+        if node is None:
+            return
+        tap(node, wait=1.5)
+
+
+def select_guide() -> None:
+    """Browse opens on All sources; the sample films live under the guide pill."""
+    row = find_any(dump(), "All sources")
+    if row is not None:
+        numbers = [int(v) for v in re.findall(r"\d+", row.get("bounds", ""))]
+        if len(numbers) == 4:
+            _, y1, _, y2 = numbers
+            y = (y1 + y2) // 2
+            size = adb("shell", "wm", "size")
+            match = re.search(r"(\d+)x(\d+)", size)
+            width = 320 if not match else int(match.group(1))
+            # The guide is the last pill, so pull the chip row to the left.
+            adb(
+                "shell",
+                "input",
+                "swipe",
+                str(width - 30),
+                str(y),
+                "20",
+                str(y),
+                "300",
+            )
+            time.sleep(1.2)
+    tap(wait_for("Best Guide", timeout=15), wait=4)
+
+
 def fail_if_playback_error() -> None:
     log = adb("logcat", "-d", "-v", "brief", check=False)
     fatal = [
@@ -194,6 +233,13 @@ def _run() -> int:
     adb("shell", "am", "force-stop", PACKAGE, check=False)
     adb("shell", "am", "start", "-W", "-n", ACTIVITY)
     time.sleep(14)
+    dismiss_anr()
+
+    # The workflow also screenshots the home screen, but it can catch an
+    # emulator dialog. Take it again once the app is actually on screen.
+    wait_for("Search all sources", timeout=40)
+    dismiss_anr()
+    screenshot("screenshot.png")
 
     size = adb("shell", "wm", "size")
     match = re.search(r"(\d+)x(\d+)", size)
@@ -208,6 +254,7 @@ def _run() -> int:
         adb("shell", "input", "tap", str(width // 2), str(height * 19 // 20))
         time.sleep(3)
 
+    select_guide()
     tap(wait_for("Neon Seoul", timeout=30, scrolls=3), wait=5)
 
     # A rerun against an emulator with saved data offers "Continue watching".
