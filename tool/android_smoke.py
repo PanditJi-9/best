@@ -67,14 +67,29 @@ def find_contains(root: ET.Element, wanted: str) -> ET.Element | None:
     return None
 
 
-def find_any(root: ET.Element, wanted: str) -> ET.Element | None:
-    """Exact first, then substring.
+def find_prefix(root: ET.Element, wanted: str) -> ET.Element | None:
+    """The first label that starts with `wanted`.
 
-    Flutter's navigation destinations expose a label together with a position
-    hint ("Browse, tab 2 of 4") on some platform versions, so an exact match is
-    not something the harness should depend on.
+    Flutter's navigation destinations expose `Browse\nTab 2 of 4`, so the
+    exact label is not stable. Prefix matching is still precise: a paragraph
+    that merely mentions "Browse" does not start with it.
     """
-    return find(root, wanted) or find_contains(root, wanted)
+    for node in nodes(root):
+        text = (node.get("text") or "").strip()
+        desc = (node.get("content-desc") or "").strip()
+        if text.startswith(wanted) or desc.startswith(wanted):
+            return node
+    return None
+
+
+def find_any(root: ET.Element, wanted: str) -> ET.Element | None:
+    """Exact first, then a label prefix, then a substring.
+
+    The prefix step matters: the empty shelf contains the sentence "Add a work
+    from Browse, or open the built-in guide...". A plain substring search found
+    that paragraph before the Browse tab and tapped the middle of the screen.
+    """
+    return find(root, wanted) or find_prefix(root, wanted) or find_contains(root, wanted)
 
 
 def debug_texts(root: ET.Element) -> None:
@@ -186,7 +201,7 @@ def _run() -> int:
 
     # The bottom bar's accessibility label is not stable across Flutter
     # versions, so fall back to its fixed position on this emulator.
-    browse = find_any(dump(), "Browse")
+    browse = find_prefix(dump(), "Browse")
     if browse is not None:
         tap(browse, wait=3)
     else:
