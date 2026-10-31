@@ -70,3 +70,20 @@ String formatBytes(int bytes) {
   final decimals = unit == 0 || value >= 100 ? 0 : 1;
   return '${value.toStringAsFixed(decimals)} ${units[unit]}';
 }
+
+/// A clock for video controls and the continue rail.
+///
+/// Hours appear only when they exist, so an episode reads `24:10` while a film
+/// reads `1:42:06`. Digits stay Western in both languages: a scrubber is a
+/// number line, not prose.
+String formatClock(int seconds) {
+  final safe = seconds < 0 ? 0 : seconds;
+  final hours = safe ~/ 3600;
+  final minutes = (safe % 3600) ~/ 60;
+  final secs = safe % 60;
+  final two = secs.toString().padLeft(2, '0');
+  if (hours > 0) {
+    return '$hours:${minutes.toString().padLeft(2, '0')}:$two';
+  }
+  return '$minutes:$two';
+}

@@ -20,6 +20,16 @@ class DemoSource implements SourceAdapter {
   @override
   String get language => 'ar';
 
+  /// Public-domain films streamed from stable Google and Mux test buckets.
+  /// The guide exists to prove the player end to end; every episode of a work
+  /// points at one sample so a fresh install has something real to watch.
+  static const String _bigBuckBunny =
+      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+  static const String _elephantsDream =
+      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4';
+  static const String _sintelHls =
+      'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
+
   static const List<_GuideWork> _works = [
     _GuideWork(
       slug: 'forest-shadow',
@@ -72,6 +82,7 @@ class DemoSource implements SourceAdapter {
           'A night-shift courier in Seoul delivers a package that should not exist, and every district it passes through forgets her name.',
       units: 8,
       pages: 0,
+      video: _bigBuckBunny,
     ),
     _GuideWork(
       slug: 'silent-orbit',
@@ -85,6 +96,7 @@ class DemoSource implements SourceAdapter {
           'The last maintenance crew on a dying space station decides to keep the lights on for one more winter.',
       units: 12,
       pages: 0,
+      video: _sintelHls,
     ),
     _GuideWork(
       slug: 'tea-house',
@@ -98,6 +110,7 @@ class DemoSource implements SourceAdapter {
           'ثلاثة أجيال تدير بيت شاي صغير في مدينة تتغير أسرع من وصفاتهم. كل كوب يحمل اعترافًا مؤجلًا.',
       units: 10,
       pages: 0,
+      video: _elephantsDream,
     ),
     _GuideWork(
       slug: 'magic-orbit',
@@ -161,8 +174,8 @@ class DemoSource implements SourceAdapter {
         title: kind == UnitKind.chapter ? 'Chapter $number' : 'Episode $number',
         kind: kind,
         publishedAt: DateTime(2026, 1, 1)
-                .add(Duration(days: index * 7))
-                .millisecondsSinceEpoch,
+            .add(Duration(days: index * 7))
+            .millisecondsSinceEpoch,
         pageCount: work.pages,
       );
     }, growable: false);
@@ -170,13 +183,26 @@ class DemoSource implements SourceAdapter {
 
   @override
   Future<List<MediaResource>> resources(MediaUnit unit) async {
+    if (unit.kind == UnitKind.episode) {
+      // The unit id is namespaced (`guide::slug::unit-1`), so the work's
+      // sample stream is recoverable without asking the catalogue again.
+      final slug = unit.mediaId.split('::').skip(1).join('::');
+      for (final work in _works) {
+        if (work.slug == slug && work.video != null) {
+          return [VideoResource(work.video!)];
+        }
+      }
+      return const [];
+    }
+
     final pages = unit.pageCount;
     if (pages <= 0) {
       return const [];
     }
     return List.generate(
       pages,
-      (index) => SyntheticPage(index, '${unit.displayTitle} · صفحة ${index + 1}'),
+      (index) =>
+          SyntheticPage(index, '${unit.displayTitle} · صفحة ${index + 1}'),
       growable: false,
     );
   }
@@ -215,6 +241,7 @@ class _GuideWork {
     required this.synopsis,
     required this.units,
     required this.pages,
+    this.video,
   });
 
   final String slug;
@@ -227,4 +254,5 @@ class _GuideWork {
   final String synopsis;
   final int units;
   final int pages;
+  final String? video;
 }

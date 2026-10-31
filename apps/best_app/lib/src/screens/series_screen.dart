@@ -205,7 +205,7 @@ class _SeriesBody extends ConsumerWidget {
                     child: FilledButton.icon(
                       onPressed: next == null
                           ? null
-                          : () => openReader(context, ref, media, next),
+                          : () => openUnit(context, ref, media, next),
                       icon: Icon(
                         media.kind.isReading
                             ? Icons.menu_book_outlined
@@ -213,7 +213,13 @@ class _SeriesBody extends ConsumerWidget {
                         size: 20,
                       ),
                       label: Text(
-                        hasProgress ? l10n.continueReading : l10n.startReading,
+                        media.kind.isReading
+                            ? (hasProgress
+                                ? l10n.continueReading
+                                : l10n.startReading)
+                            : (hasProgress
+                                ? l10n.continueWatching
+                                : l10n.startWatching),
                       ),
                     ),
                   ),
@@ -343,7 +349,7 @@ class _SeriesBody extends ConsumerWidget {
                   progress: data.progress[unit.id],
                   download: task,
                   canDownload: canDownload,
-                  onTap: () => openReader(context, ref, media, unit),
+                  onTap: () => openUnit(context, ref, media, unit),
                   onDownload: () => _download(context, ref, media, unit),
                   onPause: task == null
                       ? null

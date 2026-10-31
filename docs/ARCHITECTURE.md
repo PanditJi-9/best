@@ -72,6 +72,23 @@ sees the sealed type. The provider checks for a finished download first and
 never calls the source, which is what makes offline reading real rather than a
 cache with a network fallback. Details in [OFFLINE.md](OFFLINE.md).
 
+## Playback
+
+An episode is a `VideoResource` returned by the same `SourceAdapter.resources`
+call that returns page images. `watchProvider` resolves the catalogue rows and
+takes the first video; `WatchScreen` owns one `VideoPlayerController`
+(`video_player`, ExoPlayer on Android) and one progress row.
+
+`PlaybackProgress` in `best_domain` is the only place that decides where to
+resume, when a video is finished and how to clamp a position. It stores seconds
+in the existing `progress` table — no schema change, and the same merge rules
+apply. A completed row is never moved backwards by a replay.
+
+The player is a pushed route outside the shell, so the bottom bar disappears
+while watching. It is dark in both themes, keeps the screen awake while playing,
+and restores the system UI and orientation when it closes. Details in
+[PLAYBACK.md](PLAYBACK.md).
+
 ## Sources
 
 `SourceAdapter` is deliberately small: `popular`, `search`, `details`, `units`,
@@ -79,9 +96,10 @@ cache with a network fallback. Details in [OFFLINE.md](OFFLINE.md).
 surface stays thin. MangaDex is the first real adapter and maps its JSON onto
 domain types; nothing above `best_data` knows the API exists.
 
-The bundled `DemoSource` generates seven works, chapters and pages. It is
-labelled as a guide, never presented as licensed content, and it exercises the
-same reader path as a real source.
+The bundled `DemoSource` generates seven works, chapters and pages, plus three
+public-domain sample films for the watching works. It is labelled as a guide,
+never presented as licensed content, and it exercises the same reader and
+player paths as a real source.
 
 ## State and navigation
 
@@ -122,12 +140,13 @@ Mihon compatibility becomes a hard requirement.
 
 ## Testing
 
-- `best_domain`: pure rules, 18 tests.
+- `best_domain`: pure rules, 29 tests, including playback resume/completion.
 - `best_data`: real SQLite in memory, merge cases, MangaDex against a mocked
-  HTTP client, 13 tests.
+  HTTP client, download queue and guide streams, 36 tests.
 - `best_core`: 7 Rust tests.
-- `best_app`: a widget test that renders the shelf and flips the app to Arabic,
-  asserting RTL.
+- `best_app`: 7 tests: the shelf in English and Arabic/RTL, downloads, the guide
+  reader, a drama offering the player, a source pack, clock formatting and the
+  watch route.
 - CI also builds a release APK, so a green run means the app compiles for a
   phone, not just for the analyzer.
 

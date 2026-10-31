@@ -6,10 +6,10 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 0.2.1 — the offline slice.** The shelf, the reader, the bilingual UI,
-local progress, the bundled guide, one real catalogue (MangaDex), source packs
-and the download queue are implemented and covered by tests. The video player,
-the extension host and sync are scheduled, not pretended.
+**Status: 0.3.0 — the playback slice.** The shelf, the reader, the video player,
+the bilingual UI, local progress, the bundled guide, one real catalogue
+(MangaDex), source packs and the download queue are implemented and covered by
+tests. The extension host and sync are scheduled, not pretended.
 
 ## What works today
 
@@ -17,10 +17,15 @@ the extension host and sync are scheduled, not pretended.
   progress come from the local database, not from a widget's memory.
 - **A real reader.** Page-by-page reading, zoom, page restore, completion
   tracking, and progress that survives a restart.
+- **A real video player.** Episodes open a full-screen player with resume in
+  seconds, ±10 s seeking, playback speed and fullscreen. Anime and drama are
+  first-class, not a card with a placeholder. See
+  [docs/PLAYBACK.md](docs/PLAYBACK.md).
 - **Arabic and English from day one.** Full RTL, localized strings, and a
   language switch that does not restart the app.
-- **A first-run guide.** Seven generated works with chapters and pages, so a
-  fresh install can be used before any source is configured.
+- **A first-run guide.** Seven generated works with chapters, pages and three
+  public-domain sample films, so a fresh install can be used — and watched —
+  before any source is configured.
 - **MangaDex.** Search, details, chapter feed and page images through the public
   API. No scraping and no bundled credentials.
 - **Source packs.** Install a third-party catalogue from a declarative JSON
@@ -107,5 +112,6 @@ the app opens; this job is.
 See [docs/ROADMAP.md](docs/ROADMAP.md),
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 [docs/OFFLINE.md](docs/OFFLINE.md),
+[docs/PLAYBACK.md](docs/PLAYBACK.md),
 [docs/SOURCE-PACKS.md](docs/SOURCE-PACKS.md) and the
 [HikariManga reference study](docs/HIKARIMANGA-STUDY.md).

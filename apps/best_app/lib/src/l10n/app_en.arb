@@ -75,7 +75,7 @@
   "themeLight": "Light",
   "themeDark": "Dark",
   "about": "About",
-  "aboutBody": "Best 0.2.1 — one shelf for manga, manhwa, anime and Asian drama. Built to stay fast on a mid-range phone.",
+  "aboutBody": "Best 0.3.0 — one shelf for manga, manhwa, anime and Asian drama, with a real video player. Built to stay fast on a mid-range phone.",
   "pageOf": "Page {current} of {total}",
   "@pageOf": {
     "placeholders": {
@@ -88,7 +88,6 @@
     }
   },
   "readerEnd": "End of this unit",
-  "playerSoon": "The video player arrives with the playback engine.",
   "pages": "{count} pages",
   "@pages": {
     "placeholders": {
@@ -185,6 +184,31 @@
     "placeholders": {
       "count": {
         "type": "int"
+      }
+    }
+  },
+  "startWatching": "Watch now",
+  "continueWatching": "Continue watching",
+  "continueTitle": "Continue",
+  "watchProgress": "{position} of {duration}",
+  "playbackError": "This video could not be played.",
+  "sampleStream": "Sample video · Blender Foundation",
+  "videoInPlayer": "This episode plays in the video player.",
+  "playbackSpeed": "Playback speed",
+  "fullscreen": "Fullscreen",
+  "exitFullscreen": "Exit fullscreen",
+  "skipBack": "Back 10 seconds",
+  "skipForward": "Forward 10 seconds",
+  "replay": "Replay",
+  "play": "Play",
+  "pause": "Pause",
+  "@watchProgress": {
+    "placeholders": {
+      "position": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
       }
     }
   }

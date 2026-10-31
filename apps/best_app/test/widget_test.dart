@@ -67,14 +67,14 @@ void main() {
     final container = await _pumpApp(tester, repository: repository);
 
     expect(find.text('Blue Echo'), findsWidgets);
-    expect(find.text('Continue reading'), findsOneWidget);
+    expect(find.text('Continue'), findsOneWidget);
     expect(find.text('Library'), findsWidgets);
     expect(find.text('Page 4 of 10'), findsOneWidget);
 
     container.read(settingsProvider.notifier).setLanguage('ar');
     await tester.pumpAndSettle();
 
-    expect(find.text('متابعة القراءة'), findsOneWidget);
+    expect(find.text('متابعة'), findsOneWidget);
     expect(find.text('المكتبة'), findsWidgets);
     expect(
       Directionality.of(tester.element(find.text('بست'))),
@@ -145,6 +145,31 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Appearance'), findsOneWidget);
     expect(find.text('Language'), findsOneWidget);
+  });
+
+  testWidgets('a drama offers the player, not the page reader', (
+    tester,
+  ) async {
+    await _pumpApp(tester);
+
+    await tester.tap(find.text('Browse').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Neon Seoul'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Neon Seoul'), findsWidgets);
+    expect(find.text('Watch now'), findsOneWidget);
+    expect(find.text('Start reading'), findsNothing);
+
+    await tester.scrollUntilVisible(
+      find.text('Episode 1'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Episodes'), findsOneWidget);
+    expect(find.text('Episode 1'), findsOneWidget);
   });
 
   testWidgets('a source pack is validated, installed and listed', (

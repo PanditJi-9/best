@@ -277,4 +277,25 @@ void main() {
     expect(pages, hasLength(units.first.pageCount));
     expect(pages.first, isA<SyntheticPage>());
   });
+
+  test('the guide streams a real sample for episodes', () async {
+    final source = DemoSource();
+    final works = await source.popular();
+
+    for (final media in works.where((work) => work.kind.isWatching)) {
+      final units = await source.units(media);
+      expect(units, isNotEmpty);
+      expect(units.first.kind, UnitKind.episode);
+
+      final resources = await source.resources(units.first);
+      expect(resources, hasLength(1));
+      final stream = resources.single;
+      expect(stream, isA<VideoResource>());
+      expect(
+        Uri.parse((stream as VideoResource).url).isScheme('https'),
+        isTrue,
+        reason: '${media.displayTitle} must stream over TLS',
+      );
+    }
+  });
 }

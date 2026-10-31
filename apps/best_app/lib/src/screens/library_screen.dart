@@ -150,7 +150,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       child: _ContinueRail(
                         entries: continueEntries,
                         onOpen: (entry) =>
-                            openReader(context, ref, entry.media, entry.unit),
+                            openUnit(context, ref, entry.media, entry.unit),
                       ),
                     ),
                   SliverToBoxAdapter(
@@ -311,6 +311,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 }
 
+String _progressLabel(AppLocalizations l10n, ContinueEntry entry) {
+  if (entry.media.kind.isWatching) {
+    if (entry.progress.total <= 0) return l10n.continueWatching;
+    return l10n.watchProgress(
+      formatClock(entry.progress.position),
+      formatClock(entry.progress.total),
+    );
+  }
+  if (entry.progress.total <= 0) return l10n.continueReading;
+  return l10n.pageOf(
+    (entry.progress.position + 1).clamp(1, entry.progress.total),
+    entry.progress.total,
+  );
+}
+
 class _ContinueRail extends StatelessWidget {
   const _ContinueRail({required this.entries, required this.onOpen});
 
@@ -327,7 +342,7 @@ class _ContinueRail extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: SectionHeader(title: l10n.continueReading),
+          child: SectionHeader(title: l10n.continueTitle),
         ),
         SizedBox(
           height: 132,
@@ -393,15 +408,7 @@ class _ContinueRail extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  entry.progress.total > 0
-                                      ? l10n.pageOf(
-                                          (entry.progress.position + 1).clamp(
-                                            1,
-                                            entry.progress.total,
-                                          ),
-                                          entry.progress.total,
-                                        )
-                                      : l10n.continueReading,
+                                  _progressLabel(l10n, entry),
                                   style: theme.textTheme.labelSmall?.copyWith(
                                     color: theme.colorScheme.onSurfaceVariant,
                                   ),

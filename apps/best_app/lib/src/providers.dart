@@ -311,7 +311,49 @@ final seriesProvider = FutureProvider.family<SeriesData, SeriesKey>((
   return SeriesData(media: media, units: units, progress: progress);
 });
 
-typedef ReaderKey = ({String sourceId, String url, String unitUrl});
+typedef UnitKey = ({String sourceId, String url, String unitUrl});
+typedef ReaderKey = UnitKey;
+
+/// The catalogue rows every reader and player needs, resolved once.
+///
+/// Both screens arrive with the same three strings (source, work, unit) and
+/// both must fail the same way when a deep link points at something this
+/// device has never stored.
+class ResolvedUnit {
+  const ResolvedUnit({
+    required this.media,
+    required this.unit,
+    required this.source,
+  });
+
+  final Media media;
+  final MediaUnit unit;
+  final SourceAdapter source;
+}
+
+Future<ResolvedUnit> _resolveUnit(
+  LibraryRepository repository,
+  SourceRegistry registry,
+  UnitKey key,
+) async {
+  final source = registry.byId(key.sourceId);
+  if (source == null) {
+    throw StateError('This source is not installed: ${key.sourceId}');
+  }
+
+  final media = await repository.mediaById(mediaIdOf(key.sourceId, key.url));
+  if (media == null) {
+    throw StateError('This work is not in the local catalogue yet.');
+  }
+
+  final units = await repository.unitsFor(media.id);
+  final unit = units.firstWhere(
+    (candidate) => candidate.url == key.unitUrl,
+    orElse: () => throw StateError('This unit is not in the local catalogue.'),
+  );
+
+  return ResolvedUnit(media: media, unit: unit, source: source);
+}
 
 class ReaderData {
   const ReaderData({
@@ -336,23 +378,14 @@ final readerProvider = FutureProvider.family<ReaderData, ReaderKey>((
   key,
 ) async {
   final repository = ref.watch(repositoryProvider);
-  final source = ref.watch(sourceRegistryProvider).byId(key.sourceId);
-  if (source == null) {
-    throw StateError('This source is not installed: ${key.sourceId}');
-  }
-
-  final media = await repository.mediaById(
-    mediaIdOf(key.sourceId, key.url),
+  final resolved = await _resolveUnit(
+    repository,
+    ref.watch(sourceRegistryProvider),
+    key,
   );
-  if (media == null) {
-    throw StateError('This work is not in the local catalogue yet.');
-  }
-
-  final units = await repository.unitsFor(media.id);
-  final unit = units.firstWhere(
-    (candidate) => candidate.url == key.unitUrl,
-    orElse: () => throw StateError('This unit is not in the local catalogue.'),
-  );
+  final media = resolved.media;
+  final unit = resolved.unit;
+  final source = resolved.source;
 
   final task = await repository.downloadFor(unit.id);
   if (task != null && task.isFinished && task.directory != null) {
@@ -391,5 +424,61 @@ final readerProvider = FutureProvider.family<ReaderData, ReaderKey>((
     unit: unit,
     resources: resources,
     progress: await repository.progressFor(unit.id),
+  );
+});
+
+class WatchData {
+  const WatchData({
+    required this.media,
+    required this.unit,
+    required this.stream,
+    required this.progress,
+    this.sample = false,
+  });
+
+  final Media media;
+  final MediaUnit unit;
+  final VideoResource stream;
+  final UnitProgress? progress;
+
+  /// True for the bundled guide, whose episodes are public-domain sample films
+  /// rather than licensed content. The player says so instead of pretending.
+  final bool sample;
+}
+
+typedef WatchKey = UnitKey;
+
+/// Resolves the one stream an episode plays. A source may return several
+/// resources (trailers, alternate qualities); the player takes the first video
+/// and leaves the rest to a future quality picker.
+final watchProvider = FutureProvider.family<WatchData, WatchKey>((
+  ref,
+  key,
+) async {
+  final repository = ref.watch(repositoryProvider);
+  final resolved = await _resolveUnit(
+    repository,
+    ref.watch(sourceRegistryProvider),
+    key,
+  );
+
+  final resources = await resolved.source.resources(resolved.unit);
+  VideoResource? stream;
+  for (final resource in resources) {
+    if (resource is VideoResource) {
+      stream = resource;
+      break;
+    }
+  }
+  if (stream == null) {
+    throw StateError('This unit has no playable stream.');
+  }
+
+  return WatchData(
+    media: resolved.media,
+    unit: resolved.unit,
+    stream: stream,
+    progress: await repository.progressFor(resolved.unit.id),
+    sample: resolved.source.id == DemoSource.sourceId,
   );
 });

@@ -190,7 +190,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                 child: EmptyState(
                   icon: Icons.play_circle_outline,
                   title: unit.kind == UnitKind.episode
-                      ? l10n.playerSoon
+                      ? l10n.videoInPlayer
                       : l10n.nothingHere,
                   body: l10n.nothingHereBody,
                 ),
@@ -284,7 +284,7 @@ class _ResourcePage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  AppLocalizations.of(context).playerSoon,
+                  AppLocalizations.of(context).videoInPlayer,
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white70, height: 1.5),
                 ),

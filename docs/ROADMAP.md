@@ -34,17 +34,27 @@ demo. Each phase ends with a build that can be installed and used.
 - [ ] Per-work size and automatic eviction of finished downloads.
 - [ ] Background isolate for downloads and image decoding; the current queue
   runs while the app process is alive.
+- [ ] Video downloads; episode rows hide the download control until the player
+  can store a stream.
 - [ ] Integrity check per file; today a page is written atomically and a
   missing page is fetched again on resume, but a corrupt image is not detected.
 - [ ] "Available offline" is a real filter on the shelf.
 
-## 3. Playback
+## 3. Playback — first slice in 0.3.0
 
-- Video engine evaluation: `media_kit` (libmpv) for codec coverage and subtitles
-  versus `video_player` for platform integration.
-- Resume by seconds, not pages; progress merges with the same rules.
-- Subtitles, playback speed, PiP, and a TV/desktop layout.
-- Anime and drama become first-class, not a card with a placeholder.
+- [x] `video_player` (ExoPlayer/Media3 on Android) for HLS and MP4. `media_kit`
+  remains the fallback if codec coverage or subtitle rendering becomes a hard
+  requirement; see [PLAYBACK.md](PLAYBACK.md).
+- [x] Resume by seconds, not pages; progress merges with the same rules.
+- [x] ±10 s seeking, 0.75×–2× speed, fullscreen, keep-screen-on, buffering and
+  retry states.
+- [x] Anime and drama are first-class: the series CTA, continue rail and routes
+  choose the player by media kind.
+- [ ] Subtitle tracks (WebVTT/SRT) and a CC toggle.
+- [ ] Quality and audio-track picker; a source may return several
+  `VideoResource`s.
+- [ ] PiP, background audio and a TV/desktop layout.
+- [ ] Offline video downloads with the same queue guarantees as chapters.
 
 ## 4. Sources and extensions
 
@@ -111,6 +121,7 @@ it was opened on:
 |---|---|---|---|
 | CI emulator | 11 (API 30) | Skia (Impeller opted out) | opens, shelf renders |
 | Owner phone | to be recorded | to be recorded | v0.1.2 pending |
+| CI emulator (playback) | 11 (API 30) | Skia | v0.3.0 pending |
 
 Impeller is opted out in `tool/android/AndroidManifest.xml` because its Vulkan
 path closed the app before the first frame on a real device while the same APK

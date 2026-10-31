@@ -27,10 +27,27 @@ abstract final class Routes {
     return '/read?$query';
   }
 
+  static String watch({
+    required String sourceId,
+    required String url,
+    required String unitUrl,
+  }) {
+    final query = Uri(
+      queryParameters: {'source': sourceId, 'url': url, 'unit': unitUrl},
+    ).query;
+    return '/watch?$query';
+  }
+
   static String seriesOf(Media media) =>
       series(media.ref.sourceId, media.ref.url);
 
   static String readerOf(Media media, MediaUnit unit) => reader(
+        sourceId: media.ref.sourceId,
+        url: media.ref.url,
+        unitUrl: unit.url,
+      );
+
+  static String watchOf(Media media, MediaUnit unit) => watch(
         sourceId: media.ref.sourceId,
         url: media.ref.url,
         unitUrl: unit.url,

@@ -63,6 +63,8 @@ from the files already on disk.
 - Downloads run while the app process is alive. A true background service
   (WorkManager/foreground service) is a later phase; the queue survives being
   killed and resumes, but it does not keep downloading while the app is gone.
+- Video is not downloadable yet. Episode rows hide the download control; a
+  chapter and an episode never share a queue entry.
 - No Wi-Fi-only switch yet. Storage is measured but not capped.
 - No automatic eviction. Deleting a download is explicit.
 - Only `ImageResource` pages are stored. Episode files need the playback engine.

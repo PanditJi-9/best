@@ -9,6 +9,7 @@ import 'screens/reader_screen.dart';
 import 'screens/series_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/shell_screen.dart';
+import 'screens/watch_screen.dart';
 
 /// A router belongs to one app instance. `BestApp` builds it once and keeps it
 /// across theme and locale rebuilds, so changing a setting never throws away
@@ -70,6 +71,17 @@ GoRouter buildRouter() => GoRouter(
           builder: (context, state) {
             final query = state.uri.queryParameters;
             return ReaderScreen(
+              sourceId: query['source'] ?? '',
+              url: query['url'] ?? '',
+              unitUrl: query['unit'] ?? '',
+            );
+          },
+        ),
+        GoRoute(
+          path: '/watch',
+          builder: (context, state) {
+            final query = state.uri.queryParameters;
+            return WatchScreen(
               sourceId: query['source'] ?? '',
               url: query['url'] ?? '',
               unitUrl: query['unit'] ?? '',
