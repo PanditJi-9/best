@@ -202,8 +202,9 @@ Refresh invalidates the guide, continue and library providers together.
 - App bar: 14 px blur over 45% black, unit title + series title, offline badge.
 - `PageView` with `InteractiveViewer` (1–4×) for images, `Image.file` for
   offline pages.
-- Bottom overlay (ignores pointer events): page x of y, series name, 3 px jade
-  progress bar, safe-area padding.
+- Bottom overlay (ignores pointer events): page x of y — or "End of this unit"
+  with a jade check on the last page — the series name, a 3 px jade progress
+  bar, and safe-area padding.
 - Progress saves 320 ms after a page change and again on dispose. Completed at
   the last page; a completed row never moves backwards.
 
