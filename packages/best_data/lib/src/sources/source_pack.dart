@@ -80,8 +80,23 @@ class PageMapping {
   final String url;
 }
 
+/// A watchable route, added in pack format 2.
+///
+/// A pack that declares `watch` is a streaming catalogue: `resources` returns
+/// videos instead of pages, and an optional `subtitle` field gives the player a
+/// caption track. The two are mutually exclusive per pack, because a work is
+/// either read or watched and a source that mixes them needs two packs.
+class VideoMapping {
+  const VideoMapping({required this.list, required this.url, this.subtitle});
+
+  final String list;
+  final String url;
+  final String? subtitle;
+}
+
 class SourcePack {
   SourcePack({
+    this.version = 1,
     required this.id,
     required this.name,
     required this.language,
@@ -94,11 +109,16 @@ class SourcePack {
     required this.units,
     required this.page,
     this.details,
+    this.watch,
+    this.video,
     this.defaultKind = MediaKind.manga,
     this.defaultUnitKind = UnitKind.chapter,
     this.headers = const {},
     this.iconUrl,
   });
+
+  /// Format version. `1` is a page-only pack; `2` adds [watch] and [video].
+  final int version;
 
   final String id;
   final String name;
@@ -115,9 +135,15 @@ class SourcePack {
   final String chapters;
   final String pages;
 
+  /// Format 2: where the videos of a unit live. `null` for a page pack.
+  final String? watch;
+
   final MediaMapping media;
   final UnitMapping units;
   final PageMapping page;
+  final VideoMapping? video;
+
+  bool get isVideo => watch != null && video != null;
 
   final MediaKind defaultKind;
   final UnitKind defaultUnitKind;
@@ -171,6 +197,13 @@ class SourcePack {
     if (name.isEmpty) {
       throw SourcePackException('The name cannot be empty.');
     }
+    final rawVersion = json['version'];
+    final version = rawVersion is int ? rawVersion : 1;
+    if (version < 1 || version > 2) {
+      throw SourcePackException(
+        'This pack uses format $version; this Best reads up to 2.',
+      );
+    }
     final language = _optionalString(json, 'language')?.trim() ?? 'all';
     final baseUrl = _string(json, 'baseUrl').trim();
     final base = Uri.tryParse(baseUrl);
@@ -192,10 +225,25 @@ class SourcePack {
       throw SourcePackException('routes.popular must contain {page}.');
     }
 
+    // A format-2 pack may still be a page pack: the version widens what is
+    // allowed, it does not require a stream.
+    final watch = _optionalString(routes, 'watch');
+
     final map = _object(json, 'map');
     final mediaMap = _object(map, 'media');
     final unitMap = _object(map, 'unit');
     final pageMap = _object(map, 'page');
+    final videoMap = map['video'] is Map<String, Object?>
+        ? map['video'] as Map<String, Object?>
+        : null;
+    if (watch != null) {
+      if (videoMap == null) {
+        throw SourcePackException('A pack with routes.watch needs map.video.');
+      }
+      if (!watch.contains('{id}')) {
+        throw SourcePackException('routes.watch must contain {id}.');
+      }
+    }
 
     final headers = <String, String>{};
     final rawHeaders = json['headers'];
@@ -216,6 +264,7 @@ class SourcePack {
     }
 
     return SourcePack(
+      version: version,
       id: id,
       name: name,
       language: language,
@@ -225,6 +274,7 @@ class SourcePack {
       details: _optionalString(routes, 'details'),
       chapters: _string(routes, 'chapters'),
       pages: _string(routes, 'pages'),
+      watch: watch,
       media: MediaMapping(
         list: _string(mediaMap, 'list'),
         id: _string(mediaMap, 'id'),
@@ -249,6 +299,13 @@ class SourcePack {
         list: _string(pageMap, 'list'),
         url: _string(pageMap, 'url'),
       ),
+      video: videoMap == null
+          ? null
+          : VideoMapping(
+              list: _string(videoMap, 'list'),
+              url: _string(videoMap, 'url'),
+              subtitle: _optionalString(videoMap, 'subtitle'),
+            ),
       defaultKind: _kindOf(
         _optionalString(json, 'kind'),
         fallback: MediaKind.manga,
@@ -261,6 +318,65 @@ class SourcePack {
       iconUrl: _optionalString(json, 'iconUrl'),
     );
   }
+
+  /// The canonical document for this pack, so an installed pack can be shared
+  /// or carried inside a backup without keeping the original bytes.
+  Map<String, Object?> toJson() {
+    final videoMap = video;
+    return <String, Object?>{
+      'version': version,
+      'id': id,
+      'name': name,
+      'language': language,
+      'baseUrl': baseUrl,
+      'kind': defaultKind.name,
+      'unitKind': defaultUnitKind.name,
+      'routes': <String, Object?>{
+        'popular': popular,
+        'search': search,
+        if (details != null) 'details': details,
+        'chapters': chapters,
+        'pages': pages,
+        if (watch != null) 'watch': watch,
+      },
+      'map': <String, Object?>{
+        'media': <String, Object?>{
+          'list': media.list,
+          'id': media.id,
+          'title': media.title,
+          if (media.nativeTitle != null) 'nativeTitle': media.nativeTitle,
+          if (media.cover != null) 'cover': media.cover,
+          if (media.synopsis != null) 'synopsis': media.synopsis,
+          if (media.author != null) 'author': media.author,
+          if (media.status != null) 'status': media.status,
+          if (media.genres != null) 'genres': media.genres,
+          if (media.kind != null) 'kind': media.kind,
+        },
+        'unit': <String, Object?>{
+          'list': units.list,
+          'id': units.id,
+          if (units.number != null) 'number': units.number,
+          if (units.title != null) 'title': units.title,
+          if (units.date != null) 'date': units.date,
+          if (units.pages != null) 'pages': units.pages,
+        },
+        'page': <String, Object?>{
+          'list': page.list,
+          'url': page.url,
+        },
+        if (videoMap != null)
+          'video': <String, Object?>{
+            'list': videoMap.list,
+            'url': videoMap.url,
+            if (videoMap.subtitle != null) 'subtitle': videoMap.subtitle,
+          },
+      },
+      if (headers.isNotEmpty) 'headers': headers,
+      if (iconUrl != null) 'iconUrl': iconUrl,
+    };
+  }
+
+  String encode() => const JsonEncoder.withIndent('  ').convert(toJson());
 
   static String _string(Map<String, Object?> map, String key) {
     final value = map[key];
@@ -523,6 +639,27 @@ class JsonSourceAdapter implements SourceAdapter {
 
   @override
   Future<List<MediaResource>> resources(MediaUnit unit) async {
+    final watch = pack.watch;
+    final video = pack.video;
+    if (watch != null && video != null) {
+      final root = await _get(watch, {'id': unit.url});
+      final items = _listAt(root, video.list);
+      final streams = <MediaResource>[];
+      for (final item in items.take(20)) {
+        final raw = item is String ? item : _stringAt(item, video.url);
+        final url = _absolute(raw);
+        if (url == null) continue;
+        streams.add(
+          VideoResource(
+            url,
+            headers: pack.headers,
+            subtitleUrl: _absolute(_stringAt(item, video.subtitle)),
+          ),
+        );
+      }
+      return streams;
+    }
+
     final root = await _get(pack.pages, {'id': unit.url});
     final items = _listAt(root, pack.page.list);
     final result = <MediaResource>[];

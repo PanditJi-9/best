@@ -58,20 +58,39 @@ from the files already on disk.
   source fails and a partial directory exists, the reader shows the pages that
   are already on disk instead of an error page.
 
-## Limits in 0.2.0
+## Policy: network and storage
+
+Two app-level rules, both read through closures so changing a setting never
+rebuilds the manager (and therefore never drops a unit in flight):
+
+- **Wi-Fi only.** `mayDownload()` returns false on a metered connection, and the
+  queue stops before starting the next unit. Pages already in flight finish, so
+  a chapter is never left half-written. `NetworkKind.unknown` — a VPN, a missing
+  plugin, a permission the person declined — never blocks a download; guessing
+  "metered" would silently stop the app.
+- **Storage cap.** `storageCap()` returns the limit in bytes, `0` for none. When
+  a unit finishes, `evictIfNeeded` removes finished units oldest-first until the
+  store fits. A unit that is still downloading is never evicted: that would undo
+  a person's tap.
+
+The Downloads screen groups finished units by work, shows each work's size, and
+offers one control to reclaim it. `LibraryFilter.offline` reads the per-work
+offline count that the shelf query already computes, so the filter costs no
+extra query.
+
+## Limits
 
 - Downloads run while the app process is alive. A true background service
   (WorkManager/foreground service) is a later phase; the queue survives being
   killed and resumes, but it does not keep downloading while the app is gone.
 - Video is not downloadable yet. Episode rows hide the download control; a
   chapter and an episode never share a queue entry.
-- No Wi-Fi-only switch yet. Storage is measured but not capped.
-- No automatic eviction. Deleting a download is explicit.
 - Only `ImageResource` pages are stored. Episode files need the playback engine.
 
 ## Tests
 
 `packages/best_data/test/download_manager_test.dart` drives the real manager
 against a `MockClient` and a temp directory: full chapter, pause/resume,
-failure/retry, cancel, byte accounting, and restore-after-restart. `data_test.dart` covers the
-SQLite round-trip and the schema 1 → 2 migration.
+failure/retry, cancel, byte accounting, eviction under a cap, the Wi-Fi gate,
+and restore-after-restart. `data_test.dart` covers the SQLite round-trip and the
+schema 1 → 4 migrations.

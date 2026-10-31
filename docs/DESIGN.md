@@ -1,6 +1,6 @@
 # Best — identity and structure
 
-Version 0.4.0 · "Ink & Jade"
+Version 0.7.0 · "Ink & Jade"
 
 Best is one shelf for manga, manhwa, manhua, webtoons, anime and Asian drama.
 The design has to do something hard: feel premium next to Mihon and HikariManga,

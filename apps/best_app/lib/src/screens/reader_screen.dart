@@ -74,6 +74,10 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   late int _index;
   Timer? _saveTimer;
 
+  /// The furthest page reached in this session. Activity counts new ground
+  /// only: flipping back and forth is one page read, not twenty.
+  late int _furthest;
+
   List<MediaResource> get _resources => widget.data.resources;
 
   @override
@@ -83,6 +87,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     final total = _resources.length;
     final saved = widget.data.progress?.position ?? 0;
     _index = total == 0 ? 0 : saved.clamp(0, total - 1);
+    _furthest = _index;
     _controller = PageController(initialPage: _index);
   }
 
@@ -96,6 +101,11 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
 
   void _onPageChanged(int index) {
     setState(() => _index = index);
+    if (index > _furthest) {
+      final fresh = index - _furthest;
+      _furthest = index;
+      unawaited(_repository.recordActivity(pages: fresh));
+    }
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 320), _saveNow);
   }

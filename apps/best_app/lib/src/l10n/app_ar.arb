@@ -253,5 +253,159 @@
     }
   },
   "settingsSubtitle": "اجعل بست على ذوقك",
-  "storageLabel": "التخزين"
+  "storageLabel": "التخزين",
+  "statsTitle": "إحصاءات القراءة",
+  "statsSubtitle": "الصفحات والدقائق وسلسلة أيامك",
+  "statsWeek": "هذا الأسبوع",
+  "statsPagesLabel": "صفحة مقروءة",
+  "statsMinutesLabel": "دقيقة مشاهدة",
+  "statsFinishedLabel": "وحدة مكتملة",
+  "statsStreakTitle": "سلسلتك",
+  "streakDays": "{days, plural, =0{لا سلسلة بعد} =1{يوم واحد متتالٍ} =2{يومان متتاليان} few{{days} أيام متتالية} many{{days} يوماً متتالياً} other{{days} يوم متتالٍ}}",
+  "@streakDays": {
+    "description": "Consecutive days with reading activity",
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "streakEmpty": "اقلب صفحة واحدة لتبدأها.",
+  "statsEmptyTitle": "لا قراءة بعد",
+  "statsEmptyBody": "الصفحات التي تقلبها والدقائق التي تشاهدها تُحسب هنا، على هذا الجهاز فقط.",
+  "backupTitle": "النسخ والاستعادة",
+  "backupBody": "ملف واحد يجمع مكتبتك وفصولك ومواضع قراءتك وقوائمك وإحصاءاتك. بلا حساب وبلا خادم.",
+  "backupDownloadsNote": "التنزيلات غير مشمولة: تلك الملفات تبقى في هذا الجهاز.",
+  "backupCopy": "انسخ النسخة",
+  "backupSave": "احفظ في ملف",
+  "backupCopied": "نُسخت النسخة إلى الحافظة.",
+  "backupSaved": "حُفظت {name}",
+  "@backupSaved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "backupRestoreSection": "الاستعادة",
+  "backupPaste": "الصق نسخة احتياطية هنا",
+  "backupRestore": "استعد هذه النسخة",
+  "backupRestoreTitle": "استعادة هذه النسخة؟",
+  "backupRestoreBody": "تُضاف إلى ما هو موجود في هذا الجهاز، ولا تمحو موضع قراءة أحدث.",
+  "backupRestored": "استُعيدت {works} أعمال و{units} وحدة و{positions} موضعاً.",
+  "@backupRestored": {
+    "placeholders": {
+      "works": {
+        "type": "int"
+      },
+      "units": {
+        "type": "int"
+      },
+      "positions": {
+        "type": "int"
+      }
+    }
+  },
+  "backupFailed": "لم يمكن قراءة هذا المستند.",
+  "backupEmpty": "هذه النسخة لا تحتوي شيئاً.",
+  "stateReading": "أقرأها",
+  "statePlanned": "مخططة",
+  "statePaused": "متوقفة",
+  "shelfPlan": "خطتك",
+  "listsTitle": "القوائم",
+  "listAdd": "أضف قائمة",
+  "listName": "اسم القائمة",
+  "listAdded": "أُضيفت إلى {name}",
+  "@listAdded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "refreshShelf": "حدّث المكتبة",
+  "refreshDone": "حُدّث {done}، وفشل {failed}.",
+  "@refreshDone": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      }
+    }
+  },
+  "dataGroup": "بياناتك",
+  "filterPlanned": "مخططة",
+  "filterPaused": "متوقفة",
+  "backupShort": "ملف واحد، بلا حساب",
+  "offlineGroup": "دون اتصال",
+  "wifiOnlyTitle": "نزّل عبر Wi-Fi فقط",
+  "wifiOnlyBody": "تنتظر الفصول في الطابور حتى يعود Wi-Fi.",
+  "storageCapTitle": "حد مساحة التنزيلات",
+  "storageCapOff": "بلا حد",
+  "storageCapGb": "{gb} جيجابايت",
+  "@storageCapGb": {
+    "placeholders": {
+      "gb": {
+        "type": "int"
+      }
+    }
+  },
+  "wifiWaiting": "بانتظار Wi-Fi",
+  "downloadDeleteWork": "احذف تنزيلات هذا العمل",
+  "downloadEvicted": "حُذفت {count} تنزيلات قديمة للبقاء تحت الحد.",
+  "@downloadEvicted": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "filterOffline": "دون اتصال",
+  "subtitles": "الترجمة",
+  "subtitlesOn": "الترجمة مفعّلة",
+  "subtitlesOff": "الترجمة متوقفة",
+  "syncGroup": "المزامنة",
+  "syncShort": "مشفّرة، على خادمك",
+  "syncTitle": "المزامنة بين الأجهزة",
+  "syncBody": "ملف واحد مشفّر في مجلد WebDAV تملكه. يعمل مع Nextcloud وownCloud وأي خادم عادي. عبارة المرور لا تغادر هذا الجهاز.",
+  "syncUrl": "رابط المجلد",
+  "syncUrlHint": "https://cloud.example.com/remote.php/dav/files/me/best",
+  "syncUser": "اسم المستخدم",
+  "syncPassword": "كلمة المرور أو رمز التطبيق",
+  "syncPassphrase": "عبارة المرور (٨ أحرف على الأقل)",
+  "syncPassphraseNote": "لا تُحفظ. تُكتب من جديد مع كل رفع أو تنزيل.",
+  "syncUpload": "ارفع الآن",
+  "syncDownload": "نزّل ودمج",
+  "syncUploaded": "رُفعت {works} أعمال و{units} وحدة و{sources} مصادر.",
+  "@syncUploaded": {
+    "placeholders": {
+      "works": {
+        "type": "int"
+      },
+      "units": {
+        "type": "int"
+      },
+      "sources": {
+        "type": "int"
+      }
+    }
+  },
+  "syncDownloaded": "دُمجت {works} أعمال و{units} وحدة و{sources} مصادر.",
+  "@syncDownloaded": {
+    "placeholders": {
+      "works": {
+        "type": "int"
+      },
+      "units": {
+        "type": "int"
+      },
+      "sources": {
+        "type": "int"
+      }
+    }
+  },
+  "syncConfirmTitle": "دمج نسخة الخادم؟",
+  "syncConfirmBody": "تُضاف إلى هذا الجهاز، ولا تمحو موضع قراءة أحدث."
 }

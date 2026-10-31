@@ -9,6 +9,7 @@ environment:
 dependencies:
   best_domain:
     path: ../best_domain
+  cryptography: ^2.9.0
   http: ^1.2.0
   path: ^1.9.0
   sqflite_common: ^2.5.4

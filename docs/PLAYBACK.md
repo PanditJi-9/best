@@ -89,6 +89,24 @@ played" screen and a retry, not a blank page.
 Declarative source packs are image-only today. Opening an episode from a pack
 shows the playback error until the pack format grows a video route.
 
+## Captions
+
+`Subtitles.parse` in `best_domain` reads WebVTT and SRT into `SubtitleCue`s.
+The parser is total: a malformed file yields an empty list, so a broken track
+can never throw in the middle of a film. Styling tags (`<i>`, `{\an8}`) and
+entities are stripped, because they are presentation, not words.
+
+`VideoResource.subtitleUrl` is either `asset://path` — bundled, and therefore
+available with the network off — or an HTTP URL. The player loads the track once
+per stream, keeps the parsed cues, and asks for the cue covering the current
+position on each player tick. It only rebuilds when the visible line changes,
+not on every frame. The CC button appears only when a track actually parsed, so
+a work with no captions never shows a dead control.
+
+The bundled guide ships `assets/subtitles/guide.vtt` so the overlay can be
+verified offline, and the file's own NOTE block says the captions describe the
+trailer's beats rather than quoting a licensed track.
+
 ## Limits
 
 - **No offline video.** Episode rows hide the download control; chapter
@@ -96,8 +114,9 @@ shows the playback error until the pack format grows a video route.
   storage budget, codec licensing).
 - No picture-in-picture, background audio or TV/desktop layout yet.
 - One stream per unit; no quality or audio-track picker.
-- `subtitleUrl` is modeled but not rendered yet. The next step is a small
-  WebVTT/SRT parser and a CC toggle in the player chrome.
+- Captions are drawn, not styled: no font size, position or colour settings
+  yet. A cue with more than three lines is clipped rather than pushed over the
+  picture.
 - The emulator uses software decoding, so playback there is slower than on a
   phone; the smoke gate checks that a stream opens and no fatal playback error
   is logged, not a frame rate.

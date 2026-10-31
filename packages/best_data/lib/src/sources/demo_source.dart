@@ -35,6 +35,12 @@ class DemoSource implements SourceAdapter {
   static const String _hlsAlternate =
       'https://test-streams.mux.dev/pts_shift/master.m3u8';
 
+  /// Captions that ship inside the app, so the subtitle overlay works with the
+  /// network switched off. The player treats `asset://` as a bundled file and
+  /// everything else as a URL.
+  static const String _subtitleSample =
+      'asset://assets/subtitles/guide.vtt';
+
   static const List<_GuideWork> _works = [
     _GuideWork(
       slug: 'forest-shadow',
@@ -88,6 +94,7 @@ class DemoSource implements SourceAdapter {
       units: 8,
       pages: 0,
       video: _sintelTrailer,
+      subtitle: _subtitleSample,
     ),
     _GuideWork(
       slug: 'silent-orbit',
@@ -194,7 +201,9 @@ class DemoSource implements SourceAdapter {
       final slug = unit.mediaId.split('::').skip(1).join('::');
       for (final work in _works) {
         if (work.slug == slug && work.video != null) {
-          return [VideoResource(work.video!)];
+          return [
+            VideoResource(work.video!, subtitleUrl: work.subtitle),
+          ];
         }
       }
       return const [];
@@ -247,6 +256,7 @@ class _GuideWork {
     required this.units,
     required this.pages,
     this.video,
+    this.subtitle,
   });
 
   final String slug;
@@ -260,4 +270,5 @@ class _GuideWork {
   final int units;
   final int pages;
   final String? video;
+  final String? subtitle;
 }

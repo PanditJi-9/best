@@ -3,8 +3,10 @@ import 'dart:ui' as ui;
 import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../l10n/generated/app_localizations.dart';
+import '../navigation.dart';
 import '../labels.dart';
 import '../providers.dart';
 
@@ -51,6 +53,34 @@ class SettingsScreen extends ConsumerWidget {
             works: works,
             offline: offline,
             sources: sources.length,
+          ),
+          _Group(
+            title: l10n.dataGroup,
+            icon: Icons.shield_moon_outlined,
+            child: Column(
+              children: [
+                _LinkTile(
+                  icon: Icons.insights_outlined,
+                  title: l10n.statsTitle,
+                  subtitle: l10n.statsSubtitle,
+                  onTap: () => context.push(Routes.stats),
+                ),
+                const Divider(height: 1, indent: 52),
+                _LinkTile(
+                  icon: Icons.settings_backup_restore,
+                  title: l10n.backupTitle,
+                  subtitle: l10n.backupShort,
+                  onTap: () => context.push(Routes.backup),
+                ),
+                const Divider(height: 1, indent: 52),
+                _LinkTile(
+                  icon: Icons.sync_rounded,
+                  title: l10n.syncTitle,
+                  subtitle: l10n.syncShort,
+                  onTap: () => context.push(Routes.sync),
+                ),
+              ],
+            ),
           ),
           _Group(
             title: l10n.language,
@@ -103,6 +133,83 @@ class SettingsScreen extends ConsumerWidget {
                 onSelect: (mode) =>
                     ref.read(settingsProvider.notifier).setThemeMode(mode),
               ),
+            ),
+          ),
+          _Group(
+            title: l10n.offlineGroup,
+            icon: Icons.cloud_download_outlined,
+            child: Column(
+              children: [
+                SwitchListTile.adaptive(
+                  value: settings.wifiOnly,
+                  onChanged: (value) =>
+                      ref.read(settingsProvider.notifier).setWifiOnly(value),
+                  secondary: const Icon(Icons.wifi_rounded, size: 19),
+                  title: Text(
+                    l10n.wifiOnlyTitle,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  subtitle: Text(
+                    l10n.wifiOnlyBody,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  contentPadding: const EdgeInsetsDirectional.only(
+                    start: 14,
+                    end: 8,
+                  ),
+                ),
+                const Divider(height: 1, indent: 52),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.storage_rounded,
+                            size: 19,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              l10n.storageCapTitle,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _Segmented<int>(
+                        selected: settings.storageCapGb,
+                        options: [
+                          _SegmentOption(
+                            value: 0,
+                            icon: Icons.all_inclusive_rounded,
+                            label: l10n.storageCapOff,
+                          ),
+                          for (final gb in const [1, 2, 5])
+                            _SegmentOption(
+                              value: gb,
+                              icon: Icons.sd_storage_outlined,
+                              label: '$gb GB',
+                            ),
+                        ],
+                        onSelect: (value) => ref
+                            .read(settingsProvider.notifier)
+                            .setStorageCapGb(value),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
           _Group(
@@ -708,6 +815,69 @@ class _AddPackDialogState extends ConsumerState<_AddPackDialog> {
         ),
         FilledButton(onPressed: _submit, child: Text(l10n.add)),
       ],
+    );
+  }
+}
+
+/// A row that opens another screen. Settings groups mix controls and links, and
+/// a link that looks like a control is a small betrayal, so it gets its own
+/// shape: icon, two lines, a chevron.
+class _LinkTile extends StatelessWidget {
+  const _LinkTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        child: Row(
+          children: [
+            Icon(icon, size: 19, color: theme.colorScheme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

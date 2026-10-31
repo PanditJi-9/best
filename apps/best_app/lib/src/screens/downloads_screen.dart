@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../labels.dart';
 import '../navigation.dart';
+import '../network.dart';
 import '../providers.dart';
 
 class DownloadsScreen extends ConsumerWidget {
@@ -21,6 +22,13 @@ class DownloadsScreen extends ConsumerWidget {
     final finished = current.where((task) => task.isFinished).toList();
     final active = current.where((task) => !task.isFinished).toList();
     final totalBytes = current.fold<int>(0, (sum, task) => sum + task.bytes);
+    final settings = ref.watch(settingsProvider);
+    final waitingForWifi = settings.wifiOnly &&
+        ref.watch(networkProvider).value == NetworkKind.mobile;
+    final groups = <String, List<DownloadTask>>{};
+    for (final task in finished) {
+      groups.putIfAbsent(task.mediaId, () => <DownloadTask>[]).add(task);
+    }
 
     return SafeArea(
       bottom: false,
@@ -113,6 +121,8 @@ class DownloadsScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
+                    if (active.isNotEmpty && waitingForWifi)
+                      _WifiBanner(text: l10n.wifiWaiting),
                     if (active.isNotEmpty) ...[
                       SectionHeader(title: l10n.downloadsInProgress),
                       for (final task in active)
@@ -136,30 +146,41 @@ class DownloadsScreen extends ConsumerWidget {
                     ],
                     if (finished.isNotEmpty) ...[
                       SectionHeader(title: l10n.downloadsFinished),
-                      for (final task in finished)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _DownloadTile(
-                            task: task,
-                            onPause: () => ref
-                                .read(downloadManagerProvider)
-                                .pause(task.unitId),
-                            onResume: () => ref
-                                .read(downloadManagerProvider)
-                                .resume(task.unitId),
-                            onRetry: () => ref
-                                .read(downloadManagerProvider)
-                                .retry(task.unitId),
-                            onDelete: () => _delete(context, ref, task),
-                            onOpen: () => context.push(
-                              Routes.reader(
-                                sourceId: task.sourceId,
-                                url: task.mediaUrl,
-                                unitUrl: task.unitUrl,
+                      for (final group in groups.values) ...[
+                        _WorkHeader(
+                          title: group.first.mediaTitle,
+                          bytes: group.fold<int>(
+                            0,
+                            (sum, task) => sum + task.bytes,
+                          ),
+                          unitCount: group.length,
+                          onDelete: () => _deleteWork(context, ref, group),
+                        ),
+                        for (final task in group)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _DownloadTile(
+                              task: task,
+                              onPause: () => ref
+                                  .read(downloadManagerProvider)
+                                  .pause(task.unitId),
+                              onResume: () => ref
+                                  .read(downloadManagerProvider)
+                                  .resume(task.unitId),
+                              onRetry: () => ref
+                                  .read(downloadManagerProvider)
+                                  .retry(task.unitId),
+                              onDelete: () => _delete(context, ref, task),
+                              onOpen: () => context.push(
+                                Routes.reader(
+                                  sourceId: task.sourceId,
+                                  url: task.mediaUrl,
+                                  unitUrl: task.unitUrl,
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                      ],
                     ],
                     const SizedBox(height: 8),
                     _OfflineNote(text: l10n.downloadsNote),
@@ -206,6 +227,41 @@ class DownloadsScreen extends ConsumerWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(l10n.downloadClearDone)),
+    );
+  }
+
+  /// Deletes every finished unit of one work in one confirmation.
+  Future<void> _deleteWork(
+    BuildContext context,
+    WidgetRef ref,
+    List<DownloadTask> tasks,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.downloadDeleteTitle),
+        content: Text(l10n.downloadDeleteBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final manager = ref.read(downloadManagerProvider);
+    for (final task in tasks) {
+      await manager.cancel(task.unitId);
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(l10n.downloadRemoved)),
     );
   }
 
@@ -542,6 +598,96 @@ class _Actions extends StatelessWidget {
         sourceId: task.sourceId,
         url: task.mediaUrl,
         unitUrl: task.unitUrl,
+      ),
+    );
+  }
+}
+
+/// The work's own header above its finished chapters: how much it costs on
+/// disk, and one control to reclaim it.
+class _WorkHeader extends StatelessWidget {
+  const _WorkHeader({
+    required this.title,
+    required this.bytes,
+    required this.unitCount,
+    required this.onDelete,
+  });
+
+  final String title;
+  final int bytes;
+  final int unitCount;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 2, 0, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${formatBytes(bytes)} · $unitCount',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: AppLocalizations.of(context).downloadDeleteWork,
+            onPressed: onDelete,
+            icon: const Icon(Icons.delete_sweep_outlined, size: 19),
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WifiBanner extends StatelessWidget {
+  const _WifiBanner({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(BestRadius.md),
+        color: BestColors.jade.withValues(alpha: 0.12),
+        border: Border.all(color: BestColors.jade.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.wifi_off_rounded, size: 16, color: BestColors.jade),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -8,7 +8,7 @@ import 'package:sqflite_common/sqlite_api.dart';
 class AppDatabase {
   AppDatabase._(this.db);
 
-  static const int schemaVersion = 3;
+  static const int schemaVersion = 4;
   static const String fileName = 'best.db';
 
   final Database db;
@@ -34,6 +34,10 @@ class AppDatabase {
           if (oldVersion < 3) {
             await _addDownloadBytes(db);
           }
+          if (oldVersion < 4) {
+            await _addShelfColumns(db);
+            await _createActivity(db);
+          }
         },
       ),
     );
@@ -57,6 +61,8 @@ class AppDatabase {
         genres TEXT NOT NULL DEFAULT '[]',
         in_library INTEGER NOT NULL DEFAULT 0,
         favorite INTEGER NOT NULL DEFAULT 0,
+        state TEXT NOT NULL DEFAULT 'none',
+        tags TEXT NOT NULL DEFAULT '[]',
         added_at INTEGER NOT NULL DEFAULT 0,
         last_opened_at INTEGER NOT NULL DEFAULT 0,
         UNIQUE (source_id, url)
@@ -88,6 +94,7 @@ class AppDatabase {
     ''');
 
     await _createDownloads(db);
+    await _createActivity(db);
 
     await db.execute('CREATE INDEX media_library ON media (in_library, title)');
     await db.execute('CREATE INDEX unit_media ON unit (media_id, number)');
@@ -117,6 +124,35 @@ class AppDatabase {
     await db.execute(
       'CREATE INDEX IF NOT EXISTS downloads_recent ON downloads (updated_at DESC)',
     );
+  }
+
+  /// Version 4 adds the person's own plan and lists to a work.
+  static Future<void> _addShelfColumns(Database db) async {
+    final columns = await db.rawQuery('PRAGMA table_info(media)');
+    final names = columns.map((column) => column['name']).toSet();
+    if (!names.contains('state')) {
+      await db.execute(
+        "ALTER TABLE media ADD COLUMN state TEXT NOT NULL DEFAULT 'none'",
+      );
+    }
+    if (!names.contains('tags')) {
+      await db.execute(
+        "ALTER TABLE media ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'",
+      );
+    }
+  }
+
+  /// One row per local day of reading. Small enough to keep forever: a year of
+  /// daily use is a few hundred rows.
+  static Future<void> _createActivity(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS activity (
+        day TEXT PRIMARY KEY,
+        pages INTEGER NOT NULL DEFAULT 0,
+        minutes INTEGER NOT NULL DEFAULT 0,
+        units INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
   }
 
   /// Version 2 shipped without byte accounting. A fresh install already has

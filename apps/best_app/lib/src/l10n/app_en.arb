@@ -253,5 +253,159 @@
     }
   },
   "settingsSubtitle": "Make Best yours",
-  "storageLabel": "Storage"
+  "storageLabel": "Storage",
+  "statsTitle": "Reading statistics",
+  "statsSubtitle": "Pages, minutes and your streak",
+  "statsWeek": "This week",
+  "statsPagesLabel": "Pages turned",
+  "statsMinutesLabel": "Minutes watched",
+  "statsFinishedLabel": "Units finished",
+  "statsStreakTitle": "Your streak",
+  "streakDays": "{days, plural, =0{No streak yet} =1{1 day in a row} other{{days} days in a row}}",
+  "@streakDays": {
+    "description": "Consecutive days with reading activity",
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "streakEmpty": "Turn one page to start it.",
+  "statsEmptyTitle": "No reading yet",
+  "statsEmptyBody": "Pages you turn and minutes you watch are counted here, on this device only.",
+  "backupTitle": "Backup & restore",
+  "backupBody": "One file with your shelf, chapters, reading positions, lists and statistics. No account, no server.",
+  "backupDownloadsNote": "Downloads are not included: those files stay on this phone.",
+  "backupCopy": "Copy backup",
+  "backupSave": "Save to a file",
+  "backupCopied": "Backup copied to the clipboard.",
+  "backupSaved": "Saved {name}",
+  "@backupSaved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "backupRestoreSection": "Restore",
+  "backupPaste": "Paste a backup here",
+  "backupRestore": "Restore this backup",
+  "backupRestoreTitle": "Restore this backup?",
+  "backupRestoreBody": "It adds to what is already on this phone. A newer reading position is never erased.",
+  "backupRestored": "Restored {works} works, {units} units and {positions} positions.",
+  "@backupRestored": {
+    "placeholders": {
+      "works": {
+        "type": "int"
+      },
+      "units": {
+        "type": "int"
+      },
+      "positions": {
+        "type": "int"
+      }
+    }
+  },
+  "backupFailed": "That document could not be read.",
+  "backupEmpty": "This backup has nothing in it.",
+  "stateReading": "Reading",
+  "statePlanned": "Planned",
+  "statePaused": "Paused",
+  "shelfPlan": "Your plan",
+  "listsTitle": "Lists",
+  "listAdd": "Add a list",
+  "listName": "List name",
+  "listAdded": "Added to {name}",
+  "@listAdded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "refreshShelf": "Refresh the shelf",
+  "refreshDone": "Updated {done}, {failed} failed.",
+  "@refreshDone": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "failed": {
+        "type": "int"
+      }
+    }
+  },
+  "dataGroup": "Your data",
+  "filterPlanned": "Planned",
+  "filterPaused": "Paused",
+  "backupShort": "One file, no account",
+  "offlineGroup": "Offline",
+  "wifiOnlyTitle": "Download on Wi-Fi only",
+  "wifiOnlyBody": "Chapters wait in the queue until Wi-Fi is back.",
+  "storageCapTitle": "Offline storage limit",
+  "storageCapOff": "No limit",
+  "storageCapGb": "{gb} GB",
+  "@storageCapGb": {
+    "placeholders": {
+      "gb": {
+        "type": "int"
+      }
+    }
+  },
+  "wifiWaiting": "Waiting for Wi-Fi",
+  "downloadDeleteWork": "Delete this work's downloads",
+  "downloadEvicted": "Removed {count} old downloads to stay under the limit.",
+  "@downloadEvicted": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "filterOffline": "Offline",
+  "subtitles": "Subtitles",
+  "subtitlesOn": "Subtitles on",
+  "subtitlesOff": "Subtitles off",
+  "syncGroup": "Sync",
+  "syncShort": "Encrypted, on your own server",
+  "syncTitle": "Sync across devices",
+  "syncBody": "One encrypted file on a WebDAV folder you control. Nextcloud, ownCloud and a plain server all work. The passphrase never leaves this phone.",
+  "syncUrl": "Folder URL",
+  "syncUrlHint": "https://cloud.example.com/remote.php/dav/files/me/best",
+  "syncUser": "Username",
+  "syncPassword": "Password or app token",
+  "syncPassphrase": "Passphrase (8+ characters)",
+  "syncPassphraseNote": "Never saved. Typed again for each upload or download.",
+  "syncUpload": "Upload now",
+  "syncDownload": "Download & merge",
+  "syncUploaded": "Uploaded {works} works, {units} units and {sources} sources.",
+  "@syncUploaded": {
+    "placeholders": {
+      "works": {
+        "type": "int"
+      },
+      "units": {
+        "type": "int"
+      },
+      "sources": {
+        "type": "int"
+      }
+    }
+  },
+  "syncDownloaded": "Merged {works} works, {units} units and {sources} sources.",
+  "@syncDownloaded": {
+    "placeholders": {
+      "works": {
+        "type": "int"
+      },
+      "units": {
+        "type": "int"
+      },
+      "sources": {
+        "type": "int"
+      }
+    }
+  },
+  "syncConfirmTitle": "Merge the server copy?",
+  "syncConfirmBody": "It adds to this phone. A newer reading position is never erased."
 }

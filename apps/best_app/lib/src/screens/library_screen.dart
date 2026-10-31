@@ -37,7 +37,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     });
   }
 
+  /// Pull to refresh means "ask the sources what changed", not "re-run the
+  /// query": the shelf is a local database, so a repaint alone would be a lie.
   Future<void> _refresh() async {
+    final l10n = AppLocalizations.of(context);
+    final controller = ref.read(libraryRefreshProvider.notifier);
+    await controller.refreshAll();
     ref.invalidate(libraryProvider);
     ref.invalidate(continueProvider);
     try {
@@ -45,6 +50,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     } catch (_) {
       // The error state is already rendered by the list below.
     }
+    if (!mounted) return;
+    final progress = ref.read(libraryRefreshProvider);
+    controller.clear();
+    if (progress.total == 0) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(l10n.refreshDone(progress.done, progress.failed))),
+      );
   }
 
   @override

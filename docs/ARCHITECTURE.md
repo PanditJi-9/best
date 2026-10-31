@@ -49,10 +49,17 @@ metadata but cannot erase a favorite, an `addedAt`, or history.
 
 ## Storage
 
-Schema v3: `media`, `unit`, `progress`, `downloads`, plus indexes. Foreign keys
-are on. A v1 database is upgraded in place; the migration only adds the
-downloads table. The `DatabaseFactory` is injected, so the same schema runs on
-`sqflite` on a phone and `sqflite_common_ffi` in a test.
+Schema v4: `media`, `unit`, `progress`, `downloads`, `activity`, plus indexes.
+Foreign keys are on. Older databases are upgraded in place: v2 adds the
+downloads table, v3 adds byte accounting, v4 adds `media.state`, `media.tags`
+and the `activity` table. Every migration is additive, so a database written by
+an older build keeps its rows. The `DatabaseFactory` is injected, so the same
+schema runs on `sqflite` on a phone and `sqflite_common_ffi` in a test.
+
+`activity` is one row per local day (`pages`, `minutes`, `units`). It is a total,
+not a log: importing a backup takes the larger value per field, which makes a
+restore idempotent. `ReadingStats` derives the streak and the seven-day bars
+from those rows; nothing about reading leaves the device.
 
 `MemoryLibraryRepository` implements the same contract with the same merge
 rules. It is the widget-test repository and the fallback when the database
@@ -84,6 +91,12 @@ resume, when a video is finished and how to clamp a position. It stores seconds
 in the existing `progress` table — no schema change, and the same merge rules
 apply. A completed row is never moved backwards by a replay.
 
+Captions are `SubtitleCue`s parsed by `Subtitles` from WebVTT or SRT. The parser
+is pure and total: a malformed file yields an empty list, never an exception
+mid-film. `VideoResource.subtitleUrl` is either `asset://` (bundled, works with
+the network off) or an HTTP URL; the player reads it once per stream and shows
+the line whose cue covers the current position.
+
 The player is a pushed route outside the shell, so the bottom bar disappears
 while watching. It is dark in both themes, keeps the screen awake while playing,
 and restores the system UI and orientation when it closes. Details in
@@ -100,6 +113,29 @@ The bundled `DemoSource` generates seven works, chapters and pages, plus three
 public-domain sample films for the watching works. It is labelled as a guide,
 never presented as licensed content, and it exercises the same reader and
 player paths as a real source.
+
+### Source packs
+
+A pack is declarative JSON — five route templates and three field maps — with no
+code to execute, so installing one cannot read the library, the filesystem or a
+host it did not name. Format 2 adds `routes.watch` and `map.video`: a pack can
+be a streaming catalogue with caption tracks, not only pages. `SourcePack.parse`
+validates the whole document (id shape, HTTPS base, required placeholders, size)
+and refuses a format it does not understand instead of guessing. `encode()`
+returns the canonical document, which is what a backup and a sync carry.
+
+### Backup and sync
+
+`LibraryBackup` (format 2) is a JSON document with the shelf, units, positions,
+activity and the installed packs. It is written and read by `best_data`; the
+domain's `LibrarySnapshot` and `restoreInto` decide what a restore means: every
+write goes through the normal merge rules, so a restore can only add.
+
+`SyncCipher` seals that document with AES-256-GCM and a PBKDF2-HMAC-SHA256 key
+(150,000 iterations, salt and iteration count in the envelope). `WebDavSync`
+puts the sealed blob on any WebDAV folder with Basic auth and refuses plain
+`http://` outside loopback. The passphrase is never persisted; the server only
+ever holds ciphertext.
 
 ## State and navigation
 

@@ -11,6 +11,9 @@ abstract final class Routes {
   static const String browse = '/browse';
   static const String downloads = '/downloads';
   static const String settings = '/settings';
+  static const String stats = '/stats';
+  static const String backup = '/backup';
+  static const String sync = '/sync';
 
   static String series(String sourceId, String url) {
     final query = Uri(queryParameters: {'source': sourceId, 'url': url}).query;

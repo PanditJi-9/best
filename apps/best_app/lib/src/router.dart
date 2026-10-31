@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'navigation.dart';
+import 'screens/backup_screen.dart';
 import 'screens/browse_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'screens/home_screen.dart';
@@ -10,6 +11,8 @@ import 'screens/reader_screen.dart';
 import 'screens/series_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/shell_screen.dart';
+import 'screens/stats_screen.dart';
+import 'screens/sync_screen.dart';
 import 'screens/watch_screen.dart';
 
 /// A router belongs to one app instance. `BestApp` builds it once and keeps it
@@ -85,6 +88,18 @@ GoRouter buildRouter() => GoRouter(
               unitUrl: query['unit'] ?? '',
             );
           },
+        ),
+        GoRoute(
+          path: Routes.stats,
+          builder: (context, state) => const StatsScreen(),
+        ),
+        GoRoute(
+          path: Routes.backup,
+          builder: (context, state) => const BackupScreen(),
+        ),
+        GoRoute(
+          path: Routes.sync,
+          builder: (context, state) => const SyncScreen(),
         ),
         GoRoute(
           path: '/watch',

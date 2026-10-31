@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:best_domain/best_domain.dart';
 
@@ -18,6 +19,7 @@ class MemoryLibraryRepository implements LibraryRepository {
   final Map<String, MediaUnit> _units = {};
   final Map<String, UnitProgress> _progress = {};
   final Map<String, DownloadTask> _downloads = {};
+  final Map<String, DailyActivity> _activity = {};
   final StreamController<void> _changes = StreamController<void>.broadcast();
 
   @override
@@ -43,6 +45,9 @@ class MemoryLibraryRepository implements LibraryRepository {
           media: media,
           totalUnits: total,
           completedUnits: completed,
+          offlineUnits: _downloads.values
+              .where((task) => task.mediaId == media.id && task.isFinished)
+              .length,
         ),
       );
     }
@@ -78,6 +83,8 @@ class MemoryLibraryRepository implements LibraryRepository {
         genres: media.genres.isEmpty ? existing.genres : media.genres,
         inLibrary: existing.inLibrary || media.inLibrary,
         favorite: existing.favorite || media.favorite,
+        state: media.state == ReadingState.none ? existing.state : media.state,
+        tags: media.tags.isEmpty ? existing.tags : media.tags,
         addedAt: existing.addedAt > 0 ? existing.addedAt : media.addedAt,
         lastOpenedAt: existing.lastOpenedAt > media.lastOpenedAt
             ? existing.lastOpenedAt
@@ -106,6 +113,84 @@ class MemoryLibraryRepository implements LibraryRepository {
     if (media == null) return;
     _media[mediaId] = media.copyWith(favorite: value);
     _notify();
+  }
+
+  @override
+  Future<void> setReadingState(String mediaId, ReadingState state) async {
+    final media = _media[mediaId];
+    if (media == null) return;
+    _media[mediaId] = media.copyWith(state: state);
+    _notify();
+  }
+
+  @override
+  Future<void> setTags(String mediaId, List<String> tags) async {
+    final media = _media[mediaId];
+    if (media == null) return;
+    _media[mediaId] = media.copyWith(tags: List.unmodifiable(tags));
+    _notify();
+  }
+
+  @override
+  Future<List<Media>> allMedia() async {
+    final rows = _media.values.toList()
+      ..sort((a, b) => b.lastOpenedAt.compareTo(a.lastOpenedAt));
+    return List.unmodifiable(rows);
+  }
+
+  @override
+  Future<List<MediaUnit>> allUnits() async {
+    final rows = _units.values.toList()
+      ..sort((a, b) {
+        final byMedia = a.mediaId.compareTo(b.mediaId);
+        return byMedia != 0 ? byMedia : a.number.compareTo(b.number);
+      });
+    return List.unmodifiable(rows);
+  }
+
+  @override
+  Future<List<UnitProgress>> allProgress() async =>
+      List.unmodifiable(_progress.values);
+
+  @override
+  Future<List<DailyActivity>> activity({int days = 400}) async {
+    final rows = _activity.values.toList()
+      ..sort((a, b) => a.day.compareTo(b.day));
+    return List.unmodifiable(rows.skip(rows.length > days ? rows.length - days : 0));
+  }
+
+  @override
+  Future<void> recordActivity({
+    int pages = 0,
+    int minutes = 0,
+    int units = 0,
+  }) async {
+    if (pages == 0 && minutes == 0 && units == 0) return;
+    final key = ReadingStats.dayKey(DateTime.now());
+    final existing = _activity[key];
+    _activity[key] = existing == null
+        ? DailyActivity(day: key, pages: pages, minutes: minutes, units: units)
+        : existing.plus(pages: pages, minutes: minutes, units: units);
+    _notify();
+  }
+
+  @override
+  Future<void> mergeActivity(Iterable<DailyActivity> days) async {
+    var wrote = false;
+    for (final day in days) {
+      if (day.isEmpty) continue;
+      wrote = true;
+      final existing = _activity[day.day];
+      _activity[day.day] = existing == null
+          ? day
+          : DailyActivity(
+              day: day.day,
+              pages: math.max(existing.pages, day.pages),
+              minutes: math.max(existing.minutes, day.minutes),
+              units: math.max(existing.units, day.units),
+            );
+    }
+    if (wrote) _notify();
   }
 
   @override

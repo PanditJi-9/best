@@ -194,6 +194,12 @@ class _SeriesBody extends ConsumerWidget {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                  child: _ShelfPlan(media: media),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
                   child: StatStrip(
                     stats: [
                       StatItem(
@@ -808,5 +814,138 @@ class _DownloadControl extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// The person's own plan and lists.
+///
+/// It reads the stored row, not the provider argument, so a tap shows up
+/// immediately without re-fetching the work from its source.
+class _ShelfPlan extends ConsumerWidget {
+  const _ShelfPlan({required this.media});
+
+  final Media media;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final stored = ref.watch(mediaByIdProvider(media.id)).value ?? media;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                l10n.shelfPlan.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  letterSpacing: 1.4,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            if (stored.tags.isNotEmpty)
+              Text(
+                l10n.listsTitle,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final state in const [
+              ReadingState.reading,
+              ReadingState.planned,
+              ReadingState.paused,
+            ])
+              ChoiceChip(
+                avatar: Icon(_stateIcon(state), size: 15),
+                label: Text(stateLabel(l10n, state)),
+                selected: stored.state == state,
+                onSelected: (selected) => setReadingState(
+                  context,
+                  ref,
+                  stored,
+                  selected ? state : ReadingState.none,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final tag in stored.tags)
+              InputChip(
+                label: Text(tag),
+                visualDensity: VisualDensity.compact,
+                onDeleted: () => removeTag(ref, stored, tag),
+              ),
+            ActionChip(
+              avatar: const Icon(Icons.add, size: 15),
+              label: Text(l10n.listAdd),
+              onPressed: () => _addList(context, ref, stored),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  static IconData _stateIcon(ReadingState state) => switch (state) {
+        ReadingState.reading => Icons.menu_book_rounded,
+        ReadingState.planned => Icons.bookmark_outline_rounded,
+        ReadingState.paused => Icons.pause_circle_outline_rounded,
+        ReadingState.none => Icons.remove,
+      };
+
+  static Future<void> _addList(
+    BuildContext context,
+    WidgetRef ref,
+    Media media,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.listName),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          decoration: InputDecoration(hintText: l10n.listAdd),
+          onSubmitted: (value) => Navigator.of(context).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: Text(l10n.listAdd),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.trim().isEmpty) return;
+    await addTag(ref, media, name);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(l10n.listAdded(name.trim()))));
   }
 }

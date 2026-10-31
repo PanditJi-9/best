@@ -29,6 +29,17 @@ String filterLabel(AppLocalizations l10n, LibraryFilter filter) =>
       LibraryFilter.inProgress => l10n.filterInProgress,
       LibraryFilter.completed => l10n.filterCompleted,
       LibraryFilter.favorites => l10n.filterFavorites,
+      LibraryFilter.planned => l10n.filterPlanned,
+      LibraryFilter.paused => l10n.filterPaused,
+      LibraryFilter.offline => l10n.filterOffline,
+    };
+
+/// The person's plan, in the words the shelf uses for it.
+String stateLabel(AppLocalizations l10n, ReadingState state) => switch (state) {
+      ReadingState.none => '',
+      ReadingState.reading => l10n.stateReading,
+      ReadingState.planned => l10n.statePlanned,
+      ReadingState.paused => l10n.statePaused,
     };
 
 String sortLabel(AppLocalizations l10n, LibrarySort sort) => switch (sort) {

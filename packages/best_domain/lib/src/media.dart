@@ -29,6 +29,14 @@ enum MediaKind {
 
 enum MediaStatus { ongoing, completed, hiatus, cancelled, unknown }
 
+/// Where a work sits in the person's own plan.
+///
+/// This is intent, not progress: finishing the last chapter does not flip it to
+/// [none], because a shelf filter that moves works around on its own is a shelf
+/// nobody can trust. `none` means "not sorted yet", which is the honest default
+/// for something opened from Browse.
+enum ReadingState { none, reading, planned, paused }
+
 /// Where a work came from. `sourceId` is stable across installs; `url` is the
 /// source's own key and is never shown to a person.
 class SourceRef {
@@ -63,6 +71,8 @@ class Media {
     this.genres = const [],
     this.inLibrary = false,
     this.favorite = false,
+    this.state = ReadingState.none,
+    this.tags = const [],
     this.addedAt = 0,
     this.lastOpenedAt = 0,
   });
@@ -79,6 +89,13 @@ class Media {
   final List<String> genres;
   final bool inLibrary;
   final bool favorite;
+
+  /// The person's own plan for this work.
+  final ReadingState state;
+
+  /// Free-form lists. A "list" is a tag with a nicer name: one storage shape,
+  /// one editor, and a work can sit in as many as the person wants.
+  final List<String> tags;
 
   /// Epoch milliseconds. `0` means "unknown", never "1970".
   final int addedAt;
@@ -100,6 +117,8 @@ class Media {
     List<String>? genres,
     bool? inLibrary,
     bool? favorite,
+    ReadingState? state,
+    List<String>? tags,
     int? addedAt,
     int? lastOpenedAt,
   }) {
@@ -116,6 +135,8 @@ class Media {
       genres: genres ?? this.genres,
       inLibrary: inLibrary ?? this.inLibrary,
       favorite: favorite ?? this.favorite,
+      state: state ?? this.state,
+      tags: tags ?? this.tags,
       addedAt: addedAt ?? this.addedAt,
       lastOpenedAt: lastOpenedAt ?? this.lastOpenedAt,
     );

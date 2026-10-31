@@ -42,6 +42,15 @@ class DownloadManager {
   Future<void>? _active;
   bool _disposed = false;
 
+  /// The app's network rule (for example "Wi-Fi only"). The queue asks before
+  /// starting a unit, so a metered connection pauses instead of burning data;
+  /// pages already in flight finish rather than leaving a half-written chapter.
+  bool Function() mayDownload = () => true;
+
+  /// The app's storage cap in bytes, `0` for none. Checked after a unit
+  /// finishes, so the offline store never grows past the limit a person set.
+  int Function() storageCap = () => 0;
+
   /// A cancelled unit can still be mid-request. The set closes the window
   /// between deleting the row and the request returning, so a late page can
   /// never recreate the row it was deleted from.
@@ -133,6 +142,42 @@ class DownloadManager {
     if (directory != null) await _deleteDirectory(Directory(directory));
   }
 
+  /// Bytes stored per work, finished downloads only. The Downloads screen
+  /// groups by work, and the cap below evicts by work age.
+  Future<Map<String, int>> bytesByMedia() async {
+    final tasks = await _repository.downloads();
+    final result = <String, int>{};
+    for (final task in tasks) {
+      if (!task.isFinished) continue;
+      result[task.mediaId] = (result[task.mediaId] ?? 0) + task.bytes;
+    }
+    return result;
+  }
+
+  /// Keeps the offline store under [capBytes], oldest work first.
+  ///
+  /// `0` means "no cap". Only finished downloads are evicted: deleting a
+  /// chapter that is still downloading would undo a person's tap. Returns the
+  /// number of units removed so the caller can say what happened.
+  Future<int> evictIfNeeded({required int capBytes}) async {
+    if (capBytes <= 0) return 0;
+    final finished = (await _repository.downloads())
+        .where((task) => task.isFinished)
+        .toList()
+      ..sort((a, b) => a.updatedAt.compareTo(b.updatedAt));
+    var total = finished.fold<int>(0, (sum, task) => sum + task.bytes);
+    if (total <= capBytes) return 0;
+
+    var removed = 0;
+    for (final task in finished) {
+      if (total <= capBytes) break;
+      await cancel(task.unitId);
+      total -= task.bytes;
+      removed++;
+    }
+    return removed;
+  }
+
   /// Drains the queue. Safe to call at any time; concurrent callers share one
   /// drain instead of starting a second writer.
   Future<void> pump() {
@@ -148,6 +193,7 @@ class DownloadManager {
   }
 
   void _schedule() {
+    if (!mayDownload()) return;
     // A failed queue is reported per task; it must not become an unhandled
     // async error in a screen that already moved on.
     unawaited(pump().catchError((Object _) {}));
@@ -155,6 +201,7 @@ class DownloadManager {
 
   Future<void> _drain() async {
     while (!_disposed) {
+      if (!mayDownload()) return;
       final tasks = await _repository.downloads();
       DownloadTask? next;
       for (final task in tasks) {
@@ -288,6 +335,10 @@ class DownloadManager {
           updatedAt: _now(),
         ),
       );
+      final cap = storageCap();
+      if (cap > 0) {
+        unawaited(evictIfNeeded(capBytes: cap).catchError((Object _) => 0));
+      }
     } catch (error) {
       if (_cancelled.contains(unitId)) return;
       final current = await _repository.downloadFor(unitId);

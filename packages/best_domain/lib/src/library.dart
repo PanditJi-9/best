@@ -3,7 +3,16 @@ import 'progress.dart';
 import 'search_text.dart';
 import 'units.dart';
 
-enum LibraryFilter { all, unread, inProgress, completed, favorites }
+enum LibraryFilter {
+  all,
+  unread,
+  inProgress,
+  completed,
+  favorites,
+  planned,
+  paused,
+  offline,
+}
 
 enum LibrarySort { title, recentlyRead, recentlyAdded }
 
@@ -43,12 +52,17 @@ class LibraryEntry {
     required this.media,
     required this.totalUnits,
     required this.completedUnits,
+    this.offlineUnits = 0,
     this.lastProgress,
   });
 
   final Media media;
   final int totalUnits;
   final int completedUnits;
+
+  /// Units stored on this device. The shelf filter and the "offline" badge read
+  /// this instead of asking the download manager per card.
+  final int offlineUnits;
   final UnitProgress? lastProgress;
 
   double get fraction {
@@ -129,6 +143,9 @@ class LibraryPolicy {
         entry.completedUnits > 0 && entry.completedUnits < entry.totalUnits,
       LibraryFilter.completed =>
         entry.totalUnits > 0 && entry.completedUnits >= entry.totalUnits,
+      LibraryFilter.planned => media.state == ReadingState.planned,
+      LibraryFilter.paused => media.state == ReadingState.paused,
+      LibraryFilter.offline => entry.offlineUnits > 0,
     };
   }
 

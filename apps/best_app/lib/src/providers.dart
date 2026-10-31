@@ -9,6 +9,8 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'network.dart';
+
 /// Replaced in `main()` after the database is open. A provider that throws
 /// until it is overridden is better than a nullable global that fails later.
 final Provider<LibraryRepository> repositoryProvider =
@@ -43,6 +45,25 @@ final Provider<DownloadManager> downloadManagerProvider =
     root: ref.watch(downloadRootProvider),
   );
   ref.onDispose(manager.dispose);
+
+  // The queue obeys two app-level rules: the Wi-Fi-only setting and the storage
+  // cap. Both are read through closures so changing a setting does not rebuild
+  // the manager (and therefore does not drop a download in flight).
+  void applyPolicy() {
+    final settings = ref.read(settingsProvider);
+    final network = ref.read(networkProvider).value ?? NetworkKind.unknown;
+    manager.mayDownload = () =>
+        !settings.wifiOnly || network != NetworkKind.mobile;
+    manager.storageCap = () => settings.storageCapGb * 1024 * 1024 * 1024;
+    if (manager.mayDownload()) {
+      unawaited(manager.pump().catchError((Object _) {}));
+    }
+  }
+
+  ref.listen(settingsProvider, (previous, next) => applyPolicy());
+  ref.listen(networkProvider, (previous, next) => applyPolicy());
+  applyPolicy();
+
   unawaited(manager.restore().catchError((Object _) {}));
   return manager;
 });
@@ -100,6 +121,21 @@ class SourcePacksController extends Notifier<List<SourcePack>> {
     return null;
   }
 
+  /// Canonical documents for every installed pack, so a backup or a sync can
+  /// carry them. Re-encoding means the stored copy is normalised on the way out.
+  List<String> exportAll() =>
+      [for (final pack in state) pack.encode()];
+
+  /// Installs packs from a backup, skipping the reserved ids and any document
+  /// that does not parse. Returns how many were actually installed.
+  int addAll(Iterable<String> raws) {
+    var installed = 0;
+    for (final raw in raws) {
+      if (add(raw) == null) installed++;
+    }
+    return installed;
+  }
+
   void remove(String id) {
     final preferences = ref.read(preferencesProvider);
     final raws = <String>[
@@ -134,20 +170,36 @@ final Provider<SourceRegistry> sourceRegistryProvider =
 });
 
 class AppSettings {
-  const AppSettings({this.languageCode, this.themeMode = ThemeMode.system});
+  const AppSettings({
+    this.languageCode,
+    this.themeMode = ThemeMode.system,
+    this.wifiOnly = false,
+    this.storageCapGb = 0,
+  });
 
   /// `null` follows the system locale.
   final String? languageCode;
   final ThemeMode themeMode;
 
+  /// Downloads wait for Wi-Fi. Off by default: a setting that silently stops a
+  /// download on a first launch is worse than a small data bill.
+  final bool wifiOnly;
+
+  /// Offline storage cap in gigabytes. `0` means no cap.
+  final int storageCapGb;
+
   AppSettings copyWith({
     String? languageCode,
     bool clearLanguage = false,
     ThemeMode? themeMode,
+    bool? wifiOnly,
+    int? storageCapGb,
   }) {
     return AppSettings(
       languageCode: clearLanguage ? null : (languageCode ?? this.languageCode),
       themeMode: themeMode ?? this.themeMode,
+      wifiOnly: wifiOnly ?? this.wifiOnly,
+      storageCapGb: storageCapGb ?? this.storageCapGb,
     );
   }
 }
@@ -155,6 +207,8 @@ class AppSettings {
 class SettingsController extends Notifier<AppSettings> {
   static const String _languageKey = 'language';
   static const String _themeKey = 'theme';
+  static const String _wifiOnlyKey = 'wifi_only';
+  static const String _storageCapKey = 'storage_cap_gb';
 
   @override
   AppSettings build() {
@@ -162,6 +216,8 @@ class SettingsController extends Notifier<AppSettings> {
     return AppSettings(
       languageCode: preferences?.getString(_languageKey),
       themeMode: _readTheme(preferences?.getString(_themeKey)),
+      wifiOnly: preferences?.getBool(_wifiOnlyKey) ?? false,
+      storageCapGb: preferences?.getInt(_storageCapKey) ?? 0,
     );
   }
 
@@ -172,12 +228,22 @@ class SettingsController extends Notifier<AppSettings> {
     } else {
       unawaited(preferences?.setString(_languageKey, code));
     }
-    state = AppSettings(languageCode: code, themeMode: state.themeMode);
+    state = state.copyWith(languageCode: code, clearLanguage: code == null);
   }
 
   void setThemeMode(ThemeMode mode) {
     unawaited(ref.read(preferencesProvider)?.setString(_themeKey, mode.name));
-    state = AppSettings(languageCode: state.languageCode, themeMode: mode);
+    state = state.copyWith(themeMode: mode);
+  }
+
+  void setWifiOnly(bool value) {
+    unawaited(ref.read(preferencesProvider)?.setBool(_wifiOnlyKey, value));
+    state = state.copyWith(wifiOnly: value);
+  }
+
+  void setStorageCapGb(int value) {
+    unawaited(ref.read(preferencesProvider)?.setInt(_storageCapKey, value));
+    state = state.copyWith(storageCapGb: value);
   }
 
   static ThemeMode _readTheme(String? name) {
@@ -482,3 +548,276 @@ final watchProvider = FutureProvider.family<WatchData, WatchKey>((
     sample: resolved.source.id == DemoSource.sourceId,
   );
 });
+
+/// The stored row for one work, re-read after every write.
+///
+/// The series screen gets its data from a provider that also talks to the
+/// source; a plan change or a new list must not trigger a network refresh, so
+/// it watches this tiny query instead.
+final mediaByIdProvider = FutureProvider.family<Media?, String>((ref, id) async {
+  ref.watch(libraryChangesProvider);
+  return ref.watch(repositoryProvider).mediaById(id);
+});
+
+/// The numbers on the profile card: shelf totals plus the local activity log.
+///
+/// Progress-derived numbers come from the same query the shelf uses, so the
+/// statistics screen can never disagree with what the library shows.
+final FutureProvider<ReadingStats> readingStatsProvider =
+    FutureProvider<ReadingStats>((ref) async {
+  ref.watch(libraryChangesProvider);
+  final repository = ref.watch(repositoryProvider);
+  final entries = await repository.library();
+  final activity = await repository.activity();
+  var units = 0;
+  var completed = 0;
+  for (final entry in entries) {
+    units += entry.totalUnits;
+    completed += entry.completedUnits;
+  }
+  return ReadingStats.from(
+    activity: activity,
+    works: entries.length,
+    units: units,
+    completedUnits: completed,
+    today: DateTime.now(),
+  );
+});
+
+/// Export and restore live here so the screen only deals with text.
+class BackupController {
+  BackupController(this._ref);
+
+  final Ref _ref;
+
+  Future<({String text, LibrarySnapshot snapshot})> export() async {
+    final snapshot = await snapshotOf(_ref.read(repositoryProvider));
+    final sources = _ref.read(sourcePacksProvider.notifier).exportAll();
+    return (
+      text: LibraryBackup.encode(snapshot, sources: sources),
+      snapshot: snapshot,
+    );
+  }
+
+  /// Restores the shelf and reinstalls the packs the backup was made with.
+  Future<RestoreReport> restore(String raw) async {
+    final document = LibraryBackup.decodeDocument(raw);
+    if (document.sources.isNotEmpty) {
+      _ref.read(sourcePacksProvider.notifier).addAll(document.sources);
+    }
+    return restoreInto(_ref.read(repositoryProvider), document.snapshot);
+  }
+}
+
+final Provider<BackupController> backupControllerProvider =
+    Provider<BackupController>(BackupController.new);
+
+/// Bulk refresh of the shelf.
+///
+/// One work at a time with a gap between requests: a source is somebody else's
+/// server, and a shelf of forty works refreshed in parallel is how an IP gets
+/// blocked. A failure is counted, never fatal.
+class RefreshProgress {
+  const RefreshProgress({
+    this.running = false,
+    this.finished = false,
+    this.total = 0,
+    this.done = 0,
+    this.failed = 0,
+  });
+
+  final bool running;
+  final bool finished;
+  final int total;
+  final int done;
+  final int failed;
+
+  int get settled => done + failed;
+
+  double get fraction => total == 0 ? 0 : (settled / total).clamp(0.0, 1.0);
+}
+
+class LibraryRefreshController extends Notifier<RefreshProgress> {
+  /// Long enough to be polite, short enough that forty works take under twenty
+  /// seconds.
+  static const Duration _gap = Duration(milliseconds: 400);
+
+  @override
+  RefreshProgress build() => const RefreshProgress();
+
+  void clear() {
+    if (state.running) return;
+    state = const RefreshProgress();
+  }
+
+  Future<void> refreshAll() async {
+    if (state.running) return;
+    final repository = ref.read(repositoryProvider);
+    final registry = ref.read(sourceRegistryProvider);
+    final entries = await repository.library();
+    if (entries.isEmpty) {
+      state = const RefreshProgress(finished: true);
+      return;
+    }
+
+    state = RefreshProgress(running: true, total: entries.length);
+    var done = 0;
+    var failed = 0;
+    for (final entry in entries) {
+      final source = registry.byId(entry.media.ref.sourceId);
+      if (source == null) {
+        failed++;
+      } else {
+        try {
+          final fresh = await source.details(entry.media);
+          await repository.saveMedia(fresh);
+          await repository.saveUnits(await source.units(fresh));
+          done++;
+        } catch (_) {
+          // A dead source must not stop the rest of the shelf.
+          failed++;
+        }
+      }
+      state = RefreshProgress(
+        running: true,
+        total: entries.length,
+        done: done,
+        failed: failed,
+      );
+      await Future<void>.delayed(_gap);
+    }
+    state = RefreshProgress(
+      finished: true,
+      total: entries.length,
+      done: done,
+      failed: failed,
+    );
+  }
+}
+
+final NotifierProvider<LibraryRefreshController, RefreshProgress>
+    libraryRefreshProvider =
+    NotifierProvider<LibraryRefreshController, RefreshProgress>(
+  LibraryRefreshController.new,
+);
+
+/// Where the encrypted copy lives. The passphrase is deliberately absent: it is
+/// typed per upload, kept in a controller, and never written to disk.
+class SyncSettings {
+  const SyncSettings({
+    this.url = '',
+    this.username = '',
+    this.password = '',
+  });
+
+  final String url;
+  final String username;
+  final String password;
+
+  bool get isConfigured => url.trim().isNotEmpty;
+
+  SyncSettings copyWith({String? url, String? username, String? password}) {
+    return SyncSettings(
+      url: url ?? this.url,
+      username: username ?? this.username,
+      password: password ?? this.password,
+    );
+  }
+}
+
+class SyncSettingsController extends Notifier<SyncSettings> {
+  static const String _urlKey = 'sync_url';
+  static const String _userKey = 'sync_user';
+  static const String _passwordKey = 'sync_password';
+
+  @override
+  SyncSettings build() {
+    final preferences = ref.watch(preferencesProvider);
+    return SyncSettings(
+      url: preferences?.getString(_urlKey) ?? '',
+      username: preferences?.getString(_userKey) ?? '',
+      password: preferences?.getString(_passwordKey) ?? '',
+    );
+  }
+
+  void save(SyncSettings next) {
+    final preferences = ref.read(preferencesProvider);
+    unawaited(preferences?.setString(_urlKey, next.url.trim()));
+    unawaited(preferences?.setString(_userKey, next.username.trim()));
+    unawaited(preferences?.setString(_passwordKey, next.password));
+    state = next;
+  }
+}
+
+final NotifierProvider<SyncSettingsController, SyncSettings>
+    syncSettingsProvider =
+    NotifierProvider<SyncSettingsController, SyncSettings>(
+  SyncSettingsController.new,
+);
+
+/// Upload and download share one controller so the screen only deals with
+/// strings, errors and counts.
+class SyncController {
+  SyncController(this._ref);
+
+  final Ref _ref;
+
+  /// Seals the current backup and puts it on the server.
+  Future<({int works, int units, int sources})> upload(
+    String passphrase,
+  ) async {
+    final settings = _ref.read(syncSettingsProvider);
+    final sync = _client(settings);
+    final backup = await _ref.read(backupControllerProvider).export();
+    final sealed = await SyncCipher.seal(
+      plaintext: backup.text,
+      passphrase: passphrase,
+    );
+    await sync.upload(sealed);
+    final document = LibraryBackup.decodeDocument(backup.text);
+    return (
+      works: document.snapshot.libraryCount,
+      units: document.snapshot.units.length,
+      sources: document.sources.length,
+    );
+  }
+
+  /// Pulls the server copy, merges it, and reinstalls its packs.
+  Future<({int works, int units, int sources})> download(
+    String passphrase,
+  ) async {
+    final settings = _ref.read(syncSettingsProvider);
+    final sync = _client(settings);
+    final sealed = await sync.download();
+    if (sealed == null) {
+      throw const SyncException('There is nothing on the server yet.');
+    }
+    final raw = await SyncCipher.open(envelope: sealed, passphrase: passphrase);
+    final document = LibraryBackup.decodeDocument(raw);
+    final sources = document.sources.isEmpty
+        ? 0
+        : _ref.read(sourcePacksProvider.notifier).addAll(document.sources);
+    await restoreInto(_ref.read(repositoryProvider), document.snapshot);
+    return (
+      works: document.snapshot.libraryCount,
+      units: document.snapshot.units.length,
+      sources: sources,
+    );
+  }
+
+  WebDavSync _client(SyncSettings settings) {
+    final sync = WebDavSync.fromSettings(
+      url: settings.url,
+      username: settings.username,
+      password: settings.password,
+      client: _ref.read(httpClientProvider),
+    );
+    if (sync == null) {
+      throw const SyncException('Use an https:// folder URL.');
+    }
+    return sync;
+  }
+}
+
+final Provider<SyncController> syncControllerProvider =
+    Provider<SyncController>(SyncController.new);

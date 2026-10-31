@@ -31,13 +31,24 @@ demo. Each phase ends with a build that can be installed and used.
 - [ ] Tablet layout: the grids scale, but the series page still assumes one
   column.
 
-## 1. Library depth
+## Small screens — shipped in 0.4.2
 
-- Import/export a JSON backup; restore on a new phone without an account.
-- Custom lists, tags, and a "reading" / "planned" / "paused" state.
-- Reading statistics (pages, minutes, streak) from local events.
-- Bulk refresh of followed works with a per-source rate limit.
-- Better Arabic metadata normalization (author names, status, genres).
+- [x] The five-tab bar fits 320 dp: 10 px labels, no tracking, ellipsised
+  wordmark and search prompt.
+- [x] A widget test walks every destination at 320x640 and in Arabic, so a
+  layout regression cannot hide behind a wide test surface.
+
+## 1. Library depth — shipped in 0.5.0
+
+- [x] Import/export a JSON backup (`best.library`, format 2); restore on a new
+  phone without an account, merging instead of overwriting.
+- [x] Custom lists, tags, and a "reading" / "planned" / "paused" state, plus
+  matching shelf filters.
+- [x] Reading statistics (pages, minutes, streak, seven-day bars) from local
+  events; the log never leaves the device.
+- [x] Bulk refresh of followed works, one at a time with a 400 ms gap so a
+  source is not hammered.
+- [ ] Better Arabic metadata normalization (author names, status, genres).
 
 ## 2. Offline engine — first slice in 0.2.0
 
@@ -48,15 +59,19 @@ demo. Each phase ends with a build that can be installed and used.
   the source is unreachable.
 - [x] Storage accounting: bytes per download and total used on the Downloads
   screen, backfilled for downloads written before 0.2.1.
-- [ ] Wi-Fi-only scheduling.
-- [ ] Per-work size and automatic eviction of finished downloads.
+- [x] Wi-Fi-only scheduling: the queue pauses on a metered connection and
+  resumes when Wi-Fi returns. Unknown networks never block a download.
+- [x] Per-work size, grouped Downloads, and a storage cap with oldest-first
+  eviction of finished units.
+- [x] A WebVTT/SRT parser and a caption overlay with a CC toggle in the player;
+  the bundled guide ships a caption track so it works with the network off.
 - [ ] Background isolate for downloads and image decoding; the current queue
   runs while the app process is alive.
 - [ ] Video downloads; episode rows hide the download control until the player
   can store a stream.
 - [ ] Integrity check per file; today a page is written atomically and a
   missing page is fetched again on resume, but a corrupt image is not detected.
-- [ ] "Available offline" is a real filter on the shelf.
+- [x] "Available offline" is a real filter on the shelf.
 
 ## 3. Playback — first slice in 0.3.0
 
@@ -108,6 +123,19 @@ cost, not a promise.
 - Store compliance: the app is a client; it hosts no licensed content. Sources
   are adapters, MangaDex is used through its public API, and a takedown path is
   documented before the first store submission.
+
+## 6. Sources and sync — shipped in 0.7.0
+
+- [x] Source pack format 2: a pack can declare `routes.watch` and `map.video`,
+  so a declarative source can be a streaming catalogue with caption tracks.
+- [x] Packs export to their canonical document and travel inside a backup, so a
+  new phone restores the shelf and the sources that made it.
+- [x] Encrypted sync: AES-256-GCM with a PBKDF2-HMAC-SHA256 key, stored on any
+  WebDAV folder (Nextcloud, ownCloud, a plain server). The passphrase is never
+  written to disk and the server only ever holds ciphertext.
+- [ ] Scripted sources (Mihon/HikariManga compatibility) behind a sandbox and a
+  review pipeline; a script host that can read the library is not a feature to
+  ship quickly.
 
 ## 7. Growth
 

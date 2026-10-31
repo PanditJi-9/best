@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:best_domain/best_domain.dart';
@@ -116,6 +117,17 @@ class _WatchViewState extends ConsumerState<_WatchView> {
   bool _saving = false;
   bool _completedSaved = false;
   int _lastSavedSecond = -1;
+
+  /// Whole seconds of playback not yet written to the activity log. A save
+  /// lands every five seconds, so this is a coarse clock, not a stopwatch.
+  int _watchedSeconds = 0;
+
+  /// Captions for this stream. Empty when the source ships none, or when the
+  /// file could not be read: a broken subtitle must never stop a film.
+  List<SubtitleCue> _cues = const [];
+  bool _subtitlesOn = true;
+  String? _subtitleText;
+
   int _attempt = 0;
   double _speed = 1;
   double? _dragSeconds;
@@ -170,6 +182,7 @@ class _WatchViewState extends ConsumerState<_WatchView> {
     );
     _controller = controller;
     controller.addListener(_onValue);
+    unawaited(_loadSubtitles());
 
     try {
       await controller.initialize();
@@ -198,6 +211,56 @@ class _WatchViewState extends ConsumerState<_WatchView> {
     }
   }
 
+  /// Reads the caption track once per stream: a bundled `asset://` file, or a
+  /// URL from the source. Failure is silent and the CC button stays hidden.
+  Future<void> _loadSubtitles() async {
+    final url = widget.data.stream.subtitleUrl;
+    if (url == null) {
+      if (mounted && _cues.isNotEmpty) {
+        setState(() {
+          _cues = const [];
+          _subtitleText = null;
+        });
+      }
+      return;
+    }
+    try {
+      final String raw;
+      if (url.startsWith('asset://')) {
+        raw = await rootBundle.loadString(url.substring('asset://'.length));
+      } else {
+        final response = await ref.read(httpClientProvider).get(Uri.parse(url));
+        if (response.statusCode != 200) return;
+        raw = utf8.decode(response.bodyBytes, allowMalformed: true);
+      }
+      final cues = Subtitles.parse(raw);
+      if (!mounted || cues.isEmpty) return;
+      setState(() {
+        _cues = cues;
+        _subtitleText = null;
+      });
+    } catch (_) {
+      // Captions are a bonus, not a requirement.
+    }
+  }
+
+  /// Only rebuilds when the visible line changes, not on every player tick.
+  void _syncSubtitle(Duration position) {
+    final text = _subtitlesOn && _cues.isNotEmpty
+        ? Subtitles.textAt(_cues, position)
+        : null;
+    if (text == _subtitleText) return;
+    setState(() => _subtitleText = text);
+  }
+
+  void _toggleSubtitles() {
+    setState(() {
+      _subtitlesOn = !_subtitlesOn;
+      if (!_subtitlesOn) _subtitleText = null;
+    });
+    _showControls();
+  }
+
   void _onValue() {
     final controller = _controller;
     if (controller == null || !mounted) return;
@@ -209,6 +272,7 @@ class _WatchViewState extends ConsumerState<_WatchView> {
     }
     if (!value.isInitialized) return;
 
+    _syncSubtitle(value.position);
     _maybeSave(value);
     unawaited(_keepAwake(value.isPlaying));
   }
@@ -236,6 +300,16 @@ class _WatchViewState extends ConsumerState<_WatchView> {
 
     _lastSavedSecond = second;
     if (finished) _completedSaved = true;
+    if (value.isPlaying) {
+      _watchedSeconds += 5;
+      if (_watchedSeconds >= 60) {
+        final minutes = _watchedSeconds ~/ 60;
+        _watchedSeconds -= minutes * 60;
+        unawaited(
+          ref.read(repositoryProvider).recordActivity(minutes: minutes),
+        );
+      }
+    }
     _saving = true;
     unawaited(
       ref.read(repositoryProvider).saveProgress(row).whenComplete(() {
@@ -408,6 +482,11 @@ class _WatchViewState extends ConsumerState<_WatchView> {
                           ),
                         ),
                       ),
+                      if (_subtitleText != null)
+                        _SubtitleOverlay(
+                          text: _subtitleText!,
+                          bottom: _controlsVisible ? 96 : 26,
+                        ),
                     ],
                   );
                 },
@@ -669,6 +748,21 @@ class _WatchViewState extends ConsumerState<_WatchView> {
                         ),
                       ),
                       const Spacer(),
+                      if (_cues.isNotEmpty)
+                        IconButton(
+                          tooltip: _subtitlesOn
+                              ? l10n.subtitlesOn
+                              : l10n.subtitlesOff,
+                          onPressed: _toggleSubtitles,
+                          icon: Icon(
+                            _subtitlesOn
+                                ? Icons.closed_caption
+                                : Icons.closed_caption_off_outlined,
+                            color: _subtitlesOn
+                                ? BestColors.jade
+                                : Colors.white70,
+                          ),
+                        ),
                       PopupMenuButton<double>(
                         tooltip: l10n.playbackSpeed,
                         initialValue: _speed,
@@ -724,6 +818,51 @@ class _WatchViewState extends ConsumerState<_WatchView> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Captions sit above the picture, not inside the control layer, so pausing to
+/// read a line does not also hide it. Two outlines keep white text readable on
+/// a bright frame without a background box.
+class _SubtitleOverlay extends StatelessWidget {
+  const _SubtitleOverlay({required this.text, required this.bottom});
+
+  final String text;
+  final double bottom;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 18,
+      right: 18,
+      bottom: bottom,
+      child: IgnorePointer(
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.paddingOf(context).bottom,
+          ),
+          child: Center(
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                height: 1.32,
+                fontWeight: FontWeight.w600,
+                shadows: [
+                  Shadow(blurRadius: 6, color: Colors.black87),
+                  Shadow(blurRadius: 2, offset: Offset(1, 1), color: Colors.black),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
