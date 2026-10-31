@@ -6,7 +6,7 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 0.4.0 — the identity slice.** The shelf, the reader, the video player,
+**Status: 0.4.1 — the identity slice.** The shelf, the reader, the video player,
 the bilingual UI, local progress, the bundled guide, one real catalogue
 (MangaDex), source packs and the download queue are implemented and covered by
 tests. The extension host and sync are scheduled, not pretended.

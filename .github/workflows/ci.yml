@@ -11,6 +11,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  samples:
+    name: Guide sample streams answer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The guide ships hard-coded demo streams. Google's sample bucket was made
+      # private and started answering 403, which turned the first-run "play"
+      # button into an error screen. A 20-second probe catches that in seconds
+      # instead of after a full emulator boot.
+      - name: Probe every stream in the guide
+        run: |
+          set -eu
+          urls=$(grep -oE "https://[^']+\.(mp4|m3u8)" \
+            packages/best_data/lib/src/sources/demo_source.dart | sort -u)
+          test -n "$urls"
+          for url in $urls; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -r 0-1024 \
+              --max-time 20 --retry 3 --retry-delay 2 "$url")
+            echo "$code $url"
+            test "$code" -ge 200 -a "$code" -lt 400
+          done
+
   core:
     name: Dart packages and Rust core
     runs-on: ubuntu-latest

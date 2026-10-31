@@ -20,15 +20,20 @@ class DemoSource implements SourceAdapter {
   @override
   String get language => 'ar';
 
-  /// Public-domain films streamed from stable Google and Mux test buckets.
-  /// The guide exists to prove the player end to end; every episode of a work
-  /// points at one sample so a fresh install has something real to watch.
-  static const String _bigBuckBunny =
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
-  static const String _elephantsDream =
-      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4';
-  static const String _sintelHls =
+  /// Public-domain films streamed from Mux and Blender test buckets. The guide
+  /// exists to prove the player end to end; every episode of a work points at
+  /// one sample so a fresh install has something real to watch.
+  ///
+  /// These are checked by the emulator smoke job. Google's `gtv-videos-bucket`
+  /// samples were made private and now answer 403, which is exactly the kind of
+  /// rot a hard-coded demo URL is prone to: replace a dead one here rather than
+  /// leaving a broken "play" button in a fresh install.
+  static const String _sintelTrailer =
+      'https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4';
+  static const String _hlsSample =
       'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
+  static const String _hlsAlternate =
+      'https://test-streams.mux.dev/pts_shift/master.m3u8';
 
   static const List<_GuideWork> _works = [
     _GuideWork(
@@ -82,7 +87,7 @@ class DemoSource implements SourceAdapter {
           'A night-shift courier in Seoul delivers a package that should not exist, and every district it passes through forgets her name.',
       units: 8,
       pages: 0,
-      video: _bigBuckBunny,
+      video: _sintelTrailer,
     ),
     _GuideWork(
       slug: 'silent-orbit',
@@ -96,7 +101,7 @@ class DemoSource implements SourceAdapter {
           'The last maintenance crew on a dying space station decides to keep the lights on for one more winter.',
       units: 12,
       pages: 0,
-      video: _sintelHls,
+      video: _hlsSample,
     ),
     _GuideWork(
       slug: 'tea-house',
@@ -110,7 +115,7 @@ class DemoSource implements SourceAdapter {
           'ثلاثة أجيال تدير بيت شاي صغير في مدينة تتغير أسرع من وصفاتهم. كل كوب يحمل اعترافًا مؤجلًا.',
       units: 10,
       pages: 0,
-      video: _elephantsDream,
+      video: _hlsAlternate,
     ),
     _GuideWork(
       slug: 'magic-orbit',
