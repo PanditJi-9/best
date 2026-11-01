@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'extension_host.dart';
 import 'network.dart';
 
 /// Replaced in `main()` after the database is open. A provider that throws
@@ -190,6 +191,37 @@ final FutureProvider<List<SuwayomiSourceInfo>> suwayomiSourcesProvider =
   }
 });
 
+/// The Kotlin extension host. Extensions are programs, so they live on the
+/// native side and this is the only door to them.
+final Provider<ExtensionHost> extensionHostProvider =
+    Provider<ExtensionHost>((ref) => ExtensionHost());
+
+final Provider<ExtensionInstaller> extensionInstallerProvider =
+    Provider<ExtensionInstaller>((ref) {
+  return ExtensionInstaller(
+    host: ref.watch(extensionHostProvider),
+    repository: ExtensionRepository(
+      indexUrl: ExtensionRepository.defaultIndexUrl,
+      client: ref.watch(httpClientProvider),
+    ),
+    preferences: ref.watch(preferencesProvider),
+  );
+});
+
+/// Every source the installed extension APKs expose.
+///
+/// Reading this is also what installs the starter set on a first launch: the
+/// install is idempotent, so the shelf is populated without a visit to Settings
+/// and without a second launch.
+final FutureProvider<ExtensionCatalog> extensionCatalogProvider =
+    FutureProvider<ExtensionCatalog>((ref) async {
+  final host = ref.watch(extensionHostProvider);
+  if (!ExtensionHost.isSupported) return const ExtensionCatalog.empty();
+  final installer = ref.watch(extensionInstallerProvider);
+  await installer.ensureStarterSet();
+  return host.catalog();
+});
+
 final Provider<SourceRegistry> sourceRegistryProvider =
     Provider<SourceRegistry>((ref) {
   final client = ref.watch(httpClientProvider);
@@ -204,6 +236,9 @@ final Provider<SourceRegistry> sourceRegistryProvider =
   final suwayomi = ref.watch(suwayomiClientProvider);
   final remoteSources =
       ref.watch(suwayomiSourcesProvider).value ?? const <SuwayomiSourceInfo>[];
+  final extensionHost = ref.watch(extensionHostProvider);
+  final extensions =
+      ref.watch(extensionCatalogProvider).value ?? const ExtensionCatalog.empty();
 
   return SourceRegistry.fixed(<SourceAdapter>[
     // A configured server leads: its sources are the ones the reader chose to
@@ -216,6 +251,11 @@ final Provider<SourceRegistry> sourceRegistryProvider =
       language: language == 'ar' ? 'ar' : 'en',
     ),
     for (final pack in packs) JsonSourceAdapter(pack: pack, client: client),
+    // Installed extensions sit beside the built-in catalogues: they are real
+    // sources the reader brought, and a library entry must keep resolving to the
+    // same adapter across launches.
+    for (final info in extensions.sources)
+      ExtensionSourceAdapter(host: extensionHost, info: info),
     const DemoSource(),
   ]);
 });

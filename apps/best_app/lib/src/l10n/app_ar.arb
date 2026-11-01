@@ -431,5 +431,10 @@
   },
   "suwayomiUnreachable": "لا يوجد رد من هذا العنوان. تأكد أن الخادم يعمل وعلى نفس الشبكة.",
   "suwayomiInvalid": "أدخل عنواناً يبدأ بـ http:// أو https://",
-  "save": "حفظ"
+  "save": "حفظ",
+  "extensionsTitle": "الإضافات",
+  "extensionsReady": "{count} مصدر جاهز",
+  "extensionsUpdate": "تحديث الإضافات",
+  "extensionsHint": "بست يشغّل نفس ملفات الإضافات التي يستخدمها Mihon وKomikku، فالمصادر هي التي تعرفها.",
+  "extensionsFailed": "{count} إضافة لم تُحمّل"
 }

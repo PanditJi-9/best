@@ -23,6 +23,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.addSingleton
+import uy.kohesive.injekt.api.addSingletonFactory
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
@@ -382,15 +384,16 @@ class ExtensionHost(private val context: Context) {
         // Pages may come back as an index or as a direct image url; resolve both
         // so the reader never has to know which style the extension used.
         return raw.mapIndexed { position, page ->
-            val resolved = if (page.imageUrl.isNullOrBlank() && page.url.isNotBlank()) {
-                runCatching { source.getImageUrl(page) }.getOrDefault(page.url)
+            val http = source as? eu.kanade.tachiyomi.source.online.HttpSource
+            val resolved = if (page.imageUrl.isNullOrBlank() && page.url.isNotBlank() && http != null) {
+                runCatching { http.getImageUrl(page) }.getOrDefault(page.url)
             } else {
                 page.imageUrl
             }
-            mapOf(
+            mapOf<String, Any?>(
                 "index" to (page.index.takeIf { it > 0 } ?: position),
                 "url" to (resolved ?: page.url),
-                "headers" to headersFor(id).let { it["headers"] },
+                "headers" to headersFor(id)["headers"],
             )
         }
     }

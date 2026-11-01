@@ -13,7 +13,7 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.Response
 import okhttp3.ResponseBody
-import okhttp3.toRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import rx.Observable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit

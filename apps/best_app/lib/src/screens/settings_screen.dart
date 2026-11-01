@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../navigation.dart';
 import '../labels.dart';
+import '../extension_host.dart';
 import '../providers.dart';
 
 /// Settings is the "your copy of Best" screen: identity and numbers first, then
@@ -26,6 +27,8 @@ class SettingsScreen extends ConsumerWidget {
     final offline = downloads.where((task) => task.isFinished).length;
     final sources = ref.watch(sourceRegistryProvider).all;
     final packs = ref.watch(sourcePacksProvider);
+    final extensions = ref.watch(extensionCatalogProvider).value ??
+        const ExtensionCatalog.empty();
 
     return SafeArea(
       bottom: false,
@@ -213,6 +216,35 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           _Group(
+            title: l10n.extensionsTitle,
+            icon: Icons.extension_outlined,
+            child: Column(
+              children: [
+                _LinkTile(
+                  icon: Icons.inventory_2_outlined,
+                  title: l10n.extensionsReady(extensions.sources.length),
+                  subtitle: l10n.extensionsHint,
+                  onTap: () => _updateExtensions(context, ref),
+                ),
+                const Divider(height: 1, indent: 52),
+                _LinkTile(
+                  icon: Icons.system_update_alt_rounded,
+                  title: l10n.extensionsUpdate,
+                  onTap: () => _updateExtensions(context, ref),
+                ),
+                if (extensions.problems.isNotEmpty) ...[
+                  const Divider(height: 1, indent: 52),
+                  _LinkTile(
+                    icon: Icons.warning_amber_rounded,
+                    title: l10n.extensionsFailed(extensions.problems.length),
+                    subtitle: extensions.problems.first.message,
+                    onTap: () => _showProblems(context, extensions),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          _Group(
             title: l10n.suwayomiTitle,
             icon: Icons.dns_outlined,
             child: Column(
@@ -356,6 +388,47 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Installs anything the starter set is still missing and reloads the catalogue.
+Future<void> _updateExtensions(BuildContext context, WidgetRef ref) async {
+  final l10n = AppLocalizations.of(context);
+  final messenger = ScaffoldMessenger.of(context);
+  final installer = ref.read(extensionInstallerProvider);
+  final written = await installer.ensureStarterSet(force: true);
+  ref.invalidate(extensionCatalogProvider);
+  if (!context.mounted) return;
+  messenger.showSnackBar(
+    SnackBar(content: Text(l10n.refreshDone(written, 0))),
+  );
+}
+
+void _showProblems(BuildContext context, ExtensionCatalog catalog) {
+  showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(AppLocalizations.of(context).extensionsTitle),
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final problem in catalog.problems)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text('${problem.name}\n${problem.message}'),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(AppLocalizations.of(context).cancel),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ProfileCard extends StatelessWidget {

@@ -431,5 +431,33 @@
   },
   "suwayomiUnreachable": "No answer from that address. Make sure the server is running and on the same network.",
   "suwayomiInvalid": "Enter an address that starts with http:// or https://",
-  "save": "Save"
+  "save": "Save",
+  "extensionsTitle": "Extensions",
+  "@extensionsTitle": {
+    "description": "Settings group for extension APKs"
+  },
+  "extensionsReady": "{count} sources ready",
+  "@extensionsReady": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "extensionsUpdate": "Update extensions",
+  "@extensionsUpdate": {
+    "description": "Action that installs missing starter extensions"
+  },
+  "extensionsHint": "Best runs the same extension APKs Mihon and Komikku use, so the catalogue is the one you already know.",
+  "@extensionsHint": {
+    "description": "Explains where sources come from"
+  },
+  "extensionsFailed": "{count} extension did not load",
+  "@extensionsFailed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }
