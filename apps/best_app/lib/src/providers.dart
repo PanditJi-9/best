@@ -478,7 +478,7 @@ final searchAllProvider =
 /// resolved through its own adapter: the list names a work, it never copies one.
 const String kCuratedAsset = 'assets/curated.json';
 const String kCuratedRemote =
-    'https://raw.githubusercontent.com/PanditJi-9/best/main/mobile/apps/'
+    'https://raw.githubusercontent.com/PanditJi-9/best/main/apps/'
     'best_app/assets/curated.json';
 const String _curatedCacheKey = 'curated_v1';
 const String _curatedStampKey = 'curated_v1_at';
