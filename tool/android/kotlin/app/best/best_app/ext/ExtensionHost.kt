@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import dalvik.system.DexClassLoader
 import eu.kanade.tachiyomi.AppInfo
 import eu.kanade.tachiyomi.network.NetworkHelper
@@ -48,6 +49,13 @@ class ExtensionHost(private val context: Context) {
         private const val KEY_NSFW = "tachiyomi.extension.nsfw"
         private const val KEY_LIB_VERSION = "tachiyomix.extensionLib"
         private const val CHANNEL = "app.best/extensions"
+
+        /**
+         * Every extension outcome lands in logcat. Without this a source that
+         * fails to load is invisible on a phone, and impossible to diagnose from
+         * a build log.
+         */
+        private const val TAG = "BestExtensions"
     }
 
     private val app: Application = context.applicationContext as Application
@@ -194,11 +202,14 @@ class ExtensionHost(private val context: Context) {
                 loaded.forEach { source ->
                     sources[source.id] = source
                     sourceOwner[source.id] = pkgName
+                    Log.i(TAG, "loaded ${source.name} (${source.id}) from $pkgName")
                 }
                 if (loaded.isEmpty()) {
+                    Log.w(TAG, "no source could be created by $pkgName")
                     problems += identity + ("error" to "No source could be created.")
                 }
             } catch (t: Throwable) {
+                Log.w(TAG, "extension $pkgName failed to load", t)
                 problems += identity + ("error" to (t.message ?: t::class.java.simpleName))
             }
         }
@@ -285,6 +296,7 @@ class ExtensionHost(private val context: Context) {
     /** Installed extensions plus every source they expose. */
     private fun catalog(): Map<String, Any?> {
         val problems = ensureLoaded()
+        Log.i(TAG, "catalog: ${sources.size} source(s), ${problems.size} problem(s)")
         val entries = sources.map { (id, source) ->
             val catalogue = source as? CatalogueSource
             val owner = sourceOwner[id]

@@ -89,9 +89,7 @@ jobs:
             # Diagnostic, not a gate: does the starter extension set install
             # itself and reach Browse? Runs even when the gate above failed.
             python3 tool/extension_probe.py
-            adb logcat -d -v brief \
-              | grep -iE 'extension|injekt|tachiyomi|DexClassLoader|ClassNotFound|NoClassDef' \
-              | tail -200 > extensions.log
+            adb logcat -d -v brief | grep -iE 'BestExtensions|extension|injekt|tachiyomi|DexClassLoader|ClassNotFound|NoClassDef' | tail -200 > extensions.log
             set -e
             test $smoke -eq 0
 

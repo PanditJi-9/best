@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import re
 import time
 import xml.etree.ElementTree as ET
 
@@ -91,6 +92,16 @@ def tap(label_prefix: str) -> bool:
     return False
 
 
+def horizontal_swipe() -> None:
+    """Pull the source chip row left, so chips past the fold get laid out."""
+    size = adb("shell", "wm", "size")
+    match = re.search(r"(\d+)x(\d+)", size)
+    width, height = (320, 640) if not match else map(int, match.groups())
+    y = int(height * 0.22)
+    adb("shell", "input", "swipe", str(width - 30), str(y), "20", str(y), "300")
+    time.sleep(1.2)
+
+
 def main() -> int:
     adb("shell", "am", "force-stop", PACKAGE)
     adb("shell", "am", "start", "-n", ACTIVITY)
@@ -109,12 +120,24 @@ def main() -> int:
             tap("Browse")
         time.sleep(6)
 
+    # Chips past the right edge are not in the hierarchy until they are scrolled
+    # into view, so walk the row before deciding a source is missing.
+    for _ in range(4):
+        horizontal_swipe()
+        seen.extend(labels())
+
     unique = sorted({value for value in seen if value})
     matched = [name for name in EXPECTED if any(name.lower() in value.lower() for value in unique)]
+    ready = next(
+        (value for value in unique if "source" in value.lower() and "ready" in value.lower()),
+        "",
+    )
 
     print("--- visible labels ---")
     for value in unique:
         print(value)
+    print("--- sources ready ---")
+    print(ready or "unknown")
     print("--- expected sources found ---")
     print(", ".join(matched) if matched else "none")
     print(f"matched {len(matched)} of {len(EXPECTED)}")
