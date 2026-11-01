@@ -94,15 +94,20 @@ def tap(label_prefix: str) -> bool:
 def main() -> int:
     adb("shell", "am", "force-stop", PACKAGE)
     adb("shell", "am", "start", "-n", ACTIVITY)
-    # First launch: the starter set downloads before Browse has anything to say.
-    time.sleep(25)
+    # First launch: the starter set downloads five APKs before Browse has
+    # anything to say, so give the download room and then keep checking.
+    time.sleep(30)
     tap("Browse")
     time.sleep(8)
 
     seen: list[str] = []
-    for _ in range(6):
+    for attempt in range(18):
         seen.extend(labels())
-        time.sleep(4)
+        if attempt in (5, 11):
+            # Still empty after a minute: the list may have rendered before the
+            # catalog arrived, so visit Browse again.
+            tap("Browse")
+        time.sleep(6)
 
     unique = sorted({value for value in seen if value})
     matched = [name for name in EXPECTED if any(name.lower() in value.lower() for value in unique)]

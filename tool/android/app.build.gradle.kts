@@ -52,6 +52,18 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // R8 must not touch this APK.
+            //
+            // A Mihon/Komikku extension is a separate dex file that links against
+            // class and method names compiled into it: `eu.kanade.tachiyomi.*`,
+            // `rx.*`, `okhttp3.*`, `org.jsoup.*`, `uy.kohesive.injekt.*`, the
+            // Kotlin stdlib. Renaming, merging or inlining any of them — or
+            // dropping the generic `Signature` attributes Injekt reads with
+            // `getGenericSuperclass()` — turns every installed extension into a
+            // `NoClassDefFoundError` at run time. The Flutter Gradle plugin turns
+            // minification on for release builds, so it has to be turned off here.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
