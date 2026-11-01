@@ -300,7 +300,7 @@ class ExtensionHost(private val context: Context) {
                 "nsfw" to (identity["nsfw"] ?: false),
             )
         }
-        return mapOf(
+        return mapOf<String, Any?>(
             "sources" to entries,
             "problems" to problems,
         )
@@ -401,17 +401,17 @@ class ExtensionHost(private val context: Context) {
     private fun headersFor(id: Long?): Map<String, Any?> {
         val source = sources[id] as? eu.kanade.tachiyomi.source.online.HttpSource
         val headers = source?.headers?.toMultimap().orEmpty()
-        return mapOf("headers" to headers)
+        return mapOf<String, Any?>("headers" to headers)
     }
 
     // ----------------------------------------------------------------- mapping
 
-    private fun pageToMap(page: MangasPage, source: Source): Map<String, Any?> = mapOf(
+    private fun pageToMap(page: MangasPage, source: Source): Map<String, Any?> = mapOf<String, Any?>(
         "items" to page.mangas.map { mangaToMap(it, source) },
         "hasNextPage" to page.hasNextPage,
     )
 
-    private fun mangaToMap(manga: SManga, source: Source?): Map<String, Any?> = mapOf(
+    private fun mangaToMap(manga: SManga, source: Source?): Map<String, Any?> = mapOf<String, Any?>(
         "url" to manga.url,
         "title" to manga.title,
         "artist" to manga.artist,
@@ -425,7 +425,7 @@ class ExtensionHost(private val context: Context) {
         "sourceId" to source?.id,
     )
 
-    private fun chapterToMap(chapter: SChapter, source: Source): Map<String, Any?> = mapOf(
+    private fun chapterToMap(chapter: SChapter, source: Source): Map<String, Any?> = mapOf<String, Any?>(
         "url" to chapter.url,
         "name" to chapter.name,
         "dateUpload" to chapter.date_upload,

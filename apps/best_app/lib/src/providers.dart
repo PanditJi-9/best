@@ -472,8 +472,15 @@ final FutureProvider<DiscoverFeed> discoverProvider =
     // A server can host hundreds of sources; asking all of them on every home
     // refresh would hammer it. Server sources are one tap away in Browse.
     if (source.id.startsWith('suwayomi:')) continue;
+    // An extension parses a live web page, which can take seconds. Home stays on
+    // the built-in catalogue so it opens immediately; extension sources are the
+    // point of Browse, where the reader picks one on purpose.
+    if (source.id.startsWith('mihon:')) continue;
     try {
-      final page = await source.popular();
+      final page = await source.popular().timeout(
+            const Duration(seconds: 15),
+            onTimeout: () => const <Media>[],
+          );
       for (final media in page) {
         final key = '${media.title.toLowerCase().trim()}|${media.kind.name}';
         if (seen.add(key)) works.add(media);
@@ -504,7 +511,14 @@ final searchAllProvider =
     for (final source in registry.all)
       if (source.id != DemoSource.sourceId &&
           !source.id.startsWith('suwayomi:'))
-        source.search(query).catchError((Object _) => const <Media>[]),
+        source
+            .search(query)
+            // An extension that hangs must not hold the whole search box open.
+            .timeout(
+              const Duration(seconds: 15),
+              onTimeout: () => const <Media>[],
+            )
+            .catchError((Object _) => const <Media>[]),
   ]);
 
   final merged = <Media>[];
