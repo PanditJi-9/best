@@ -21,6 +21,10 @@ jobs:
       # private and started answering 403, which turned the first-run "play"
       # button into an error screen. A 20-second probe catches that in seconds
       # instead of after a full emulator boot.
+      #
+      # 403 is reported, not fatal: Blender's download host blocks datacenter
+      # ranges, so a runner sees 403 for a file a phone streams fine. The
+      # emulator smoke plays the sample for real and is the gate that counts.
       - name: Probe every stream in the guide
         run: |
           set -eu
@@ -29,9 +33,14 @@ jobs:
           test -n "$urls"
           for url in $urls; do
             code=$(curl -s -o /dev/null -w '%{http_code}' -r 0-1024 \
+              -A 'Mozilla/5.0 (Android 14; Mobile)' \
               --max-time 20 --retry 3 --retry-delay 2 "$url")
             echo "$code $url"
-            test "$code" -ge 200 -a "$code" -lt 400
+            case "$code" in
+              2*|3*) ;;
+              403|405) echo "::warning::blocked for this runner: $code $url" ;;
+              *) echo "::error::unreachable: $code $url"; exit 1 ;;
+            esac
           done
 
   core:
