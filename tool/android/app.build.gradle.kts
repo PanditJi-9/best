@@ -65,3 +65,23 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+/**
+ * The extension runtime.
+ *
+ * Best hosts Mihon/Komikku extension APKs itself: the Kotlin sources under
+ * `tool/android/kotlin/` are the real implementation of the `source-api`
+ * contract those APKs were compiled against, and these libraries are what the
+ * extensions reach for at run time (OkHttp for requests, Jsoup for parsing,
+ * RxJava 1 for the streaming API, Injekt for the service locator). None of them
+ * contains a scraper: the extension is the program.
+ */
+dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.jsoup:jsoup:1.18.3")
+    implementation("io.reactivex:rxjava:1.3.8")
+    implementation("io.reactivex:rxandroid:1.2.1")
+    implementation("uy.kohesive.injekt:injekt-core:1.16.1")
+    implementation("androidx.preference:preference:1.2.1")
+}
