@@ -6,17 +6,19 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 0.9.0 — picks that update themselves, plus the Mihon/Komikku
-sources.** The shelf, the reader,
+**Status: 0.10.0 — Best runs Mihon's extensions itself.** The shelf, the reader,
 the video player with captions, the bilingual UI, local progress, statistics,
 JSON backup/restore, one real catalogue (MangaDex) and declarative source packs
 (format 2, including streaming packs) are implemented and covered by tests. Home
 and Browse open on the live catalogue, one search box covers every installed
-source, a hand-picked shelf ships with the app and refreshes itself without a
-store release, and one optional field points Best at a Suwayomi server so the
-reader gets the same manga sources Mihon and Komikku use — extensions the server
-keeps up to date, not Best. Scripted extension hosting inside the app is
-scheduled, not pretended.
+source, and a hand-picked shelf ships with the app and refreshes itself without a
+store release. 0.10.0 adds the part that was missing: **Best hosts Mihon and
+Komikku extension APKs natively.** The app ships the real `source-api` runtime,
+loads an installed extension with its own `DexClassLoader`, and exposes the
+catalogue, search, details, chapters and pages through one small interface — no
+server, no setup, no repository to add. A starter set installs itself on first
+launch; Suwayomi remains as an optional alternative for readers who already run
+one.
 
 ## What works today
 
@@ -32,12 +34,18 @@ scheduled, not pretended.
   app refreshes it from the project repository every 12 hours. Each pick is
   resolved through its own adapter — the list names a work, it never copies
   one.
-- **The Mihon/Komikku catalogue, if you run a server.** Settings → **Suwayomi
-  server** takes one address (`http://192.168.1.20:4567`). The server runs the
-  extension APKs and updates them; Best reads its REST API, so Browse gains
-  hundreds of sources without a Best release. Off by default, manga only —
-  Aniyomi's anime extensions are a different engine — and Best still bundles no
-  scraper. See [docs/SOURCE-PACKS.md](docs/SOURCE-PACKS.md).
+- **The Mihon/Komikku catalogue, hosted by Best.** Extensions are Android APKs
+  compiled against Mihon's `source-api`; Best ships that runtime as real Kotlin
+  (`tool/android/kotlin/eu/kanade/tachiyomi/`) and mounts each installed APK with
+  a `DexClassLoader` whose parent is the app's own loader. Browse lists every
+  source an extension exposes, and the reader opens its chapters. A starter set
+  (MangaDex, MangaFire, Weeb Central, MangaKatana, 3asq) installs itself on first
+  launch; Settings → **Extensions** re-runs that and reports any extension that
+  refused to load. Best still bundles no scraper: the extension is the program.
+  See [docs/SOURCE-PACKS.md](docs/SOURCE-PACKS.md).
+- **Suwayomi, if you already run one.** Settings → **Suwayomi server** takes one
+  address (`http://192.168.1.20:4567`) and Browse gains that server's sources
+  over REST. Manga only, off by default.
 - **One visual system.** "Ink & Jade": a near-black canvas, jade for action and
   progress, vermilion only for new/live, gold for ranks. The mark, wordmark,
   spotlight, stat strip, cards and reader chrome are shared components, not

@@ -254,7 +254,15 @@ final Provider<SourceRegistry> sourceRegistryProvider =
     // Installed extensions sit beside the built-in catalogues: they are real
     // sources the reader brought, and a library entry must keep resolving to the
     // same adapter across launches.
-    for (final info in extensions.sources)
+    // An extension like MangaDex exposes one source per language. Showing all of
+    // them would bury the catalogue under forty identical rows, so the shelf
+    // keeps the reader's language plus the language-neutral bundles.
+    for (final info in extensions.sources.where(
+      (info) =>
+          info.language.isEmpty ||
+          info.language == 'all' ||
+          info.language == language,
+    ))
       ExtensionSourceAdapter(host: extensionHost, info: info),
     const DemoSource(),
   ]);

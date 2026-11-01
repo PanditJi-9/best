@@ -9,9 +9,60 @@ reached three ways, and they are deliberately separate tiers:
 | 1 | **Declarative JSON pack** — routes plus field paths | shipped in 0.1.0 |
 | 2 | **Sandboxed script host** — JS/QuickJS with a reviewed bridge | planned, phase 3 |
 | 3 | **Native adapter** — compiled Dart, e.g. `MangaDexSource` | shipped for MangaDex |
+| 4 | **Extension APK** — a Mihon/Komikku bundle run by the host Best ships | shipped in 0.10.0 |
 
 A pack is a manifest, not a program. It cannot read the library, the filesystem,
 the clipboard or any host it does not name, because nothing in it executes.
+
+Tier 4 is the opposite trade, made deliberately: an extension *is* a program, and
+it runs with the app's own permissions. That is why it is opt-in per extension,
+why the starter set is a short explicit allowlist, and why an extension that
+fails is reported by name in Settings → Extensions instead of disappearing.
+
+## Tier 4 — an extension APK, hosted in-process
+
+An extension is a signed Android APK containing a `classes.dex` and some manifest
+metadata (`tachiyomi.extension.class`, `.factory`, `.nsfw`,
+`tachiyomix.extensionLib`). It has no activity and no entry point: it is compiled
+against `extensions-lib`, where every member of the `source-api` throws
+`Exception("Stub!")`, and it expects the host to supply the real classes.
+
+Best supplies them. `tool/android/kotlin/eu/kanade/tachiyomi/` is the runtime —
+same packages, same class names, same JVM signatures, real bodies — and
+`ExtensionHost.kt` mounts an installed APK with
+
+```
+DexClassLoader(apk, codeCacheDir, null, applicationContext.classLoader)
+```
+
+so the extension's `eu.kanade.tachiyomi.*` references resolve to Best's classes
+while its own code stays in the child loader. The host then instantiates the
+declared class (or `SourceFactory`) and exposes it over the `app.best/extensions`
+channel.
+
+| Channel method | Arguments | Returns |
+|---|---|---|
+| `catalog` | — | `{sources: [...], problems: [...]}` |
+| `install` | `url`, `fileName` | the installed package, or an error |
+| `remove` | `packageName` | `true` when an APK was deleted |
+| `popular` / `latest` | `sourceId`, `page` | `{items: [...], hasNextPage}` |
+| `search` | `sourceId`, `page`, `query` | `{items: [...], hasNextPage}` |
+| `details` | `sourceId`, `url` | one work |
+| `chapters` | `sourceId`, `url` | `[{url, name, chapterNumber, dateUpload, scanlator}]` |
+| `pages` | `sourceId`, `url` | `[{index, url, headers}]` |
+| `headers` | `sourceId` | the source's default request headers |
+
+**What Best still does not do:** bundle a scraper, evaluate a site's JavaScript,
+or render an extension's preference screen. Those fail with a named error.
+
+### The starter set
+
+A first launch installs five long-lived sources from the maintained Mihon
+repository (`keiyoushi/extensions`) — MangaDex, MangaFire, Weeb Central,
+MangaKatana and the Arabic 3asq — matched by package name, so anything the
+repository no longer carries is skipped without failing the rest. The install is
+idempotent and only records success: a first launch on a bad network tries again
+next time. Settings → Extensions re-runs it.
 
 ## Format
 

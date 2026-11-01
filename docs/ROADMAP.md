@@ -197,6 +197,48 @@ those extensions and exposes them over REST — is the bridge.
 Not in scope: Aniyomi's anime extensions (a different engine), and any bundled
 scraper. Suwayomi is manga-only by construction.
 
+## 0.10.0 — the extension runtime, inside the app
+
+0.9.0 offered Suwayomi as a bridge to the Mihon extension ecosystem. That bridge
+still asks the reader to run a server, and it is manga-only. 0.10.0 removes the
+server from the path: Best hosts the extension APKs itself.
+
+An extension is an Android APK with no activity. It is compiled against
+`extensions-lib`, a stub library whose every body is `throw Exception("Stub!")`,
+and it expects the host to provide the real classes at run time. That is the
+whole trick, and it is why a Flutter app cannot simply "call" an extension: the
+runtime has to exist in Kotlin, in the same packages, with the same members.
+
+- [x] **The runtime** (`tool/android/kotlin/eu/kanade/tachiyomi/`): `Source`,
+  `CatalogueSource`, `SourceFactory`, `ConfigurableSource`, the `SManga` /
+  `SChapter` / `Page` / `MangasPage` / `Filter` models with real implementations
+  behind `create()`, `HttpSource` and `ParsedHttpSource` with working request and
+  Rx plumbing, the suspend `get*` wrappers current extensions call, and a
+  `NetworkHelper` with a cookie jar. Members an extension may not have been
+  compiled against carry defaults, so a bundle built for extensions-lib 1.4 still
+  loads on the 1.7 surface.
+- [x] **The loader** (`ExtensionHost.kt`): reads `tachiyomi.extension.class` /
+  `.factory` / `.nsfw` from the APK manifest, mounts the dex against the app's
+  class loader, registers `Application`, `Context` and `NetworkHelper` in Injekt,
+  and reports a per-extension failure instead of taking the app down.
+- [x] **The channel** (`app.best/extensions`): catalogue, install, remove,
+  popular, latest, search, details, chapters, pages and image headers.
+- [x] **Dart side** (`extension_host.dart`): `ExtensionSourceAdapter` implements
+  the same `SourceAdapter` every other catalogue does, so Browse, search, the
+  reader and downloads do not know an extension is involved. Relative covers are
+  resolved, `date_upload` becomes epoch milliseconds, and page headers travel
+  with the image so a referer-locked site still renders.
+- [x] **Zero setup**: a starter set of five long-lived sources installs itself on
+  first launch, idempotently, and only remembers success — a first launch without
+  a network tries again next time.
+- [x] **Settings → Extensions** shows how many sources are ready, re-runs the
+  starter set, and lists any extension that failed with its message.
+
+Deliberately not claimed yet: Aniyomi anime extensions (a second package tree
+and a video extraction path), the preference screens some extensions expose, and
+JavaScript-evaluating sources. Each fails with a clear message rather than a
+crash.
+
 ## 7. Growth
 
 - Arabic-first discovery: curated lists for manhwa/manhua that actually update.
