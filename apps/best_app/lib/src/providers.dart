@@ -265,8 +265,13 @@ final Provider<SourceRegistry> sourceRegistryProvider =
     // An extension like MangaDex exposes one source per language. Showing all of
     // them would bury the catalogue under forty identical rows, so the shelf
     // keeps the reader's language plus the language-neutral bundles.
+    //
+    // Anime bundles are the exception: there are only a handful, most of them
+    // English-subbed, and hiding them under an Arabic interface would leave the
+    // anime shelf empty. They stay whatever the interface language is.
     for (final info in extensions.sources.where(
       (info) =>
+          info.isAnime ||
           info.language.isEmpty ||
           info.language == 'all' ||
           info.language == language,
