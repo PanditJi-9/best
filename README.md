@@ -13,12 +13,13 @@ JSON backup/restore, one real catalogue (MangaDex) and declarative source packs
 and Browse open on the live catalogue, one search box covers every installed
 source, and a hand-picked shelf ships with the app and refreshes itself without a
 store release. 0.10.0 adds the part that was missing: **Best hosts Mihon and
-Komikku extension APKs natively.** The app ships the real `source-api` runtime,
-loads an installed extension with its own `DexClassLoader`, and exposes the
-catalogue, search, details, chapters and pages through one small interface — no
-server, no setup, no repository to add. A starter set installs itself on first
-launch; Suwayomi remains as an optional alternative for readers who already run
-one.
+Komikku extension APKs natively, and Aniyomi anime bundles with them.** The app
+ships the real `source-api` runtime for both trees, loads an installed extension
+with its own `DexClassLoader`, and exposes the catalogue, search, details,
+chapters, pages and video streams through one small interface — no server, no
+setup, no repository to add. A starter set installs itself on first launch; five
+manga sources and four anime sources are ready before the first tap. Suwayomi
+remains as an optional alternative for readers who already run one.
 
 ## What works today
 

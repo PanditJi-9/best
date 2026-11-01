@@ -198,11 +198,19 @@ final Provider<ExtensionHost> extensionHostProvider =
 
 final Provider<ExtensionInstaller> extensionInstallerProvider =
     Provider<ExtensionInstaller>((ref) {
+  final client = ref.watch(httpClientProvider);
   return ExtensionInstaller(
     host: ref.watch(extensionHostProvider),
     repository: ExtensionRepository(
       indexUrl: ExtensionRepository.defaultIndexUrl,
-      client: ref.watch(httpClientProvider),
+      client: client,
+    ),
+    // Anime bundles come from a different index and link against a different
+    // runtime, but they install into the same private folder and show up in the
+    // same picker.
+    animeRepository: ExtensionRepository(
+      indexUrl: ExtensionRepository.defaultAnimeIndexUrl,
+      client: client,
     ),
     preferences: ref.watch(preferencesProvider),
   );

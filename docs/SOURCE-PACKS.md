@@ -23,7 +23,10 @@ fails is reported by name in Settings → Extensions instead of disappearing.
 
 An extension is a signed Android APK containing a `classes.dex` and some manifest
 metadata (`tachiyomi.extension.class`, `.factory`, `.nsfw`,
-`tachiyomix.extensionLib`). It has no activity and no entry point: it is compiled
+`tachiyomix.extensionLib`). Anime bundles are the same file with an
+`animeextension` key (`tachiyomi.animeextension.class`, `.nsfw`, `.torrent`) and
+a second package tree, `eu.kanade.tachiyomi.animesource`; both are read by the
+same loader. It has no activity and no entry point: it is compiled
 against `extensions-lib`, where every member of the `source-api` throws
 `Exception("Stub!")`, and it expects the host to supply the real classes.
 

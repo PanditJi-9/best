@@ -23,7 +23,18 @@ ACTIVITY = f"{PACKAGE}/.MainActivity"
 
 # Names the starter set is expected to produce. Kept loose on purpose: a source
 # label is the extension's own string and may change case or add a suffix.
-EXPECTED = ("MangaDex", "MangaFire", "Weeb", "MangaKatana", "3asq")
+# The first five are manga bundles, the last four anime.
+EXPECTED = (
+    "MangaDex",
+    "MangaFire",
+    "Weeb",
+    "MangaKatana",
+    "3asq",
+    "AniZone",
+    "AnimePahe",
+    "AnimeKai",
+    "AnimeXin",
+)
 
 
 def adb(*args: str, check: bool = False) -> str:

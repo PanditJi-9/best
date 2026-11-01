@@ -1,24 +1,14 @@
 package eu.kanade.tachiyomi.network
 
 import android.content.Context
-import kotlinx.coroutines.suspendCancellableCoroutine
-import okhttp3.CacheControl
-import okhttp3.Call
 import okhttp3.Cookie
 import okhttp3.CookieJar
-import okhttp3.Headers
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody
 import okhttp3.Response
 import okhttp3.ResponseBody
-import okhttp3.RequestBody.Companion.toRequestBody
-import rx.Observable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 /** The default user agent, kept close to what Mihon sends so sites behave. */
 const val DEFAULT_USER_AGENT =
@@ -71,75 +61,6 @@ class NetworkHelper(@Suppress("UNUSED_PARAMETER") context: Context) {
         .build()
 
     val defaultUserAgent: String = DEFAULT_USER_AGENT
-}
-
-private val DEFAULT_CACHE_CONTROL: CacheControl = CacheControl.Builder().build()
-private val DEFAULT_HEADERS: Headers = Headers.Builder().build()
-private val DEFAULT_BODY: RequestBody = ByteArray(0).toRequestBody()
-
-fun GET(
-    url: String,
-    headers: Headers = DEFAULT_HEADERS,
-    cache: CacheControl = DEFAULT_CACHE_CONTROL,
-): Request = Request.Builder()
-    .url(url)
-    .headers(headers)
-    .cacheControl(cache)
-    .build()
-
-fun GET(
-    url: HttpUrl,
-    headers: Headers = DEFAULT_HEADERS,
-    cache: CacheControl = DEFAULT_CACHE_CONTROL,
-): Request = Request.Builder()
-    .url(url)
-    .headers(headers)
-    .cacheControl(cache)
-    .build()
-
-fun POST(
-    url: String,
-    headers: Headers = DEFAULT_HEADERS,
-    body: RequestBody = DEFAULT_BODY,
-    cache: CacheControl = DEFAULT_CACHE_CONTROL,
-): Request = Request.Builder()
-    .url(url)
-    .headers(headers)
-    .post(body)
-    .cacheControl(cache)
-    .build()
-
-fun Call.asObservable(): Observable<Response> =
-    Observable.fromCallable(java.util.concurrent.Callable { clone().execute() })
-
-fun Call.asObservableSuccess(): Observable<Response> = asObservable().doOnNext { response ->
-    if (!response.isSuccessful) {
-        val code = response.code
-        val message = response.message
-        response.close()
-        throw Exception("HTTP $code $message")
-    }
-}
-
-suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
-    val call = clone()
-    continuation.invokeOnCancellation { call.cancel() }
-    try {
-        continuation.resume(call.execute())
-    } catch (e: Throwable) {
-        continuation.resumeWithException(e)
-    }
-}
-
-suspend fun Call.awaitSuccess(): Response {
-    val response = await()
-    if (!response.isSuccessful) {
-        val code = response.code
-        val message = response.message
-        response.close()
-        throw Exception("HTTP $code $message")
-    }
-    return response
 }
 
 /** Reads the body once and closes the response, for hosts that only want text. */

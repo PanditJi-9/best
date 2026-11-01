@@ -19,6 +19,7 @@ class ExtensionSourceInfo {
     required this.supportsLatest,
     required this.nsfw,
     required this.versionName,
+    this.kind = 'manga',
   });
 
   final int sourceId;
@@ -28,6 +29,12 @@ class ExtensionSourceInfo {
   final bool supportsLatest;
   final bool nsfw;
   final String versionName;
+
+  /// `anime` for an Aniyomi bundle, `manga` for a Mihon one. The host reads it
+  /// from the extension's own manifest keys, so the picker never has to guess.
+  final String kind;
+
+  bool get isAnime => kind == 'anime';
 
   static ExtensionSourceInfo fromMap(Map<String, dynamic> map) {
     return ExtensionSourceInfo(
@@ -40,6 +47,7 @@ class ExtensionSourceInfo {
       supportsLatest: map['supportsLatest'] == true,
       nsfw: map['nsfw'] == true,
       versionName: (map['versionName'] as String?) ?? '',
+      kind: (map['kind'] as String?) ?? 'manga',
     );
   }
 }
@@ -151,6 +159,7 @@ class ExtensionHost {
     int sourceId, {
     int page = 1,
     String? query,
+    bool anime = false,
   }) async {
     final raw = await _channel.invokeMapMethod<String, dynamic>(
       method,
@@ -166,26 +175,27 @@ class ExtensionHost {
         .map((map) => _mediaFromMap(
               map.map((key, value) => MapEntry('$key', value)),
               sourceId,
+              anime: anime,
             ))
         .toList(growable: false);
   }
 
-  Future<List<Media>> popular(int sourceId, {int page = 1}) =>
-      _listing('popular', sourceId, page: page);
+  Future<List<Media>> popular(int sourceId, {int page = 1, bool anime = false}) =>
+      _listing('popular', sourceId, page: page, anime: anime);
 
-  Future<List<Media>> latest(int sourceId, {int page = 1}) =>
-      _listing('latest', sourceId, page: page);
+  Future<List<Media>> latest(int sourceId, {int page = 1, bool anime = false}) =>
+      _listing('latest', sourceId, page: page, anime: anime);
 
-  Future<List<Media>> search(int sourceId, String query, {int page = 1}) =>
-      _listing('search', sourceId, page: page, query: query);
+  Future<List<Media>> search(int sourceId, String query, {int page = 1, bool anime = false}) =>
+      _listing('search', sourceId, page: page, query: query, anime: anime);
 
-  Future<Media> details(int sourceId, Media media) async {
+  Future<Media> details(int sourceId, Media media, {bool anime = false}) async {
     final raw = await _channel.invokeMapMethod<String, dynamic>(
       'details',
       <String, dynamic>{'sourceId': sourceId, 'url': media.ref.url},
     );
     if (raw == null) return media;
-    final fresh = _mediaFromMap(raw, sourceId);
+    final fresh = _mediaFromMap(raw, sourceId, anime: anime);
     return media.copyWith(
       title: fresh.title.isEmpty ? null : fresh.title,
       coverUrl: fresh.coverUrl,
@@ -252,6 +262,55 @@ class ExtensionHost {
     return resources;
   }
 
+  /// Streams for one episode of an anime extension.
+  ///
+  /// A source may answer with several mirrors; they come back in the order the
+  /// extension ranked them, so the player can offer a quality picker without
+  /// knowing anything about the site.
+  Future<List<MediaResource>> videos(int sourceId, MediaUnit unit) async {
+    final raw = await _channel.invokeMethod<List<dynamic>>(
+      'videos',
+      <String, dynamic>{'sourceId': sourceId, 'url': unit.url},
+    );
+    final list = raw ?? const <dynamic>[];
+    final resources = <MediaResource>[];
+    for (final entry in list.whereType<Map<dynamic, dynamic>>()) {
+      final map = entry.map((key, value) => MapEntry('$key', value));
+      final url = (map['url'] as String?) ?? '';
+      if (url.isEmpty) continue;
+      final headers = <String, String>{};
+      final rawHeaders = map['headers'];
+      if (rawHeaders is Map) {
+        rawHeaders.forEach((key, value) {
+          if (value is List && value.isNotEmpty) {
+            headers['$key'] = '${value.first}';
+          } else if (value != null) {
+            headers['$key'] = '$value';
+          }
+        });
+      }
+      headers.remove('Host');
+      resources.add(
+        VideoResource(
+          url,
+          headers: headers,
+          mimeType: _mimeFor(url),
+        ),
+      );
+    }
+    return resources;
+  }
+
+  /// Guesses the container from the url so the player picks the right decoder.
+  static String? _mimeFor(String url) {
+    final path = Uri.tryParse(url)?.path.toLowerCase() ?? url.toLowerCase();
+    if (path.endsWith('.m3u8')) return 'application/x-mpegURL';
+    if (path.endsWith('.mpd')) return 'application/dash+xml';
+    if (path.endsWith('.mp4') || path.endsWith('.m4v')) return 'video/mp4';
+    if (path.endsWith('.webm')) return 'video/webm';
+    return null;
+  }
+
   static double _numberFromTitle(String title, int fallbackIndex) {
     final match = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(title);
     if (match != null) {
@@ -260,7 +319,7 @@ class ExtensionHost {
     return (fallbackIndex + 1).toDouble();
   }
 
-  static Media _mediaFromMap(Map<String, dynamic> map, int sourceId) {
+  static Media _mediaFromMap(Map<String, dynamic> map, int sourceId, {bool anime = false}) {
     final genres = ((map['genre'] as String?) ?? '')
         .split(',')
         .map((genre) => genre.trim())
@@ -269,7 +328,7 @@ class ExtensionHost {
     return Media(
       ref: SourceRef('mihon:$sourceId', (map['url'] as String?) ?? ''),
       title: ((map['title'] as String?) ?? '').trim(),
-      kind: MediaKind.manga,
+      kind: anime ? MediaKind.anime : MediaKind.manga,
       coverUrl: (map['thumbnailUrl'] as String?)?.trim().isEmpty == true
           ? null
           : map['thumbnailUrl'] as String?,
@@ -309,22 +368,24 @@ class ExtensionSourceAdapter implements SourceAdapter {
 
   @override
   Future<List<Media>> popular({int page = 1}) =>
-      host.popular(info.sourceId, page: page);
+      host.popular(info.sourceId, page: page, anime: info.isAnime);
 
   @override
   Future<List<Media>> search(String query, {int page = 1}) =>
-      host.search(info.sourceId, query, page: page);
+      host.search(info.sourceId, query, page: page, anime: info.isAnime);
 
   @override
-  Future<Media> details(Media media) => host.details(info.sourceId, media);
+  Future<Media> details(Media media) =>
+      host.details(info.sourceId, media, anime: info.isAnime);
 
   @override
   Future<List<MediaUnit>> units(Media media) =>
       host.chapters(info.sourceId, media);
 
   @override
-  Future<List<MediaResource>> resources(MediaUnit unit) =>
-      host.pages(info.sourceId, unit);
+  Future<List<MediaResource>> resources(MediaUnit unit) => info.isAnime
+      ? host.videos(info.sourceId, unit)
+      : host.pages(info.sourceId, unit);
 }
 
 /// One entry in an extension repository's index.
@@ -362,6 +423,11 @@ class ExtensionRepository {
   /// The maintained Mihon repository. Its index is the list Mihon itself reads.
   static const String defaultIndexUrl =
       'https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.json';
+
+  /// The anime side of the same idea. Aniyomi's official list was retired, so
+  /// this is the community fork that still builds and signs Aniyomi bundles.
+  static const String defaultAnimeIndexUrl =
+      'https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json';
 
   final String indexUrl;
   final http.Client _client;
@@ -440,10 +506,11 @@ class ExtensionInstaller {
   ExtensionInstaller({
     required this.host,
     required this.repository,
+    this.animeRepository,
     required this.preferences,
   });
 
-  static const String _bootstrappedKey = 'extensions_bootstrapped_v1';
+  static const String _bootstrappedKey = 'extensions_bootstrapped_v2';
 
   /// MangaDex, MangaFire, Weeb Central, MangaKatana and the Arabic 3asq.
   /// Matched by package name against the repository index; anything the
@@ -456,8 +523,20 @@ class ExtensionInstaller {
     'eu.kanade.tachiyomi.extension.ar.manga3asq',
   ];
 
+  /// Anime bundles: Aniyomi extensions, a separate repository and ABI.
+  /// AniZone, AnimePahe, AniZone's sibling AnimeXin and AnimeKai cover the
+  /// shapes in the wild: a v14 bundle, a v16 source, and a source whose only
+  /// constructor takes a preference list.
+  static const List<String> animeStarterPackages = <String>[
+    'eu.kanade.tachiyomi.animeextension.all.anizone',
+    'eu.kanade.tachiyomi.animeextension.en.animepahe',
+    'eu.kanade.tachiyomi.animeextension.en.kotokai',
+    'eu.kanade.tachiyomi.animeextension.all.animexin',
+  ];
+
   final ExtensionHost host;
   final ExtensionRepository repository;
+  final ExtensionRepository? animeRepository;
   final SharedPreferences? preferences;
 
   bool get _bootstrapped => preferences?.getBool(_bootstrappedKey) ?? false;
@@ -470,28 +549,37 @@ class ExtensionInstaller {
     final catalog = await host.catalog();
     final installed = catalog.sources.map((s) => s.packageName).toSet();
 
-    List<ExtensionEntry> entries;
-    try {
-      entries = await repository.fetch();
-    } catch (_) {
-      return 0;
-    }
-
-    final wanted = entries
-        .where((entry) => starterPackages.contains(entry.packageName))
-        .where((entry) => !installed.contains(entry.packageName))
-        .toList(growable: false);
-
     var written = 0;
-    for (final entry in wanted) {
-      final packageName = await host.install(
-        url: entry.apkUrl,
-        fileName: entry.fileName,
-      );
-      if (packageName != null) written++;
+    var reachable = 0;
+    var pending = 0;
+    final batches = <(ExtensionRepository, List<String>)>[
+      (repository, starterPackages),
+      if (animeRepository != null) (animeRepository!, animeStarterPackages),
+    ];
+    for (final (source, packages) in batches) {
+      List<ExtensionEntry> entries;
+      try {
+        entries = await source.fetch();
+      } catch (_) {
+        // One dead index must not cost the reader the other shelf.
+        continue;
+      }
+      reachable++;
+      final wanted = entries
+          .where((entry) => packages.contains(entry.packageName))
+          .where((entry) => !installed.contains(entry.packageName))
+          .toList(growable: false);
+      pending += wanted.length;
+      for (final entry in wanted) {
+        final packageName = await host.install(
+          url: entry.apkUrl,
+          fileName: entry.fileName,
+        );
+        if (packageName != null) written++;
+      }
     }
     // Only remember success, so a launch without a network tries again next time.
-    if (written > 0 || wanted.isEmpty) {
+    if (written > 0 || (reachable > 0 && pending == 0)) {
       await preferences?.setBool(_bootstrappedKey, true);
     }
     return written;

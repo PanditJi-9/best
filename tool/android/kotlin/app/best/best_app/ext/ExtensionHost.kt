@@ -7,6 +7,14 @@ import android.os.Build
 import android.util.Log
 import dalvik.system.DexClassLoader
 import eu.kanade.tachiyomi.AppInfo
+import eu.kanade.tachiyomi.animesource.AnimeCatalogueSource
+import eu.kanade.tachiyomi.animesource.AnimeSource
+import eu.kanade.tachiyomi.animesource.AnimeSourceFactory
+import eu.kanade.tachiyomi.animesource.model.AnimeFilterList
+import eu.kanade.tachiyomi.animesource.model.AnimesPage
+import eu.kanade.tachiyomi.animesource.model.SAnime
+import eu.kanade.tachiyomi.animesource.model.SEpisode
+import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.Source
@@ -47,6 +55,15 @@ class ExtensionHost(private val context: Context) {
         private const val KEY_CLASS = "tachiyomi.extension.class"
         private const val KEY_FACTORY = "tachiyomi.extension.factory"
         private const val KEY_NSFW = "tachiyomi.extension.nsfw"
+
+        /**
+         * Anime extensions declare their entry point under their own keys, a
+         * leftover from the Aniyomi fork. Both are read, so one loader serves
+         * manga and anime bundles alike.
+         */
+        private const val KEY_ANIME_CLASS = "tachiyomi.animeextension.class"
+        private const val KEY_ANIME_FACTORY = "tachiyomi.animeextension.factory"
+        private const val KEY_ANIME_NSFW = "tachiyomi.animeextension.nsfw"
         private const val KEY_LIB_VERSION = "tachiyomix.extensionLib"
         private const val CHANNEL = "app.best/extensions"
 
@@ -68,6 +85,9 @@ class ExtensionHost(private val context: Context) {
 
     /** Loaded sources, keyed by the stable source id the extension generates. */
     private val sources = ConcurrentHashMap<Long, Source>()
+
+    /** Anime sources, kept apart because they answer a different contract. */
+    private val animeSources = ConcurrentHashMap<Long, AnimeSource>()
 
     /** Which extension package contributed which source id. */
     private val sourceOwner = ConcurrentHashMap<Long, String>()
@@ -123,13 +143,22 @@ class ExtensionHost(private val context: Context) {
     private fun meta(pkg: android.content.pm.PackageInfo, key: String): String? =
         pkg.applicationInfo?.metaData?.getString(key)?.takeIf { it.isNotBlank() }
 
-    private fun isNsfw(pkg: android.content.pm.PackageInfo): Boolean =
-        meta(pkg, KEY_NSFW)?.toBoolean() ?: (pkg.applicationInfo?.metaData?.getBoolean(KEY_NSFW) ?: false)
+    private fun isNsfw(pkg: android.content.pm.PackageInfo): Boolean {
+        val declared = meta(pkg, KEY_NSFW) ?: meta(pkg, KEY_ANIME_NSFW)
+        return declared?.toBoolean()
+            ?: (pkg.applicationInfo?.metaData?.getBoolean(KEY_NSFW) ?: false)
+            ?: (pkg.applicationInfo?.metaData?.getBoolean(KEY_ANIME_NSFW) ?: false)
+    }
 
     /** Reads an APK's identity without loading any of its code. */
     private fun describe(file: File): Map<String, Any?>? {
         val pkg = archiveInfo(file) ?: return null
         return mapOf(
+            "kind" to if (meta(pkg, KEY_ANIME_CLASS) != null || meta(pkg, KEY_ANIME_FACTORY) != null) {
+                "anime"
+            } else {
+                "manga"
+            },
             "packageName" to pkg.packageName,
             "versionName" to (pkg.versionName ?: ""),
             "nsfw" to isNsfw(pkg),
@@ -153,41 +182,58 @@ class ExtensionHost(private val context: Context) {
      * must never take the host down, so each failure is reported per-extension
      * and the rest keep loading.
      */
-    private fun loadSources(file: File): List<Source> {
+    private fun loadSources(file: File): List<Any> {
         val pkg = archiveInfo(file) ?: return emptyList()
         val loader = classLoaderFor(file)
-        val className = meta(pkg, KEY_CLASS)
-        val factoryName = meta(pkg, KEY_FACTORY)
+        val className = meta(pkg, KEY_CLASS) ?: meta(pkg, KEY_ANIME_CLASS)
+        val factoryName = meta(pkg, KEY_FACTORY) ?: meta(pkg, KEY_ANIME_FACTORY)
 
-        val produced = mutableListOf<Source>()
+        val produced = mutableListOf<Any>()
         if (!className.isNullOrBlank()) {
-            val instance = instantiate(loader, className) as? Source
-            if (instance != null) produced += instance
+            runCatching { instantiate(loader, className) }.getOrNull()?.let { produced += it }
         }
         if (!factoryName.isNullOrBlank()) {
-            val factory = instantiate(loader, factoryName) as? SourceFactory
-            if (factory != null) produced += factory.createSources()
+            runCatching { instantiate(loader, factoryName) }.getOrNull()?.let { produced += it }
         }
-        // Some bundles only declare a factory class; try the conventional name
+        // Some bundles only declare a factory class; try the conventional names
         // so an extension with unusual metadata still has a chance to load.
         if (produced.isEmpty()) {
             for (candidate in listOf(
                 "${pkg.packageName}.Extension",
                 "${pkg.packageName}.SourceFactory",
             )) {
-                val instance = runCatching { instantiate(loader, candidate) }.getOrNull()
-                if (instance is Source) produced += instance
-                if (instance is SourceFactory) produced += instance.createSources()
+                runCatching { instantiate(loader, candidate) }.getOrNull()?.let { produced += it }
             }
         }
-        return produced.filterIsInstance<CatalogueSource>()
+        return produced.flatMap { expand(it) }
+            .filter { it is CatalogueSource || it is AnimeCatalogueSource }
     }
 
-    private fun instantiate(loader: ClassLoader, name: String): Any? {
+    /** A factory answers with a list; a plain source is its own list. */
+    private fun expand(instance: Any): List<Any> = when (instance) {
+        is SourceFactory -> instance.createSources()
+        is AnimeSourceFactory -> instance.createSources()
+        else -> listOf(instance)
+    }
+
+    /**
+     * Newer sources take a preference list in their only constructor, so a
+     * no-argument lookup is not enough. Both shapes are tried, and the list one
+     * gets an empty list: Best does not render extension preference screens yet,
+     * and an empty list is what the real app passes on a first run.
+     */
+    private fun instantiate(loader: ClassLoader, name: String): Any {
         val clazz = Class.forName(name, true, loader)
-        val ctor = clazz.getDeclaredConstructor()
-        ctor.isAccessible = true
-        return ctor.newInstance()
+        val noArg = clazz.declaredConstructors.firstOrNull { it.parameterTypes.isEmpty() }
+        if (noArg != null) {
+            noArg.isAccessible = true
+            return noArg.newInstance()
+        }
+        val listCtor = clazz.declaredConstructors.firstOrNull { ctor ->
+            ctor.parameterTypes.size == 1 && List::class.java.isAssignableFrom(ctor.parameterTypes[0])
+        } ?: throw NoSuchMethodException("$name has no usable constructor.")
+        listCtor.isAccessible = true
+        return listCtor.newInstance(emptyList<Any>())
     }
 
     private fun ensureLoaded(): List<Map<String, Any?>> {
@@ -200,9 +246,17 @@ class ExtensionHost(private val context: Context) {
             try {
                 val loaded = loadSources(file)
                 loaded.forEach { source ->
-                    sources[source.id] = source
-                    sourceOwner[source.id] = pkgName
-                    Log.i(TAG, "loaded ${source.name} (${source.id}) from $pkgName")
+                    when (source) {
+                        is AnimeSource -> animeSources[source.id] = source
+                        is Source -> sources[source.id] = source
+                    }
+                    val id = when (source) {
+                        is AnimeSource -> source.id
+                        is Source -> source.id
+                        else -> 0L
+                    }
+                    sourceOwner[id] = pkgName
+                    Log.i(TAG, "loaded ${nameOf(source)} ($id) from $pkgName")
                 }
                 if (loaded.isEmpty()) {
                     Log.w(TAG, "no source could be created by $pkgName")
@@ -216,7 +270,15 @@ class ExtensionHost(private val context: Context) {
         return problems
     }
 
+    private fun nameOf(source: Any): String = when (source) {
+        is AnimeSource -> source.name
+        is Source -> source.name
+        else -> "?"
+    }
+
     private fun sourceFor(id: Long): CatalogueSource? = sources[id] as? CatalogueSource
+
+    private fun animeFor(id: Long): AnimeSource? = animeSources[id]
 
     // ------------------------------------------------------------------ bridge
 
@@ -269,6 +331,16 @@ class ExtensionHost(private val context: Context) {
                 val url = call.argument<String>("url").orEmpty()
                 respond(result) { pages(id, url) }
             }
+            "episodes" -> {
+                val id = call.argument<Number>("sourceId")?.toLong()
+                val url = call.argument<String>("url").orEmpty()
+                respond(result) { episodes(id, url) }
+            }
+            "videos" -> {
+                val id = call.argument<Number>("sourceId")?.toLong()
+                val url = call.argument<String>("url").orEmpty()
+                respond(result) { videos(id, url) }
+            }
             "headers" -> {
                 val id = call.argument<Number>("sourceId")?.toLong()
                 respond(result) { headersFor(id) }
@@ -296,25 +368,43 @@ class ExtensionHost(private val context: Context) {
     /** Installed extensions plus every source they expose. */
     private fun catalog(): Map<String, Any?> {
         val problems = ensureLoaded()
-        Log.i(TAG, "catalog: ${sources.size} source(s), ${problems.size} problem(s)")
-        val entries = sources.map { (id, source) ->
+        Log.i(TAG, "catalog: ${sources.size} manga, ${animeSources.size} anime, ${problems.size} problem(s)")
+        val entries = mutableListOf<Map<String, Any?>>()
+        sources.forEach { (id, source) ->
             val catalogue = source as? CatalogueSource
-            val owner = sourceOwner[id]
-            val file = apkFiles().firstOrNull { describe(it)?.get("packageName") == owner }
-            val identity = file?.let { describe(it) } ?: emptyMap()
-            mapOf(
-                "sourceId" to id,
-                "name" to source.name,
-                "lang" to (catalogue?.lang ?: ""),
-                "supportsLatest" to (catalogue?.supportsLatest ?: false),
-                "packageName" to owner,
-                "versionName" to identity["versionName"],
-                "nsfw" to (identity["nsfw"] ?: false),
-            )
+            entries += entry(id, source.name, "manga", catalogue?.lang, catalogue?.supportsLatest == true)
+        }
+        animeSources.forEach { (id, source) ->
+            entries += entry(id, source.name, "anime", source.lang, source.supportsLatest)
         }
         return mapOf<String, Any?>(
             "sources" to entries,
             "problems" to problems,
+        )
+    }
+
+    /** One row of the catalog the picker reads. */
+    private fun entry(
+        id: Long,
+        name: String,
+        kind: String,
+        lang: String?,
+        supportsLatest: Boolean,
+    ): Map<String, Any?> {
+        val owner = sourceOwner[id]
+        val identity = apkFiles()
+            .firstOrNull { describe(it)?.get("packageName") == owner }
+            ?.let { describe(it) }
+            ?: emptyMap()
+        return mapOf(
+            "sourceId" to id,
+            "name" to name,
+            "kind" to kind,
+            "lang" to (lang ?: ""),
+            "supportsLatest" to supportsLatest,
+            "packageName" to owner,
+            "versionName" to identity["versionName"],
+            "nsfw" to (identity["nsfw"] ?: false),
         )
     }
 
@@ -345,6 +435,7 @@ class ExtensionHost(private val context: Context) {
         target.setReadOnly()
         // A new APK means the old classes must go, so the next catalog reloads.
         sources.clear()
+        animeSources.clear()
         sourceOwner.clear()
         val identity = describe(target)
         return identity ?: mapOf<String, Any?>("fileName" to target.name)
@@ -354,6 +445,7 @@ class ExtensionHost(private val context: Context) {
         if (packageName.isNullOrBlank()) return false
         sourceOwner.filterValues { it == packageName }.keys.forEach {
             sources.remove(it)
+            animeSources.remove(it)
             sourceOwner.remove(it)
         }
         val removed = apkFiles().filter { describe(it)?.get("packageName") == packageName }
@@ -363,27 +455,37 @@ class ExtensionHost(private val context: Context) {
     }
 
     private suspend fun popular(id: Long?, page: Int): Map<String, Any?> {
+        animeFor(id ?: 0L)?.let { return animesPageToMap(it.getPopularAnime(page), it) }
         val source = id?.let { sourceFor(it) } ?: throw IllegalStateException("Unknown source.")
         return pageToMap(source.getPopularManga(page), source)
     }
 
     private suspend fun latest(id: Long?, page: Int): Map<String, Any?> {
+        animeFor(id ?: 0L)?.let { return animesPageToMap(it.getLatestUpdates(page), it) }
         val source = id?.let { sourceFor(it) } ?: throw IllegalStateException("Unknown source.")
         return pageToMap(source.getLatestUpdates(page), source)
     }
 
     private suspend fun search(id: Long?, query: String, page: Int): Map<String, Any?> {
+        animeFor(id ?: 0L)?.let {
+            return animesPageToMap(it.getSearchAnime(page, query, AnimeFilterList()), it)
+        }
         val source = id?.let { sourceFor(it) } ?: throw IllegalStateException("Unknown source.")
         return pageToMap(source.getSearchManga(page, query, FilterList()), source)
     }
 
     private suspend fun details(id: Long?, url: String): Map<String, Any?> {
+        animeFor(id ?: 0L)?.let { source ->
+            val anime = SAnime.create().apply { this.url = url }
+            return animeToMap(source.getAnimeDetails(anime), source)
+        }
         val source = id?.let { sourceFor(it) } ?: throw IllegalStateException("Unknown source.")
         val manga = SManga.create().apply { this.url = url }
         return mangaToMap(source.getMangaDetails(manga), source)
     }
 
     private suspend fun chapters(id: Long?, url: String): List<Map<String, Any?>> {
+        animeFor(id ?: 0L)?.let { return episodes(id, url) }
         val source = id?.let { sourceFor(it) } ?: throw IllegalStateException("Unknown source.")
         val manga = SManga.create().apply { this.url = url }
         return source.getChapterList(manga).map { chapterToMap(it, source) }
@@ -408,6 +510,39 @@ class ExtensionHost(private val context: Context) {
                 "headers" to headersFor(id)["headers"],
             )
         }
+    }
+
+    // ------------------------------------------------------------------- anime
+
+    private suspend fun episodes(id: Long?, url: String): List<Map<String, Any?>> {
+        val source = animeFor(id ?: 0L) ?: throw IllegalStateException("Unknown anime source.")
+        val anime = SAnime.create().apply { this.url = url }
+        return source.getEpisodeList(anime).map { episodeToMap(it, source) }
+    }
+
+    /**
+     * Streams for one episode.
+     *
+     * Current sources hand back mirrors (hosters) first and resolve a stream per
+     * mirror; older ones answer the episode directly. Both are tried, and a
+     * mirror that fails is skipped instead of failing the whole episode.
+     */
+    private suspend fun videos(id: Long?, url: String): List<Map<String, Any?>> {
+        val source = animeFor(id ?: 0L) ?: throw IllegalStateException("Unknown anime source.")
+        val episode = SEpisode.create().apply { this.url = url }
+        val collected = mutableListOf<Video>()
+        val hosters = runCatching { source.getHosterList(episode) }.getOrDefault(emptyList())
+        for (hoster in hosters) {
+            runCatching { source.getVideoList(hoster) }
+                .getOrDefault(emptyList())
+                .let { collected += it }
+        }
+        if (collected.isEmpty()) {
+            collected += source.getVideoList(episode)
+        }
+        return collected
+            .filter { it.videoUrl.isNotBlank() }
+            .map { videoToMap(it, source) }
     }
 
     private fun headersFor(id: Long?): Map<String, Any?> {
@@ -440,6 +575,48 @@ class ExtensionHost(private val context: Context) {
             ),
         "sourceId" to source?.id,
     )
+
+    private fun animesPageToMap(page: AnimesPage, source: AnimeSource): Map<String, Any?> = mapOf<String, Any?>(
+        "items" to page.animes.map { animeToMap(it, source) },
+        "hasNextPage" to page.hasNextPage,
+    )
+
+    private fun animeToMap(anime: SAnime, source: AnimeSource?): Map<String, Any?> = mapOf<String, Any?>(
+        "url" to anime.url,
+        "title" to anime.title,
+        "artist" to anime.artist,
+        "author" to anime.author,
+        "description" to anime.description,
+        "genre" to anime.genre,
+        "status" to anime.status,
+        "thumbnailUrl" to (
+            (source as? eu.kanade.tachiyomi.animesource.online.AnimeHttpSource)
+                ?.resolveUrl(anime.thumbnail_url)
+                ?: anime.thumbnail_url
+            ),
+        "sourceId" to source?.id,
+    )
+
+    private fun episodeToMap(episode: SEpisode, source: AnimeSource): Map<String, Any?> = mapOf<String, Any?>(
+        "url" to episode.url,
+        "name" to episode.name,
+        "dateUpload" to episode.date_upload,
+        "chapterNumber" to episode.episode_number.toDouble(),
+        "scanlator" to episode.scanlator,
+        "sourceId" to source.id,
+    )
+
+    private fun videoToMap(video: Video, source: AnimeSource): Map<String, Any?> {
+        val headers = video.headers?.toMultimap()
+            ?: (source as? eu.kanade.tachiyomi.animesource.online.AnimeHttpSource)?.headers?.toMultimap()
+            ?: emptyMap()
+        return mapOf<String, Any?>(
+            "url" to video.videoUrl,
+            "quality" to video.quality,
+            "title" to video.label(),
+            "headers" to headers,
+        )
+    }
 
     private fun chapterToMap(chapter: SChapter, source: Source): Map<String, Any?> = mapOf<String, Any?>(
         "url" to chapter.url,
