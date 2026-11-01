@@ -419,9 +419,13 @@ class ExtensionHost(private val context: Context) {
         "description" to manga.description,
         "genre" to manga.genre,
         "status" to manga.status,
-        "thumbnailUrl" to (source as? eu.kanade.tachiyomi.source.online.HttpSource)
-            ?.resolveUrl(manga.thumbnail_url)
-            ?: manga.thumbnail_url,
+        // `to` binds tighter than `?:`, so the fallback needs its own parens or
+        // the elvis applies to the pair instead of the cover url.
+        "thumbnailUrl" to (
+            (source as? eu.kanade.tachiyomi.source.online.HttpSource)
+                ?.resolveUrl(manga.thumbnail_url)
+                ?: manga.thumbnail_url
+            ),
         "sourceId" to source?.id,
     )
 
