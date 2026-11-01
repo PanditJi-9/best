@@ -1,4 +1,5 @@
 export 'src/backup.dart';
+export 'src/curated.dart';
 export 'src/db/app_database.dart';
 export 'src/db/memory_library_repository.dart';
 export 'src/db/sqflite_library_repository.dart';
@@ -7,5 +8,6 @@ export 'src/downloads/local_pages.dart';
 export 'src/sources/demo_source.dart';
 export 'src/sources/mangadex_source.dart';
 export 'src/sources/source_pack.dart';
+export 'src/sources/suwayomi_source.dart';
 export 'src/sync/sync_cipher.dart';
 export 'src/sync/webdav_sync.dart';

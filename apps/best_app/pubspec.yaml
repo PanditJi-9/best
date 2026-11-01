@@ -1,7 +1,7 @@
 name: best_app
 description: Best — one shelf for manga, manhwa, anime and Asian drama.
 publish_to: none
-version: 0.8.0+14
+version: 0.9.0+15
 
 environment:
   sdk: ^3.6.0
@@ -38,4 +38,5 @@ flutter:
   generate: true
   uses-material-design: true
   assets:
+    - assets/curated.json
     - assets/subtitles/guide.vtt

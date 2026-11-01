@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "updated": "2026-11-01",
+  "picks": [
+    { "sourceId": "mangadex", "id": "32d76d19-8a05-4db0-9fc2-e0b0648fe9d0" },
+    { "sourceId": "mangadex", "id": "9a414441-bbad-43f1-a3a7-dc262ca790a3" },
+    { "sourceId": "mangadex", "id": "812f9696-048f-496d-9ed4-84c99345d1fb" },
+    { "sourceId": "mangadex", "id": "b1461071-bfbb-43e7-a5b6-a7ba5904649f" },
+    { "sourceId": "mangadex", "id": "a1c7c817-4e59-43b7-9365-09675a149a6f" },
+    { "sourceId": "mangadex", "id": "a77742b1-befd-49a4-bff5-1ad4e6b0ef7b" },
+    { "sourceId": "mangadex", "id": "b0b721ff-c388-4486-aa0f-c2b0bb321512" },
+    { "sourceId": "mangadex", "id": "6b958848-c885-4735-9201-12ee77abcb3c" },
+    { "sourceId": "mangadex", "id": "c52b2ce3-7f95-469c-96b0-479524fb7a1a" },
+    { "sourceId": "mangadex", "id": "d8a959f7-648e-4c8d-8f23-f1f3f8e129f3" },
+    { "sourceId": "mangadex", "id": "37f5cce0-8070-4ada-96e5-fa24b1bd4ff9" },
+    { "sourceId": "mangadex", "id": "d90ea6cb-7bc3-4d80-8af0-28557e6c4e17" }
+  ]
+}

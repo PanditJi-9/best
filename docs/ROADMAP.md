@@ -156,6 +156,47 @@ and gives the reader one search box over everything installed.
 - [ ] Scripted sources stay behind the sandbox gate. The app ships official and
   free catalogues, not scrapers for aggregators.
 
+## 0.9.0 — picks that update themselves, and a server the reader owns
+
+MangaDex gave the app a real catalogue, but the front page was whatever the API
+happened to return that hour. 0.9.0 adds an editorial shelf that can change
+without a store release, and an optional bridge to the extension ecosystem the
+Mihon/Komikku family already maintains.
+
+- [x] A curated document (`assets/curated.json`) ships with the app: source id
+  plus that source's own work id, nothing copied.
+- [x] The app refreshes it from the project repository every 12 hours, keeps the
+  last good copy, and falls back to the bundled list offline. A bad document is
+  validated before it is cached, so it can never empty the shelf.
+- [x] Each pick is resolved through its adapter (`details`), so a removed work
+  simply disappears instead of leaving a dead card.
+- [x] The shelf is capped at 40 picks and 128 KB, and refuses a future format.
+
+### A server the reader owns (Suwayomi)
+
+MangaDex is one catalogue. The Mihon/Komikku family reaches hundreds, because
+its extensions are Android APKs that run inside a Kotlin app. Best cannot load
+those, and will not bundle scrapers. Suwayomi — an open-source server that runs
+those extensions and exposes them over REST — is the bridge.
+
+- [x] **Suwayomi client** (`suwayomi_source.dart`): source list, popular,
+  search, details, chapters and pages over the server's REST API, with relative
+  URLs resolved against the server and a path prefix preserved for a reverse
+  proxy.
+- [x] **Settings → Suwayomi server**: one address field, validated as http/https,
+  stored in `SharedPreferences`; disconnect forgets it. Nothing else is stored.
+- [x] **Server sources as adapters**: each `/source/list` entry becomes a
+  `SuwayomiSource`, so Browse, search, the reader and downloads treat it like any
+  other catalogue.
+- [x] **Adult sources hidden** by default (`isNsfw`), and Home plus "All sources"
+  skip `suwayomi:` adapters so a home refresh never floods a server with
+  hundreds of requests.
+- [x] An unreachable server yields an empty list, never a broken app: the
+  built-in catalogues keep working.
+
+Not in scope: Aniyomi's anime extensions (a different engine), and any bundled
+scraper. Suwayomi is manga-only by construction.
+
 ## 7. Growth
 
 - Arabic-first discovery: curated lists for manhwa/manhua that actually update.

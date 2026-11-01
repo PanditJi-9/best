@@ -6,12 +6,16 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 0.8.0 — real books behind the front door.** The shelf, the reader,
+**Status: 0.9.0 — picks that update themselves, plus the Mihon/Komikku
+sources.** The shelf, the reader,
 the video player with captions, the bilingual UI, local progress, statistics,
 JSON backup/restore, one real catalogue (MangaDex) and declarative source packs
 (format 2, including streaming packs) are implemented and covered by tests. Home
-and Browse now open on the live catalogue instead of the bundled guide, and one
-search box covers every installed source. Scripted extension hosting is
+and Browse open on the live catalogue, one search box covers every installed
+source, a hand-picked shelf ships with the app and refreshes itself without a
+store release, and one optional field points Best at a Suwayomi server so the
+reader gets the same manga sources Mihon and Komikku use — extensions the server
+keeps up to date, not Best. Scripted extension hosting inside the app is
 scheduled, not pretended.
 
 ## What works today
@@ -23,6 +27,17 @@ scheduled, not pretended.
   Downloads, Settings.
 - **One search, every source.** Browse opens on **All sources** and searches
   them in parallel, so a slow pack cannot hold back the catalogue.
+- **Best picks, without a store update.** A curated shelf (`assets/curated.json`)
+  ships inside the app so the first launch has an editorial front page, and the
+  app refreshes it from the project repository every 12 hours. Each pick is
+  resolved through its own adapter — the list names a work, it never copies
+  one.
+- **The Mihon/Komikku catalogue, if you run a server.** Settings → **Suwayomi
+  server** takes one address (`http://192.168.1.20:4567`). The server runs the
+  extension APKs and updates them; Best reads its REST API, so Browse gains
+  hundreds of sources without a Best release. Off by default, manga only —
+  Aniyomi's anime extensions are a different engine — and Best still bundles no
+  scraper. See [docs/SOURCE-PACKS.md](docs/SOURCE-PACKS.md).
 - **One visual system.** "Ink & Jade": a near-black canvas, jade for action and
   progress, vermilion only for new/live, gold for ranks. The mark, wordmark,
   spotlight, stat strip, cards and reader chrome are shared components, not

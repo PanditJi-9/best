@@ -226,6 +226,7 @@
   "searchAll": "ابحث في كل المصادر",
   "allSources": "كل المصادر",
   "guideFallback": "لم يجب أي مصدر — نعرض الدليل المحلي.",
+  "picksTitle": "مختارات بست",
   "libraryWaiting": "رفّك ينتظر",
   "libraryWaitingBody": "افتح الدليل لتجربة القارئ والمشغّل، أو أضف مصدراً من تصفّح.",
   "librarySummary": "{count, plural, zero{لا أعمال في مكتبتك} one{عمل واحد في مكتبتك} two{عملان في مكتبتك} few{{count} أعمال في مكتبتك} many{{count} عملاً في مكتبتك} other{{count} عمل في مكتبتك}}",
@@ -409,5 +410,26 @@
     }
   },
   "syncConfirmTitle": "دمج نسخة الخادم؟",
-  "syncConfirmBody": "تُضاف إلى هذا الجهاز، ولا تمحو موضع قراءة أحدث."
+  "syncConfirmBody": "تُضاف إلى هذا الجهاز، ولا تمحو موضع قراءة أحدث.",
+  "suwayomiTitle": "خادم Suwayomi",
+  "suwayomiBody": "شغّل خادم Suwayomi مرة واحدة على حاسوب أو خادم وأدخل عنوانه هنا: يعطيك نفس مصادر المانجا التي يستخدمها Mihon وKomikku، وتتحدّث مع إضافات الخادم بدون أي عمل منك. لا يضمّن بست أي كاشط بنفسه، وإضافات الأنمي غير مدعومة.",
+  "suwayomiNone": "غير متصل",
+  "suwayomiShort": "اضغط لإدخال عنوان الخادم",
+  "suwayomiHint": "http://192.168.1.20:4567",
+  "suwayomiSaved": "تم حفظ الخادم",
+  "suwayomiRemoved": "تم فصل الخادم",
+  "suwayomiDisconnect": "افصل الخادم",
+  "suwayomiChecking": "أتحقّق من الخادم…",
+  "suwayomiConnected": "تم الاتصال — {count} مصدراً جاهز",
+  "@suwayomiConnected": {
+    "description": "How many server sources Best can now show.",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "suwayomiUnreachable": "لا يوجد رد من هذا العنوان. تأكد أن الخادم يعمل وعلى نفس الشبكة.",
+  "suwayomiInvalid": "أدخل عنواناً يبدأ بـ http:// أو https://",
+  "save": "حفظ"
 }

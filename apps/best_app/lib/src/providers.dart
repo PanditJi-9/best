@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:best_data/best_data.dart';
 import 'package:best_domain/best_domain.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
@@ -158,6 +159,37 @@ final NotifierProvider<SourcePacksController, List<SourcePack>>
   SourcePacksController.new,
 );
 
+/// `null` when no server is configured, or when the address is not a URL.
+final Provider<SuwayomiClient?> suwayomiClientProvider =
+    Provider<SuwayomiClient?>((ref) {
+  final url = ref.watch(settingsProvider).suwayomiUrl;
+  if (url == null || url.trim().isEmpty) return null;
+  try {
+    return SuwayomiClient(
+      baseUrl: url,
+      client: ref.watch(httpClientProvider),
+    );
+  } on SuwayomiException {
+    return null;
+  }
+});
+
+/// What the server hosts. An unreachable server yields an empty list instead of
+/// breaking the app: the built-in catalogues keep working.
+final FutureProvider<List<SuwayomiSourceInfo>> suwayomiSourcesProvider =
+    FutureProvider<List<SuwayomiSourceInfo>>((ref) async {
+  final client = ref.watch(suwayomiClientProvider);
+  if (client == null) return const <SuwayomiSourceInfo>[];
+  try {
+    final sources = await client.sources();
+    // Adult sources stay out of a general catalogue; a reader who wants them
+    // can point Best at a server that only serves them.
+    return List.unmodifiable(sources.where((source) => !source.nsfw));
+  } catch (_) {
+    return const <SuwayomiSourceInfo>[];
+  }
+});
+
 final Provider<SourceRegistry> sourceRegistryProvider =
     Provider<SourceRegistry>((ref) {
   final client = ref.watch(httpClientProvider);
@@ -169,7 +201,16 @@ final Provider<SourceRegistry> sourceRegistryProvider =
       WidgetsBinding.instance.platformDispatcher.locale.languageCode;
   // Real catalogues lead: Browse opens on MangaDex, and the bundled guide sits
   // last as the offline demo instead of the first thing a reader sees.
+  final suwayomi = ref.watch(suwayomiClientProvider);
+  final remoteSources =
+      ref.watch(suwayomiSourcesProvider).value ?? const <SuwayomiSourceInfo>[];
+
   return SourceRegistry.fixed(<SourceAdapter>[
+    // A configured server leads: its sources are the ones the reader chose to
+    // bring, and they update with the server's extensions.
+    if (suwayomi != null)
+      for (final info in remoteSources)
+        SuwayomiSource(client: suwayomi, info: info),
     MangaDexSource(
       client: client,
       language: language == 'ar' ? 'ar' : 'en',
@@ -185,6 +226,7 @@ class AppSettings {
     this.themeMode = ThemeMode.system,
     this.wifiOnly = false,
     this.storageCapGb = 0,
+    this.suwayomiUrl,
   });
 
   /// `null` follows the system locale.
@@ -198,18 +240,26 @@ class AppSettings {
   /// Offline storage cap in gigabytes. `0` means no cap.
   final int storageCapGb;
 
+  /// A Suwayomi server the reader runs, e.g. `http://192.168.1.20:4567`.
+  /// `null` means no server: Best stays on its built-in catalogues.
+  final String? suwayomiUrl;
+
   AppSettings copyWith({
     String? languageCode,
     bool clearLanguage = false,
     ThemeMode? themeMode,
     bool? wifiOnly,
     int? storageCapGb,
+    String? suwayomiUrl,
+    bool clearSuwayomi = false,
   }) {
     return AppSettings(
       languageCode: clearLanguage ? null : (languageCode ?? this.languageCode),
       themeMode: themeMode ?? this.themeMode,
       wifiOnly: wifiOnly ?? this.wifiOnly,
       storageCapGb: storageCapGb ?? this.storageCapGb,
+      suwayomiUrl:
+          clearSuwayomi ? null : (suwayomiUrl ?? this.suwayomiUrl),
     );
   }
 }
@@ -219,6 +269,7 @@ class SettingsController extends Notifier<AppSettings> {
   static const String _themeKey = 'theme';
   static const String _wifiOnlyKey = 'wifi_only';
   static const String _storageCapKey = 'storage_cap_gb';
+  static const String _suwayomiKey = 'suwayomi_url';
 
   @override
   AppSettings build() {
@@ -228,6 +279,7 @@ class SettingsController extends Notifier<AppSettings> {
       themeMode: _readTheme(preferences?.getString(_themeKey)),
       wifiOnly: preferences?.getBool(_wifiOnlyKey) ?? false,
       storageCapGb: preferences?.getInt(_storageCapKey) ?? 0,
+      suwayomiUrl: preferences?.getString(_suwayomiKey),
     );
   }
 
@@ -254,6 +306,20 @@ class SettingsController extends Notifier<AppSettings> {
   void setStorageCapGb(int value) {
     unawaited(ref.read(preferencesProvider)?.setInt(_storageCapKey, value));
     state = state.copyWith(storageCapGb: value);
+  }
+
+  /// `null` forgets the server. The address is stored as typed; the client
+  /// validates it before the first request.
+  void setSuwayomiUrl(String? url) {
+    final preferences = ref.read(preferencesProvider);
+    final trimmed = url?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      unawaited(preferences?.remove(_suwayomiKey));
+      state = state.copyWith(clearSuwayomi: true);
+      return;
+    }
+    unawaited(preferences?.setString(_suwayomiKey, trimmed));
+    state = state.copyWith(suwayomiUrl: trimmed);
   }
 
   static ThemeMode _readTheme(String? name) {
@@ -355,6 +421,9 @@ final FutureProvider<DiscoverFeed> discoverProvider =
 
   for (final source in registry.all) {
     if (source.id == DemoSource.sourceId) continue;
+    // A server can host hundreds of sources; asking all of them on every home
+    // refresh would hammer it. Server sources are one tap away in Browse.
+    if (source.id.startsWith('suwayomi:')) continue;
     try {
       final page = await source.popular();
       for (final media in page) {
@@ -385,7 +454,8 @@ final searchAllProvider =
   final registry = ref.watch(sourceRegistryProvider);
   final pages = await Future.wait(<Future<List<Media>>>[
     for (final source in registry.all)
-      if (source.id != DemoSource.sourceId)
+      if (source.id != DemoSource.sourceId &&
+          !source.id.startsWith('suwayomi:'))
         source.search(query).catchError((Object _) => const <Media>[]),
   ]);
 
@@ -398,6 +468,93 @@ final searchAllProvider =
     }
   }
   return List.unmodifiable(merged.take(60));
+});
+
+/// The hand-picked shelf.
+///
+/// It ships inside the app, so the very first launch has an editorial front
+/// page even before a source answers, and it refreshes from the project
+/// repository, so the picks can change without a store release. Every entry is
+/// resolved through its own adapter: the list names a work, it never copies one.
+const String kCuratedAsset = 'assets/curated.json';
+const String kCuratedRemote =
+    'https://raw.githubusercontent.com/PanditJi-9/best/main/mobile/apps/'
+    'best_app/assets/curated.json';
+const String _curatedCacheKey = 'curated_v1';
+const String _curatedStampKey = 'curated_v1_at';
+const Duration _curatedTtl = Duration(hours: 12);
+
+final FutureProvider<List<Media>> curatedProvider =
+    FutureProvider<List<Media>>((ref) async {
+  final registry = ref.watch(sourceRegistryProvider);
+  final client = ref.watch(httpClientProvider);
+  final preferences = ref.watch(preferencesProvider);
+
+  var raw = '';
+  final cached = preferences?.getString(_curatedCacheKey);
+  final stamp = preferences?.getInt(_curatedStampKey) ?? 0;
+  final fresh = DateTime.now().millisecondsSinceEpoch - stamp <
+      _curatedTtl.inMilliseconds;
+  if (fresh && cached != null) {
+    raw = cached;
+  } else {
+    try {
+      final response = await client
+          .get(
+            Uri.parse(kCuratedRemote),
+            headers: const {'Accept': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200) {
+        CuratedList.parse(response.body); // Validate before it is cached.
+        raw = response.body;
+        unawaited(preferences?.setString(_curatedCacheKey, raw));
+        unawaited(
+          preferences?.setInt(
+            _curatedStampKey,
+            DateTime.now().millisecondsSinceEpoch,
+          ),
+        );
+      }
+    } catch (_) {
+      // Offline, a blocked host or a bad document: the bundled list stands.
+    }
+    if (raw.isEmpty) raw = cached ?? '';
+  }
+
+  if (raw.isEmpty) {
+    try {
+      raw = await rootBundle.loadString(kCuratedAsset);
+    } catch (_) {
+      return const <Media>[];
+    }
+  }
+
+  final CuratedList list;
+  try {
+    list = CuratedList.parse(raw);
+  } on CuratedException {
+    return const <Media>[];
+  }
+
+  final resolved = await Future.wait(list.picks.map((pick) async {
+    final source = registry.byId(pick.sourceId);
+    if (source == null) return null;
+    try {
+      return await source.details(
+        Media(
+          ref: SourceRef(pick.sourceId, pick.id),
+          title: pick.id,
+          kind: MediaKind.manga,
+        ),
+      );
+    } catch (_) {
+      // One dead pick must not empty the shelf.
+      return null;
+    }
+  }));
+
+  return List.unmodifiable(resolved.whereType<Media>());
 });
 
 typedef SeriesKey = ({String sourceId, String url});

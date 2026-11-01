@@ -5,6 +5,7 @@ reached three ways, and they are deliberately separate tiers:
 
 | Tier | Mechanism | Status |
 |---|---|---|
+| 0 | **Suwayomi server** — the reader's own server runs the Mihon/Komikku extension APKs; Best speaks its REST API | shipped in 0.9.0 |
 | 1 | **Declarative JSON pack** — routes plus field paths | shipped in 0.1.0 |
 | 2 | **Sandboxed script host** — JS/QuickJS with a reviewed bridge | planned, phase 3 |
 | 3 | **Native adapter** — compiled Dart, e.g. `MangaDexSource` | shipped for MangaDex |
@@ -121,6 +122,60 @@ track, and the player offers the CC toggle. `routes.watch` must contain `{id}`.
 | Pages per unit | 2,000 | same |
 | Request timeout | 20 s | a stalled host must not freeze a screen |
 
+## Tier 0 — a Suwayomi server
+
+The extensions Mihon, Komikku and Aniyomi install are Android APK files. They
+run inside a Kotlin app, so a Flutter app cannot load them, and shipping them
+inside Best would mean shipping scrapers for sites that host unlicensed scans.
+
+[Suwayomi](https://github.com/Suwayomi/Suwayomi-Server) is the missing half: an
+open-source server that runs those same extensions and exposes them over REST.
+Best talks to it, and nothing else changes about the app.
+
+```
+Settings → Suwayomi server → http://192.168.1.20:4567
+```
+
+What that buys the reader:
+
+- **Hundreds of manga sources**, the same catalogue the Mihon/Komikku family
+  uses, each with its own popular list, search and filters.
+- **Updates without an app release.** The server installs and updates the
+  extensions; Best re-reads `/api/v1/source/list` and shows whatever is there.
+- **No credentials in Best.** The address is the only thing stored, in
+  `SharedPreferences` under `suwayomi_url`. Nothing is proxied through us.
+
+What it costs:
+
+- **One setup step.** A server has to run somewhere — a computer, a NAS, a
+  Raspberry Pi, a VPS. The server's own docs cover Docker and native installs.
+- **Manga only.** Suwayomi runs Tachiyomi/Komikku extensions; Aniyomi's anime
+  extensions are a different engine and are not supported here.
+- **The reader's network, the reader's rules.** Best ships no extension and no
+  scraper. Whether a given source is lawful in a given country is between the
+  reader and that source, exactly as it is for Mihon.
+
+Endpoints Best uses, all under `/api/v1`:
+
+| Call | Path | Used for |
+|---|---|---|
+| source list | `/source/list` | Browse pills, and the adapter's name/language/icon |
+| popular | `/source/{id}/popular/{page}` | the source's front page |
+| search | `/source/{id}/search?searchTerm=&pageNum=` | search inside one source |
+| details | `/manga/{id}/full` | cover, author, synopsis, status |
+| chapters | `/manga/{id}/chapters` | the chapter list (`index` is 1-based) |
+| chapter | `/manga/{id}/chapter/{index}` | `pageCount`, and it makes the server fetch pages |
+| page | `/manga/{id}/chapter/{index}/page/{n}` | the image itself |
+
+Relative thumbnails and icons are resolved against the server's own base URL, so
+a server behind a reverse proxy with a path prefix works. Home and the "All
+sources" search deliberately skip `suwayomi:` adapters: asking hundreds of
+sources at once on every refresh would hammer the server, so a server source is
+one tap away in Browse instead.
+
+Client and adapter: `packages/best_data/lib/src/sources/suwayomi_source.dart`.
+Tests: `packages/best_data/test/suwayomi_source_test.dart`.
+
 ## What a pack cannot do
 
 - Scrape HTML. That needs selectors and a DOM, which is tier 2's job.
@@ -154,6 +209,7 @@ next step, not a promise.
 | **MangaDex** | native adapter | A documented public API, a catalogue of tens of thousands of works, free chapters in many languages, and a takedown process the app can point at. |
 | **Best Guide** | native adapter | Seven generated works and three public-domain films. Offline, no network, no account: it exists so a fresh install can open a chapter before anything is configured. |
 | **Your packs** | declarative JSON | Whatever catalogue you add in Settings. |
+| **A Suwayomi server** | REST client (tier 0) | Optional, off until the reader pastes an address. It runs the Mihon/Komikku extensions, so the catalogue updates without a Best release. |
 
 Best does **not** bundle scrapers for manga aggregators or pirate sites. That is
 a deliberate product decision, not a missing feature: a scraper for a site that

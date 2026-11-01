@@ -213,6 +213,33 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           _Group(
+            title: l10n.suwayomiTitle,
+            icon: Icons.dns_outlined,
+            child: Column(
+              children: [
+                _LinkTile(
+                  icon: Icons.link_rounded,
+                  title: settings.suwayomiUrl ?? l10n.suwayomiNone,
+                  subtitle: l10n.suwayomiShort,
+                  onTap: () => _openServer(context, ref),
+                ),
+                if (settings.suwayomiUrl != null) ...[
+                  const Divider(height: 1, indent: 52),
+                  _LinkTile(
+                    icon: Icons.link_off_rounded,
+                    title: l10n.suwayomiDisconnect,
+                    onTap: () {
+                      ref.read(settingsProvider.notifier).setSuwayomiUrl(null);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(l10n.suwayomiRemoved)),
+                      );
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+          _Group(
             title: l10n.sourcePacks,
             icon: Icons.extension_outlined,
             child: Column(
@@ -643,6 +670,56 @@ class _Segment<T> extends StatelessWidget {
   }
 }
 
+Future<void> _openServer(BuildContext context, WidgetRef ref) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final l10n = AppLocalizations.of(context);
+  final saved = await showDialog<bool>(
+    context: context,
+    builder: (_) => const _ServerDialog(),
+  );
+  if (!(saved ?? false)) return;
+
+  final url = ref.read(settingsProvider).suwayomiUrl;
+  if (url == null) {
+    messenger.showSnackBar(SnackBar(content: Text(l10n.suwayomiRemoved)));
+    return;
+  }
+
+  // A wrong address otherwise looks exactly like a working one until the reader
+  // opens Browse, so ask the server once and say what happened.
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(l10n.suwayomiChecking),
+      duration: const Duration(seconds: 40),
+    ),
+  );
+
+  var ready = 0;
+  var answered = false;
+  final client = ref.read(suwayomiClientProvider);
+  if (client != null) {
+    try {
+      final sources = await client.sources();
+      ready = sources.where((source) => !source.nsfw).length;
+      answered = true;
+    } catch (_) {
+      // An unreachable server is a normal answer here, not a crash.
+    }
+  }
+  if (!context.mounted) return;
+
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(
+        answered ? l10n.suwayomiConnected(ready) : l10n.suwayomiUnreachable,
+      ),
+    ),
+  );
+  // The source list may have arrived after the first build; ask for a refresh.
+  ref.invalidate(suwayomiSourcesProvider);
+}
+
 Future<void> _openAddPack(BuildContext context, WidgetRef ref) async {
   final messenger = ScaffoldMessenger.of(context);
   final l10n = AppLocalizations.of(context);
@@ -754,6 +831,90 @@ class _AddPackDialog extends ConsumerStatefulWidget {
   ConsumerState<_AddPackDialog> createState() => _AddPackDialogState();
 }
 
+class _ServerDialog extends ConsumerStatefulWidget {
+  const _ServerDialog();
+
+  @override
+  ConsumerState<_ServerDialog> createState() => _ServerDialogState();
+}
+
+class _ServerDialogState extends ConsumerState<_ServerDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: ref.read(settingsProvider).suwayomiUrl ?? '',
+  );
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final raw = _controller.text.trim();
+    if (raw.isEmpty) {
+      ref.read(settingsProvider.notifier).setSuwayomiUrl(null);
+      Navigator.of(context).pop(true);
+      return;
+    }
+    final uri = Uri.tryParse(raw);
+    if (uri == null ||
+        !uri.hasAuthority ||
+        uri.host.isEmpty ||
+        (uri.scheme != 'http' && uri.scheme != 'https')) {
+      setState(() => _error = AppLocalizations.of(context).suwayomiInvalid);
+      return;
+    }
+    ref.read(settingsProvider.notifier).setSuwayomiUrl(raw);
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Text(l10n.suwayomiTitle),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.suwayomiBody,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _controller,
+              autocorrect: false,
+              keyboardType: TextInputType.url,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
+              decoration: InputDecoration(
+                hintText: l10n.suwayomiHint,
+                errorText: _error,
+                errorMaxLines: 3,
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(l10n.cancel),
+        ),
+        FilledButton(onPressed: _submit, child: Text(l10n.save)),
+      ],
+    );
+  }
+}
+
 class _AddPackDialogState extends ConsumerState<_AddPackDialog> {
   final TextEditingController _controller = TextEditingController();
   String? _error;
@@ -826,13 +987,15 @@ class _LinkTile extends StatelessWidget {
   const _LinkTile({
     required this.icon,
     required this.title,
-    required this.subtitle,
     required this.onTap,
+    this.subtitle,
   });
 
   final IconData icon;
   final String title;
-  final String subtitle;
+
+  /// Omitted when the row is self-explanatory, e.g. a plain action.
+  final String? subtitle;
   final VoidCallback onTap;
 
   @override
@@ -858,15 +1021,17 @@ class _LinkTile extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

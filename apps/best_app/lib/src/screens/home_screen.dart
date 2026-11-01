@@ -32,6 +32,7 @@ class HomeScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final discover = ref.watch(discoverProvider);
+    final picks = ref.watch(curatedProvider).value ?? const <Media>[];
     final continuing =
         ref.watch(continueProvider).value ?? const <ContinueEntry>[];
     final shelf = ref.watch(libraryProvider).value ?? const <LibraryEntry>[];
@@ -55,6 +56,7 @@ class HomeScreen extends ConsumerWidget {
       child: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(discoverProvider);
+          ref.invalidate(curatedProvider);
           ref.invalidate(browseProvider(_guideKey));
           ref.invalidate(continueProvider);
           ref.invalidate(libraryProvider);
@@ -194,6 +196,43 @@ class HomeScreen extends ConsumerWidget {
                   ),
                 ),
               ),
+            if (picks.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                  child: SectionHeader(
+                    title: l10n.picksTitle,
+                    actionLabel: l10n.seeAll,
+                    onAction: () => context.go(Routes.browse),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 266,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: picks.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(width: BestSpace.md),
+                    itemBuilder: (context, index) {
+                      final media = picks[index];
+                      return SizedBox(
+                        width: 130,
+                        child: MediaCard(
+                          title: media.displayTitle,
+                          subtitle: kindLabel(l10n, media.kind),
+                          coverUrl: media.coverUrl,
+                          badge: kindLabel(l10n, media.kind),
+                          onTap: () => openSeries(context, ref, media),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
             if (trending.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
