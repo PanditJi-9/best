@@ -139,7 +139,7 @@ abstract class AnimeHttpSource : AnimeCatalogueSource {
 
     protected open fun hosterListParse(response: Response): List<Hoster> = emptyList()
 
-    override suspend fun getVideoList(hoster: Hoster): List<Video> = hoster.videoList
+    override suspend fun getVideoList(hoster: Hoster): List<Video> = hoster.videoList.orEmpty()
 
     /** Sources that list several seasons call this before the episode list. */
     protected open fun seasonListParse(response: Response): List<SAnime> = emptyList()

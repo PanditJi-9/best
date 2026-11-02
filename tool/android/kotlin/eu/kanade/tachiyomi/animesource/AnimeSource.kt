@@ -41,7 +41,7 @@ interface AnimeSource {
     /** Newer sources hand back mirrors first and resolve streams per mirror. */
     suspend fun getHosterList(episode: SEpisode): List<Hoster> = emptyList()
 
-    suspend fun getVideoList(hoster: Hoster): List<Video> = hoster.videoList
+    suspend fun getVideoList(hoster: Hoster): List<Video> = hoster.videoList.orEmpty()
 }
 
 /** A source that can be browsed: popular, latest and search. */

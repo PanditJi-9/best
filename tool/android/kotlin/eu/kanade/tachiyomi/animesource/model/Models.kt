@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.animesource.model
 
+import android.net.Uri
 import okhttp3.Headers
 import kotlinx.serialization.json.JsonObject
 import java.io.Serializable
@@ -127,31 +128,32 @@ class SEpisodeImpl : SEpisode {
 class AnimesPage(val animes: List<SAnime>, val hasNextPage: Boolean)
 
 /** A subtitle or audio track that travels with a [Video]. */
-class Track(val url: String, val lang: String)
+data class Track(val url: String, val lang: String)
 
 /** Where a timestamp marker sits inside an episode. */
 enum class ChapterType {
-    OPENING,
-    ENDING,
-    MIXED_OPENING,
-    MIXED_ENDING,
+    Opening,
+    Ending,
+    Recap,
+    MixedOp,
+    Other,
 }
 
 /** An intro/outro marker, used by players that skip them. */
-class TimeStamp(val start: Double, val end: Double, val name: String, val type: ChapterType)
+data class TimeStamp(val start: Double, val end: Double, val name: String, val type: ChapterType = ChapterType.Other)
 
 /**
  * A playable stream.
  *
  * The 14-argument primary constructor is the one current Aniyomi extensions
  * link against; the 6-argument secondary constructor is the older shape that
- * v14 extensions still call. `videoTitle` is not part of the primary
- * constructor — the real API derives it — so it lives in the class body.
+ * v14 extensions still call. The legacy shape is (pageUrl, quality, streamUrl),
+ * not (streamUrl, quality, title). The descriptors alone cannot reveal that.
  */
 @Suppress("unused")
 data class Video(
-    val videoUrl: String,
-    val quality: String,
+    var videoUrl: String = "",
+    val videoTitle: String = "",
     val resolution: Int? = null,
     val bitrate: Int? = null,
     val headers: Headers? = null,
@@ -160,29 +162,40 @@ data class Video(
     val audioTracks: List<Track> = emptyList(),
     val timestamps: List<TimeStamp> = emptyList(),
     val mpvArgs: List<Pair<String, String>> = emptyList(),
-    val ffmpegVideoArgs: List<String> = emptyList(),
-    val ffmpegStreamArgs: List<String> = emptyList(),
+    val ffmpegStreamArgs: List<Pair<String, String>> = emptyList(),
+    val ffmpegVideoArgs: List<Pair<String, String>> = emptyList(),
     val internalData: String = "",
     val initialized: Boolean = false,
 ) {
-    var videoTitle: String = ""
+    val quality: String get() = videoTitle
+    val url: String get() = videoPageUrl
+    private var videoPageUrl: String = ""
 
     constructor(
-        videoUrl: String,
+        url: String,
         quality: String,
-        videoTitle: String,
+        videoUrl: String?,
         headers: Headers? = null,
         subtitleTracks: List<Track> = emptyList(),
         audioTracks: List<Track> = emptyList(),
     ) : this(
-        videoUrl = videoUrl,
-        quality = quality,
+        videoUrl = videoUrl ?: "null",
+        videoTitle = quality,
         headers = headers,
         subtitleTracks = subtitleTracks,
         audioTracks = audioTracks,
     ) {
-        this.videoTitle = videoTitle
+        this.videoPageUrl = url
     }
+
+    @Suppress("UNUSED_PARAMETER")
+    constructor(
+        url: String,
+        quality: String,
+        videoUrl: String?,
+        uri: Uri? = null,
+        headers: Headers? = null,
+    ) : this(url, quality, videoUrl, headers)
 
     /** What a picker shows: the quality if the extension gave one, else the url. */
     fun label(): String = videoTitle.ifBlank { quality.ifBlank { videoUrl } }
@@ -190,22 +203,25 @@ data class Video(
 
 /** A mirror that has to be queried before it yields [videoList]. */
 @Suppress("unused")
-class Hoster(
-    val hosterName: String,
-    val hosterUrl: String,
-    val videoList: List<Video> = emptyList(),
+open class Hoster(
+    val hosterUrl: String = "",
+    val hosterName: String = "",
+    val videoList: List<Video>? = null,
     val internalData: String = "",
-    val initialized: Boolean = false,
+    val lazy: Boolean = false,
 ) {
+    fun copy(
+        hosterUrl: String = this.hosterUrl,
+        hosterName: String = this.hosterName,
+        videoList: List<Video>? = this.videoList,
+        internalData: String = this.internalData,
+        lazy: Boolean = this.lazy,
+    ): Hoster = Hoster(hosterUrl, hosterName, videoList, internalData, lazy)
+
     companion object {
-        /** Flattens a mixed list of hosters and videos into hosters. */
-        fun toHosterList(list: List<Any?>): List<Hoster> = list.mapNotNull { entry ->
-            when (entry) {
-                is Hoster -> entry
-                is Video -> Hoster(entry.quality, entry.videoUrl, listOf(entry))
-                else -> null
-            }
-        }
+        const val NO_HOSTER_LIST = "no_hoster_list"
+        fun List<Video>.toHosterList(): List<Hoster> =
+            listOf(Hoster(hosterName = NO_HOSTER_LIST, videoList = this))
     }
 }
 
