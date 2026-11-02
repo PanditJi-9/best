@@ -101,6 +101,15 @@ class SmokeToolsTest(unittest.TestCase):
             self.assertNotIn("\n          sh ./gradlew :app:testReleaseUnitTest", workflow)
             self.assertIn("TEST-app.best.best_app.ext.RuntimeAbiTest.xml", workflow)
 
+    def test_runtime_workflows_explicitly_enable_release_unit_tests_on_agp9(self):
+        # AGP 9 enables only the tested build type (debug) by default, so the
+        # release task disappears unless this default is explicitly overridden.
+        command = ("bash ./gradlew :app:testReleaseUnitTest --no-daemon "
+                   "-Pandroid.onlyEnableUnitTestForTheTestedBuildType=false")
+        for name in ("ci.yml", "android-smoke.yml"):
+            workflow = (TOOL.parent / ".github/workflows" / name).read_text()
+            self.assertIn(command, workflow)
+
     def test_single_shell_keeps_failure_status_and_always_collects_logs(self):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)

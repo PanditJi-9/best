@@ -51,10 +51,12 @@ jobs:
           flutter gen-l10n
           flutter build apk --release
 
+      # AGP 9 creates only debug unit tests by default. Explicitly retain the
+      # release test variant so this gate checks the runtime we actually ship.
       - name: Extension runtime JVM compatibility tests
         working-directory: apps/best_app/android
         run: |
-          bash ./gradlew :app:testReleaseUnitTest --no-daemon
+          bash ./gradlew :app:testReleaseUnitTest --no-daemon -Pandroid.onlyEnableUnitTestForTheTestedBuildType=false
           test -f ../build/app/test-results/testReleaseUnitTest/TEST-app.best.best_app.ext.RuntimeAbiTest.xml
 
       - name: Keep runtime test reports
