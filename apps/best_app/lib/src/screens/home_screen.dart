@@ -553,7 +553,7 @@ class _SampleCard extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.titleSmall?.copyWith(
-                            fontFamily: 'BestDisplay',
+                            fontFamily: BestFonts.display,
                             color: Colors.white,
                             fontSize: 15,
                             fontWeight: FontWeight.w700,

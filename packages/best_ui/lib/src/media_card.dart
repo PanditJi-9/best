@@ -98,7 +98,7 @@ class MediaCard extends StatelessWidget {
                       child: Text(
                         '$rank',
                         style: TextStyle(
-                          fontFamily: 'BestDisplay',
+                          fontFamily: BestFonts.display,
                           fontSize: 48,
                           height: 1,
                           fontWeight: FontWeight.w700,
@@ -125,7 +125,7 @@ class MediaCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.titleSmall?.copyWith(
-                fontFamily: 'BestDisplay',
+                fontFamily: BestFonts.display,
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
                 height: 1.25,

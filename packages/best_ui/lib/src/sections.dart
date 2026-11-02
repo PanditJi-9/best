@@ -127,7 +127,7 @@ class PageMasthead extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.displaySmall?.copyWith(
                   fontSize: 34,
-                  height: 1,
+                  height: 1.1,
                 ),
               ),
             ),

@@ -80,7 +80,7 @@ class _CoverFallback extends StatelessWidget {
         child: Text(
           glyph,
           style: TextStyle(
-            fontFamily: 'BestDisplay',
+            fontFamily: BestFonts.display,
             color: Colors.white.withValues(alpha: 0.88),
             fontSize: 46,
             fontWeight: FontWeight.w700,

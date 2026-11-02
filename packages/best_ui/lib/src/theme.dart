@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'tokens.dart';
 
 /// One builder for both brightnesses. The bundled faces are deliberate:
-/// [BestDisplay] is Amiri (editorial Arabic/Latin serif) and [BestText] is
-/// IBM Plex Sans Arabic (a workhorse for UI, metadata and long Arabic prose).
+/// Amiri (editorial Arabic/Latin serif) and IBM Plex Sans Arabic (a workhorse
+/// for UI, metadata and long Arabic prose) are the two bundled families.
 /// Keeping both in the design package means every screen gets the same voice.
 ThemeData bestTheme(Brightness brightness) {
   final isDark = brightness == Brightness.dark;
@@ -59,55 +59,55 @@ ThemeData bestTheme(Brightness brightness) {
     // missing in headless widget tests and some older devices, so the app uses
     // the classic ripple: same feedback, no runtime shader dependency.
     splashFactory: InkRipple.splashFactory,
-    fontFamily: 'BestText',
+    fontFamily: BestFonts.text,
   );
 
   final text = base.textTheme
       .apply(
-        fontFamily: 'BestText',
+        fontFamily: BestFonts.text,
         fontFamilyFallback: const ['Noto Sans Arabic', 'Noto Naskh Arabic'],
         bodyColor: scheme.onSurface,
         displayColor: scheme.onSurface,
       )
       .copyWith(
         displayLarge: base.textTheme.displayLarge?.copyWith(
-          fontFamily: 'BestDisplay',
+          fontFamily: BestFonts.display,
           fontWeight: FontWeight.w700,
           letterSpacing: 0,
           height: 0.96,
         ),
         displayMedium: base.textTheme.displayMedium?.copyWith(
-          fontFamily: 'BestDisplay',
+          fontFamily: BestFonts.display,
           fontWeight: FontWeight.w700,
           letterSpacing: 0,
           height: 0.98,
         ),
         displaySmall: base.textTheme.displaySmall?.copyWith(
-          fontFamily: 'BestDisplay',
+          fontFamily: BestFonts.display,
           fontWeight: FontWeight.w700,
           letterSpacing: 0,
-          height: 1,
+          height: 1.05,
         ),
         headlineLarge: base.textTheme.headlineLarge?.copyWith(
-          fontFamily: 'BestDisplay',
+          fontFamily: BestFonts.display,
           fontWeight: FontWeight.w700,
           letterSpacing: 0,
           height: 1.05,
         ),
         headlineMedium: base.textTheme.headlineMedium?.copyWith(
-          fontFamily: 'BestDisplay',
+          fontFamily: BestFonts.display,
           fontWeight: FontWeight.w700,
           letterSpacing: 0,
           height: 1.08,
         ),
         headlineSmall: base.textTheme.headlineSmall?.copyWith(
-          fontFamily: 'BestDisplay',
+          fontFamily: BestFonts.display,
           fontWeight: FontWeight.w700,
           letterSpacing: 0,
           height: 1.12,
         ),
         titleLarge: base.textTheme.titleLarge?.copyWith(
-          fontFamily: 'BestDisplay',
+          fontFamily: BestFonts.display,
           fontWeight: FontWeight.w700,
           letterSpacing: 0,
           height: 1.15,

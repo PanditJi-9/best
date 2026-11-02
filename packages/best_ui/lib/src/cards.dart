@@ -117,7 +117,7 @@ class SpotlightCard extends StatelessWidget {
                         style: theme.textTheme.headlineSmall?.copyWith(
                           color: Colors.white,
                           fontSize: 31,
-                          height: 1.04,
+                          height: 1.12,
                         ),
                       ),
                       if (nativeTitle != null &&
@@ -282,7 +282,7 @@ class ContinueCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleMedium?.copyWith(
-                          fontFamily: 'BestDisplay',
+                          fontFamily: BestFonts.display,
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.w700,

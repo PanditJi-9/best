@@ -30,6 +30,14 @@ abstract final class BestColors {
   static const List<Color> aurora = <Color>[cinnabar, brass];
 }
 
+/// Fonts declared by a package are registered under a package-prefixed family
+/// name. Asking for the bare name silently falls back to the system face, so
+/// every style goes through these constants.
+abstract final class BestFonts {
+  static const String display = 'packages/best_ui/BestDisplay';
+  static const String text = 'packages/best_ui/BestText';
+}
+
 abstract final class BestSpace {
   static const double xs = 4;
   static const double sm = 8;
