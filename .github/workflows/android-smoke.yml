@@ -100,5 +100,6 @@ jobs:
             extensions.log
             logcat.txt
             anime-*.png
+            anime-*.xml
             anime-results.json
           if-no-files-found: warn

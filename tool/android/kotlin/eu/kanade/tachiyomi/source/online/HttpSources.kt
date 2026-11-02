@@ -212,7 +212,8 @@ abstract class HttpSource : CatalogueSource {
         val base = baseUrl.trimEnd('/')
         return when {
             orig == base -> ""
-            orig.startsWith("$base/") -> orig.substring(base.length + 1)
+            // Extensions build requests with baseUrl + model.url; keep '/'.
+            orig.startsWith("$base/") -> orig.substring(base.length)
             else -> orig
         }
     }

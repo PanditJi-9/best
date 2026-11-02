@@ -92,6 +92,22 @@ class SmokeToolsTest(unittest.TestCase):
         self.assertEqual(anime_smoke.playback_clock(hierarchy("1:02:03 / 2:00:00")), (3723, 7200))
         self.assertIsNone(anime_smoke.playback_clock(hierarchy("Sample video")))
 
+    @patch.object(smoke.time, "sleep")
+    def test_failed_dump_cannot_reuse_a_stale_hierarchy(self, _sleep):
+        xml = '<?xml version="1.0"?><hierarchy><node content-desc="Play" /></hierarchy>'
+
+        def device(*args, **kwargs):
+            nonlocal xml
+            if args == ("shell", "rm", "-f", "/sdcard/window.xml"):
+                xml = ""
+            return xml if args == ("shell", "cat", "/sdcard/window.xml") else ""
+
+        with patch.object(smoke, "adb", side_effect=device) as adb:
+            with self.assertRaisesRegex(SystemExit, "no hierarchy"):
+                smoke.dump()
+        self.assertEqual(adb.call_args_list[0].args,
+                         ("shell", "rm", "-f", "/sdcard/window.xml"))
+
     def test_runtime_workflows_use_bash_for_the_generated_gradle_wrapper(self):
         # Recent Flutter templates generate a Bash wrapper (arrays), not a
         # POSIX-sh script. Calling it with sh fails before any JVM test runs.

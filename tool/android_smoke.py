@@ -32,6 +32,8 @@ def adb(*args: str, check: bool = True) -> str:
 def dump() -> ET.Element:
     last = ""
     for _ in range(4):
+        # A failed dump must not return an earlier screen's XML as fresh proof.
+        adb("shell", "rm", "-f", "/sdcard/window.xml", check=False)
         adb("shell", "uiautomator", "dump", "/sdcard/window.xml", check=False)
         xml = adb("shell", "cat", "/sdcard/window.xml", check=False)
         if xml.lstrip().startswith("<?xml"):

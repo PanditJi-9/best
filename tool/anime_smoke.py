@@ -13,9 +13,10 @@ import re
 import sys
 import time
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 from android_smoke import (
-    ACTIVITY, PACKAGE, adb, debug_texts, dismiss_anr, dump, find_any, nodes,
+    ACTIVITY, PACKAGE, adb, debug_texts, dismiss_anr, dump, find, find_any, nodes,
     screenshot, select_source, swipe_up, tap, wait_for,
 )
 
@@ -47,7 +48,71 @@ def error_on_screen(root) -> str | None:
     return None
 
 
-def check_source(name: str, *, play: bool) -> dict:
+def paused_player(width: int, height: int):
+    """Freeze controls before asking UIAutomator to wait for UI idleness.
+
+    A moving clock keeps changing semantics, and the overlay disappears after
+    three seconds. Reveal then pause promptly, just like the guide gate. Only
+    touch the backdrop and central play/pause control, never the seek controls.
+    An already-visible overlay may need a second attempt.
+    """
+    for _ in range(4):
+        adb("shell", "input", "tap", str(width // 2), str(height // 3))
+        time.sleep(0.25)
+        adb("shell", "input", "tap", str(width // 2), str(height // 2))
+        time.sleep(0.6)
+        root = dump()
+        if (find(root, "Play") is not None or error_on_screen(root)
+                or find_any(root, "Sample video") is not None):
+            return root
+    return root
+
+
+def verify_playback(name: str, title: str, report: dict) -> dict:
+    match = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
+    width, height = map(int, match.groups()) if match else (320, 640)
+    deadline = time.monotonic() + 100
+    initial = None
+    while time.monotonic() < deadline:
+        root = paused_player(width, height)
+        error = error_on_screen(root)
+        if error:
+            raise RuntimeError(f"{name} player: {error}")
+        if find_any(root, "Sample video") is not None:
+            raise RuntimeError("sample playback is not anime verification")
+        button = find(root, "Play")
+        clock = playback_clock(root)
+        if (button is None or button.get("enabled") != "true"
+                or find_any(root, title) is None or clock is None or clock[1] <= 0):
+            time.sleep(2)
+            continue
+
+        report.setdefault("observations", []).append({"position": clock[0], "duration": clock[1]})
+        observation = len(report["observations"])
+        Path(f"anime-{name}-playback-{observation}.xml").write_text(ET.tostring(root, encoding="unicode"))
+        if initial is None:
+            initial = clock
+            screenshot(f"anime-{name}-playback-before.png")
+        elif clock[1] != initial[1]:
+            raise RuntimeError(f"{name} player changed duration during verification")
+        elif clock[0] >= initial[0] + 3:
+            report.update(playback=True, position_before=initial[0],
+                          position=clock[0], duration=clock[1])
+            screenshot(f"anime-{name}-playback.png")
+            print(f"anime playback: {name} / {title} advanced from {initial[0]}s to {clock[0]}s")
+            return report
+
+        # Resume via the actual enabled Play button, wait for real playback, and
+        # pause again to read a stable clock. No seeking, screenshots or decoded
+        # URLs can substitute for an advancing position on the same real anime.
+        tap(button, wait=6)
+    debug_texts(root)
+    raise RuntimeError(f"{name} video did not advance")
+
+
+def check_source(name: str, *, play: bool, report: dict | None = None) -> dict:
+    if report is None:
+        report = {"source": name, "catalogue": False, "episodes": False, "playback": False}
     adb("shell", "am", "force-stop", PACKAGE, check=False)
     adb("shell", "am", "start", "-W", "-n", ACTIVITY)
     time.sleep(6)
@@ -75,6 +140,7 @@ def check_source(name: str, *, play: bool) -> dict:
         debug_texts(root)
         raise RuntimeError(f"{name} returned no visible anime cards")
     title = card.get("content-desc", "").splitlines()[0]
+    report.update(title=title, catalogue=True)
     screenshot(f"anime-{name}-catalogue.png")
     tap(card, wait=5)
 
@@ -97,52 +163,27 @@ def check_source(name: str, *, play: bool) -> dict:
         debug_texts(root)
         raise RuntimeError(f"{name} did not offer a playable episode")
     screenshot(f"anime-{name}-episodes.png")
-    report = {"source": name, "title": title, "catalogue": True, "episodes": True, "playback": False}
+    report["episodes"] = True
     if not play:
         return report
     tap(cta, wait=10)
 
-    match = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
-    width, height = map(int, match.groups()) if match else (320, 640)
-    deadline = time.monotonic() + 100
-    initial = None
-    while time.monotonic() < deadline:
-        root = dump()
-        error = error_on_screen(root)
-        if error:
-            raise RuntimeError(f"{name} player: {error}")
-        if find_any(root, "Sample video") is not None:
-            raise RuntimeError("sample playback is not anime verification")
-        clock = playback_clock(root)
-        if clock is not None and clock[1] > 0:
-            if initial is None:
-                initial = clock[0]
-            elif clock[0] >= initial + 3:
-                report.update(playback=True, position=clock[0], duration=clock[1])
-                screenshot(f"anime-{name}-playback.png")
-                print(f"anime playback: {name} / {title} advanced from {initial}s to {clock[0]}s")
-                return report
-        # Reveal controls away from the centre play/pause button. Never seek:
-        # the clock must advance because the actual stream is playing.
-        if find_any(root, "Playback speed") is None:
-            adb("shell", "input", "tap", str(width // 2), str(height // 3))
-        time.sleep(2)
-    debug_texts(root)
-    raise RuntimeError(f"{name} video did not advance")
+    return verify_playback(name, title, report)
 
 
 def main() -> int:
     reports = []
     played = False
     for name in SOURCES:
+        report = {"source": name, "catalogue": False, "episodes": False, "playback": False}
+        reports.append(report)
         try:
-            report = check_source(name, play=not played)
+            check_source(name, play=not played, report=report)
             played = played or report["playback"]
-            reports.append(report)
         except (RuntimeError, SystemExit) as error:
             print(f"anime smoke: {name}: {error}")
             screenshot(f"anime-{name}-failure.png")
-            reports.append({"source": name, "error": str(error)})
+            report["error"] = str(error)
         finally:
             Path("anime-results.json").write_text(json.dumps(reports, ensure_ascii=False, indent=2))
     print(json.dumps(reports, ensure_ascii=False, indent=2))

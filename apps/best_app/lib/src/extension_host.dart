@@ -96,6 +96,9 @@ class ExtensionHost {
       : _channel = channel ?? const MethodChannel('app.best/extensions');
 
   final MethodChannel _channel;
+  final _listingRequests = <
+      ({String method, int sourceId, int page, String? query, bool anime}),
+      Future<List<Media>>>{};
 
   /// `false` off Android (tests, desktop previews), where the channel is absent.
   static bool get isSupported => Platform.isAndroid;
@@ -159,6 +162,34 @@ class ExtensionHost {
   }
 
   Future<List<Media>> _listing(
+    String method,
+    int sourceId, {
+    int page = 1,
+    String? query,
+    bool anime = false,
+  }) {
+    // Registry updates can rebuild Browse while its first request is still
+    // running. Share only overlapping reads: duplicate requests can trigger a
+    // site's rate limit or run concurrent WebView challenges. A later refresh,
+    // including one after failure, must still make a fresh request.
+    final key = (
+      method: method,
+      sourceId: sourceId,
+      page: page,
+      query: query,
+      anime: anime,
+    );
+    return _listingRequests.putIfAbsent(
+      key,
+      () => _fetchListing(method, sourceId, page: page, query: query, anime: anime)
+          .whenComplete(() {
+            // Do not return the removed Future: whenComplete would await itself.
+            _listingRequests.remove(key);
+          }),
+    );
+  }
+
+  Future<List<Media>> _fetchListing(
     String method,
     int sourceId, {
     int page = 1,

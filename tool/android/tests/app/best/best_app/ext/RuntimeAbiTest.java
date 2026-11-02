@@ -6,9 +6,18 @@ import eu.kanade.tachiyomi.animesource.model.FetchType;
 import eu.kanade.tachiyomi.animesource.model.Video;
 import eu.kanade.tachiyomi.animesource.model.Hoster;
 import eu.kanade.tachiyomi.animesource.model.ChapterType;
+import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource;
+import eu.kanade.tachiyomi.source.online.HttpSource;
+import eu.kanade.tachiyomi.source.model.FilterList;
+import eu.kanade.tachiyomi.source.model.MangasPage;
+import eu.kanade.tachiyomi.source.model.Page;
+import eu.kanade.tachiyomi.source.model.SChapter;
+import eu.kanade.tachiyomi.source.model.SManga;
 import kotlin.jvm.internal.DefaultConstructorMarker;
 import okhttp3.CacheControl;
 import okhttp3.Headers;
+import okhttp3.Request;
+import okhttp3.Response;
 import java.util.Collections;
 import java.util.List;
 import org.junit.Test;
@@ -88,5 +97,67 @@ public class RuntimeAbiTest {
         assertNotNull(ChapterType.valueOf("Recap"));
         assertNotNull(ChapterType.valueOf("MixedOp"));
         assertNotNull(ChapterType.valueOf("Other"));
+    }
+
+    @Test public void animeAndEpisodePathsKeepTheSlashExtensionsConcatenate() {
+        AnimeUrlFixture source = new AnimeUrlFixture("https://animekai.to");
+        SAnime anime = SAnime.Companion.create();
+        SEpisode episode = SEpisode.Companion.create();
+        source.setUrlWithoutDomain(anime, "https://animekai.to/watch/one?lang=en#episodes");
+        source.setUrlWithoutDomain(episode, "https://animekai.to/episode/1?server=2");
+        assertEquals("/watch/one?lang=en#episodes", anime.getUrl());
+        assertEquals("/episode/1?server=2", episode.getUrl());
+        assertEquals(source.getAnimeUrl(anime), source.getBaseUrl() + anime.getUrl());
+        assertEquals(source.getEpisodeUrl(episode), source.getBaseUrl() + episode.getUrl());
+    }
+
+    @Test public void animeUrlsRoundTripWithTrailingBaseSlashAndExistingPaths() {
+        AnimeUrlFixture source = new AnimeUrlFixture("https://animexin.dev/");
+        SEpisode episode = SEpisode.Companion.create();
+        for (String value : new String[] {"https://animexin.dev/episode/1", "/episode/1"}) {
+            source.setUrlWithoutDomain(episode, value);
+            assertEquals("/episode/1", episode.getUrl());
+            assertEquals("https://animexin.dev/episode/1", source.getEpisodeUrl(episode));
+        }
+        source.setUrlWithoutDomain(episode, "https://cdn.test/episode/1");
+        assertEquals("https://cdn.test/episode/1", source.getEpisodeUrl(episode));
+    }
+
+    @Test public void mangaAndChapterPathsAlsoKeepTheSlash() {
+        MangaUrlFixture source = new MangaUrlFixture();
+        SManga manga = SManga.Companion.create();
+        SChapter chapter = SChapter.Companion.create();
+        source.setUrlWithoutDomain(manga, "https://manga.test/title/one?lang=ar");
+        source.setUrlWithoutDomain(chapter, "https://manga.test/chapter/1#page2");
+        assertEquals("/title/one?lang=ar", manga.getUrl());
+        assertEquals("/chapter/1#page2", chapter.getUrl());
+        assertEquals(source.getMangaUrl(manga), source.getBaseUrl() + manga.getUrl());
+        assertEquals(source.getChapterUrl(chapter), source.getBaseUrl() + chapter.getUrl());
+    }
+
+    private static final class AnimeUrlFixture extends AnimeHttpSource {
+        private final String base;
+        AnimeUrlFixture(String base) { this.base = base; }
+        @Override public String getBaseUrl() { return base; }
+        @Override public String getName() { return "URL fixture"; }
+        @Override public String getLang() { return "en"; }
+    }
+
+    /** No network or Android service is involved in these URL-contract tests. */
+    private static final class MangaUrlFixture extends HttpSource {
+        @Override public String getBaseUrl() { return "https://manga.test"; }
+        @Override public String getName() { return "URL fixture"; }
+        @Override public String getLang() { return "en"; }
+        @Override public boolean getSupportsLatest() { return true; }
+        @Override protected Request popularMangaRequest(int page) { throw new UnsupportedOperationException(); }
+        @Override protected MangasPage popularMangaParse(Response response) { throw new UnsupportedOperationException(); }
+        @Override protected Request searchMangaRequest(int page, String query, FilterList filters) { throw new UnsupportedOperationException(); }
+        @Override protected MangasPage searchMangaParse(Response response) { throw new UnsupportedOperationException(); }
+        @Override protected Request latestUpdatesRequest(int page) { throw new UnsupportedOperationException(); }
+        @Override protected MangasPage latestUpdatesParse(Response response) { throw new UnsupportedOperationException(); }
+        @Override protected SManga mangaDetailsParse(Response response) { throw new UnsupportedOperationException(); }
+        @Override protected List<SChapter> chapterListParse(Response response) { throw new UnsupportedOperationException(); }
+        @Override protected List<Page> pageListParse(Response response) { throw new UnsupportedOperationException(); }
+        @Override protected String imageUrlParse(Response response) { throw new UnsupportedOperationException(); }
     }
 }
