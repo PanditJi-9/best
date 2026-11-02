@@ -4,9 +4,9 @@ import 'brand.dart';
 import 'cover.dart';
 import 'tokens.dart';
 
-/// The editorial hero on Home. Unlike a poster card it carries a sentence, a
-/// primary action and a quiet secondary action, so a fresh install has one
-/// obvious place to start.
+/// The editorial cover story on Home: one work, one sentence, one obvious
+/// action. The artwork is framed like a printed plate rather than a rounded
+/// storefront tile.
 class SpotlightCard extends StatelessWidget {
   const SpotlightCard({
     super.key,
@@ -36,7 +36,7 @@ class SpotlightCard extends StatelessWidget {
       button: true,
       label: title,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(BestRadius.xl),
+        borderRadius: BorderRadius.circular(BestRadius.lg),
         child: AspectRatio(
           aspectRatio: 4 / 5,
           child: GestureDetector(
@@ -52,23 +52,55 @@ class SpotlightCard extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Color(0x22000000),
-                        Color(0x66000000),
-                        Color(0xF207080B),
+                        Color(0x1A000000),
+                        Color(0x660B0A08),
+                        Color(0xF20B0A08),
                       ],
-                      stops: [0.2, 0.55, 1],
+                      stops: [0.18, 0.54, 1],
                     ),
                   ),
                 ),
                 PositionedDirectional(
                   top: BestSpace.lg,
                   start: BestSpace.lg,
-                  child: _GlassPill(label: badge),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: BestColors.cinnabar,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 5,
+                      ),
+                      child: Text(
+                        badge,
+                        maxLines: 1,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: BestColors.ink,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
                 PositionedDirectional(
                   top: BestSpace.lg,
                   end: BestSpace.lg,
-                  child: const BestMark(size: 34),
+                  child: const BestMark(size: 32),
+                ),
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(BestRadius.lg),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.14),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
                 PositionedDirectional(
                   start: BestSpace.xl,
@@ -84,15 +116,13 @@ class SpotlightCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.headlineSmall?.copyWith(
                           color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 28,
-                          letterSpacing: -0.8,
-                          height: 1.02,
+                          fontSize: 31,
+                          height: 1.04,
                         ),
                       ),
                       if (nativeTitle != null &&
                           nativeTitle!.trim().isNotEmpty) ...[
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 5),
                         Text(
                           nativeTitle!,
                           maxLines: 1,
@@ -109,28 +139,46 @@ class SpotlightCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelMedium?.copyWith(
                           color: Colors.white70,
-                          height: 1.4,
+                          height: 1.45,
                         ),
                       ),
                       const SizedBox(height: BestSpace.lg),
                       Row(
                         children: [
                           Expanded(
-                            child: FilledButton.icon(
+                            child: FilledButton(
                               onPressed: onOpen,
-                              icon: Icon(actionIcon, size: 18),
-                              label: Text(actionLabel),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(actionIcon, size: 18),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      actionLabel,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                           const SizedBox(width: BestSpace.sm),
-                          IconButton.filledTonal(
+                          IconButton(
                             onPressed: onOpen,
+                            tooltip: actionLabel,
                             style: IconButton.styleFrom(
-                              backgroundColor: Colors.white.withValues(
-                                alpha: 0.14,
-                              ),
                               foregroundColor: Colors.white,
-                              fixedSize: const Size(52, 52),
+                              side: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.24),
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  BestRadius.sm,
+                                ),
+                              ),
+                              fixedSize: const Size(50, 50),
                             ),
                             icon: const Icon(Icons.arrow_forward_rounded),
                           ),
@@ -148,8 +196,8 @@ class SpotlightCard extends StatelessWidget {
   }
 }
 
-/// A wide "pick up where you left off" card. The cover is the background, the
-/// progress bar is the foreground, and the whole card is one target.
+/// A wide "pick up where you left off" slip. The cover is the background, the
+/// progress rule is the foreground, and the whole card is one target.
 class ContinueCard extends StatelessWidget {
   const ContinueCard({
     super.key,
@@ -177,11 +225,14 @@ class ContinueCard extends StatelessWidget {
       button: true,
       label: title,
       child: SizedBox(
-        width: 300,
-        height: 172,
+        width: 302,
+        height: 164,
         child: Material(
           color: theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(BestRadius.lg),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(BestRadius.md),
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onOpen,
@@ -194,28 +245,27 @@ class ContinueCard extends StatelessWidget {
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [Color(0x33000000), Color(0xF20A0B10)],
-                      stops: [0.1, 0.92],
+                      colors: [Color(0x22000000), Color(0xF20B0A08)],
+                      stops: [0.08, 0.92],
                     ),
                   ),
                 ),
                 PositionedDirectional(
                   top: BestSpace.md,
                   end: BestSpace.md,
-                  child: DecoratedBox(
+                  child: Container(
+                    width: 30,
+                    height: 30,
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      shape: BoxShape.circle,
+                      color: Colors.black.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(9),
-                      child: Icon(
-                        isVideo
-                            ? Icons.play_arrow_rounded
-                            : Icons.menu_book_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
+                    child: Icon(
+                      isVideo
+                          ? Icons.play_arrow_rounded
+                          : Icons.menu_book_rounded,
+                      color: Colors.white,
+                      size: 18,
                     ),
                   ),
                 ),
@@ -232,8 +282,10 @@ class ContinueCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleMedium?.copyWith(
+                          fontFamily: 'BestDisplay',
                           color: Colors.white,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -250,9 +302,9 @@ class ContinueCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(BestRadius.pill),
                         child: LinearProgressIndicator(
                           value: progress.clamp(0.0, 1.0),
-                          minHeight: 4,
+                          minHeight: 3,
                           backgroundColor: Colors.white24,
-                          color: BestColors.jade,
+                          color: BestColors.cinnabar,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -267,36 +319,6 @@ class ContinueCard extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A small translucent label for artwork. It never takes the eye away from the
-/// cover, which is the actual content.
-class _GlassPill extends StatelessWidget {
-  const _GlassPill({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(BestRadius.pill),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
           ),
         ),
       ),

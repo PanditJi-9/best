@@ -1,6 +1,6 @@
 # Best — identity and structure
 
-Version 0.7.0 · "Ink & Jade"
+Version 0.10.0 · "Ink & Ember"
 
 Best is one shelf for manga, manhwa, manhua, webtoons, anime and Asian drama.
 The design has to do something hard: feel premium next to Mihon and HikariManga,
@@ -13,21 +13,20 @@ wrong.
 
 ## 1. Design thesis
 
-**Ink, jade, and one warm light.**
+**Ink, ember, and brass.**
 
-- **Ink** is the ground. Near-black, not pure black, so OLED phones still show
-  the difference between a card and the page.
-- **Jade** is action and progress. It marks the one thing to tap and the one
+- **Ink** is the ground. Warm near-black, not pure black, so OLED phones still
+  show the difference between a card and the page.
+- **Ember** (`cinnabar`) is action. It marks the one thing to tap and the one
   thing that moved forward.
-- **Vermilion** is reserved for *new* and *live*. If everything is red, nothing
-  is urgent.
-- **Gold** is for ranks, ratings and the second half of the signature gradient.
-  It is never a button colour.
+- **Brass** is for ranks, ratings, section numbers and the second half of the
+  signature gradient. It is never a button colour.
+- **Jade** is now reserved for progress and offline state. It is the quiet
+  counterpoint to the warm chrome, not the primary action colour.
 
-The interface is editorial, not a storefront: a title, a sentence, a cover, a
-number. HikariManga proved the structure (five tabs, blurred hero, floating
-cover, stat strip, ranked rails). Best keeps those bones and replaces the blue
-neon with a quieter, more ownable palette.
+The interface is editorial, not a storefront: a masthead, a numbered section,
+a title, a sentence, a cover. The old five-tab skeleton stays, but the page is
+printed rather than assembled from floating Material pills.
 
 **Three rules**
 
@@ -53,37 +52,43 @@ invent a colour, radius or duration.
 | `paper` | — | `#F7F5F0` | App ground (light) |
 | `paperRaised` | — | `#FFFFFF` | Cards, nav bar |
 | `paperLine` | — | `#E6E1D7` | Hairline borders |
-| `jade` | `#3BD3A4` | `#0E7A5C` | Primary action, progress |
-| `vermilion` | `#F05A3C` | same | New / live only |
-| `gold` | `#E8B45F` | same | Ranks, ratings, gradient end |
-| `danger` | `#E5544B` | same | Destructive and error |
+| `cinnabar` | `#E05A3C` | `#A93620` | Primary action, selected state |
+| `brass` | `#CFA85A` | same | Ranks, numbers, rules, gradient end |
+| `jade` | `#57B394` | `#2F735C` | Progress and offline state only |
+| `danger` | `#E2604D` | same | Destructive and error |
 | `rankGold` / `rankSilver` / `rankBronze` | — | — | Leaderboard numerals |
 
-The signature gradient `aurora = [jade, gold]` appears on the wordmark, the
-section accent bar, the spotlight mark and the profile card. It is **never** a
-page background.
+The signature gradient `aurora = [cinnabar, brass]` appears on the wordmark,
+the spotlight mark and the profile card. It is **never** a page background.
 
 ### Type
 
-Material 3 defaults, tightened for a media app:
+Two bundled faces, both OFL:
 
-- `displaySmall` — 900, `-2.0` tracking, `0.98` height. Hero numbers only.
-- `headlineMedium` — 900, `-1.2`, `1.05`. Screen titles.
-- `headlineSmall` — 800, `-0.7`, `1.1`. Series titles, spotlight title.
-- `titleLarge` — 800, `-0.5`. Stat values.
-- `titleMedium` — 700, `-0.2`. Section headers.
-- `titleSmall` — 700, `1.25`. Card titles.
+- **BestDisplay — Amiri.** Display, screen titles, section titles, card titles
+  and the wordmark. It gives Arabic and Latin one editorial serif voice.
+- **BestText — IBM Plex Sans Arabic.** Body, metadata, labels, controls and
+  long Arabic prose. It keeps dense screens legible.
+
+- `displaySmall` — 700, `1.0` height. Masthead titles only.
+- `headlineMedium` — 700, `1.08`. Series and secondary titles.
+- `headlineSmall` — 700, `1.12`. Spotlight title, card emphasis.
+- `titleLarge` — 700, `1.15`. Section titles and stat values.
+- `titleMedium` — 600, `0`. Buttons, compact labels.
+- `titleSmall` — 600, `1.3`. Card titles.
 - `labelLarge` — 700, `0.2`. Buttons.
-- `labelMedium` — 600, `0.3`. Metadata, pills.
-- `labelSmall` — 600. Badges, progress labels.
+- `labelMedium` — 600, `0.2`. Metadata.
+- `labelSmall` — 600, `0.25`. Section numbers, badges, progress labels.
 
-Arabic uses the same scale; the system font handles the script, and layouts use
-logical alignment so nothing needs a mirrored stylesheet.
+Arabic and Latin share the scale; every layout uses logical alignment, so no
+mirrored stylesheet is needed. CJK native titles fall back to the system face.
 
 ### Space, radius, motion
 
 - Space: `4 / 8 / 12 / 16 / 24 / 32` (`BestSpace.xs … xxl`).
-- Radius: `12 / 18 / 26 / 34 / pill` (`sm / md / lg / xl / pill`).
+- Radius: `6 / 10 / 16 / 22 / pill` (`sm / md / lg / xl / pill`). The page is
+  sharper than a typical Material app; the pill is only for progress and
+  status dots.
 - Motion: `140 ms` fast, `220 ms` normal, `easeOutCubic`. No spring, no bounce.
 - Splash: `InkRipple` — the InkSparkle shader is missing in headless tests and
   some older GPUs, and a missing shader is a visible bug.
@@ -98,11 +103,11 @@ floating cover in the series hero and the spotlight artwork.
 
 ## 3. Brand
 
-- **Mark** — a four-point sparkle cut from the aurora gradient, drawn with a
-  `CustomPainter` (`BestMark`). Sharp at every size, zero bundle cost.
-- **Wordmark** — mark + product name + optional tagline (`BestWordmark`). The
-  name is localized (`بست` in Arabic), so the lockup never looks like a
-  translation bolted on.
+- **Mark** — a four-point sparkle cut from the ember-to-brass gradient, drawn
+  with a `CustomPainter` (`BestMark`). The tile is squared off and hairlined.
+- **Wordmark** — mark + product name + optional tagline (`BestWordmark`), set in
+  Amiri with zero tracking in Arabic. The name is localized (`بست`), so the
+  lockup never looks like a translation bolted on.
 - **Backdrop** — a blurred, dimmed cover behind a title (`BestBackdrop`). Used
   on series pages and error/empty states where a cover exists.
 - **Stat strip** — three numbers in one bordered card (`StatStrip`). Values are
@@ -139,19 +144,19 @@ media app can make. Home earns the first slot by giving a fresh install a
 spotlight, the sample films and one obvious "open the guide" action. Downloads
 keeps its own tab because offline is a promise, not a preference.
 
-### The bottom bar
+### The index bar
 
-- 74 px tall, flat (no shadow, no tint), a one-pixel `outlineVariant` hairline
-  on top, and the page background behind it.
-- Selected destination: a jade stadium indicator at 18% (dark) / 14% (light),
-  filled icon, `labelSmall` at weight 800. Unselected: outlined icon, muted
-  label at weight 600.
-- Labels are always shown. They are 10 px with **zero tracking**, because five
-  destinations on a 320 dp phone leave roughly 56 px per label and Material's
-  default size wraps "Downloads" onto two lines. A widget test at 320×640 pins
-  that layout, so the fix cannot regress silently.
-- Arabic labels use the same 10 px size: the shortest Arabic tab (الرئيسية) and
-  the longest (التنزيلات) both fit one line.
+- 64 px tall (plus the safe-area inset), flat, with a one-pixel
+  `outlineVariant` hairline and the page surface behind it. No floating pill,
+  no shadow.
+- Five equal columns. The selected column gets a 2 px ember rule at its top
+  edge, a filled icon and an ember label; the other four use outlined icons and
+  muted labels.
+- Labels are always shown at 9.5 px with **zero tracking**, wrapped in a
+  `FittedBox` so "Downloads", "التنزيلات" and large text scales stay on one
+  line on a 320 dp phone. A widget test at 320×640 pins that layout.
+- The selected tab is a `Semantics(selected: true)` button; the label is the
+  accessible name, not the icon.
 
 ---
 
@@ -159,37 +164,40 @@ keeps its own tab because offline is a promise, not a preference.
 
 ### Home — the front door
 
-1. **Header** — localized wordmark + tagline, search button.
+1. **Masthead** — localized wordmark + tagline, a squared search button, and a
+   hairline that closes the band.
 2. **Search prompt** — a tappable field that jumps to Browse. It looks like an
    input but is a route, so there is no half-working search on Home.
-3. **Spotlight** — 4:5 editorial card: cover, gradient scrim, kind badge, mark,
-   title, native title, year · status · author, primary "Start reading/watching"
-   and a circular arrow. One work only; a carousel would dilute it.
-4. **Continue rail** — 300×172 cards with cover, unit title, progress bar and a
-   page/clock label. Appears only when there is progress.
-5. **Trending** — ranked horizontal rail; outlined numerals sit on the artwork.
-6. **Sample films** — three public-domain streams so the player is reachable in
+3. **Spotlight** — 4:5 editorial card: cover, warm scrim, printed kind label,
+   mark, title in Amiri, native title, year · status · author, a primary
+   "Start reading/watching" bar and a squared arrow. One work only.
+4. **Continue rail (01)** — 302×164 slips with cover, title, progress rule and
+   a page/clock label. Appears only when there is progress.
+5. **Picks (02)** — the curated shelf, unranked.
+6. **Trending (03)** — ranked horizontal rail; outlined brass numerals sit on
+   the artwork.
+7. **Sample films (04)** — public-domain streams so the player is reachable in
    two taps without a source pack.
-7. **Library-waiting card** — shown only when the shelf is empty; explains the
+8. **Library-waiting card** — shown only when the shelf is empty; explains the
    guide and offers one button.
 
 Refresh invalidates the guide, continue and library providers together.
 
 ### Library — what you own
 
-- Title + `librarySummary(count)`.
+- Masthead `02`: title + `librarySummary(count)` + sort action.
 - Search field with a 240 ms debounce.
 - Continue rail (same `ContinueCard` as Home, same label helper).
-- Filter pills: All / Unread / In progress / Completed / Favorites.
+- Filter chips: All / Unread / In progress / Completed / Favorites.
 - Sort menu: title, recently read, recently added.
-- Responsive grid of `MediaCard`s.
+- Responsive grid of `MediaCard`s; no repeated "Library" section header.
 - Empty state: guide action, not a dead end.
 
 ### Browse — what exists
 
-- Title + `browseSubtitle(sourceCount)` + mark.
-- Source pills: selected pill uses `primaryContainer`, a check icon and a jade
-  border. A source is one tap away, never a form.
+- Masthead `03`: title + `browseSubtitle(sourceCount)` + mark.
+- Source chips: selected chip uses `primaryContainer`, a check icon and an
+  ember border. A source is one tap away, never a form.
 - Search field scoped to the selected source.
 - Result count, then a responsive grid sized from the viewport
   (`columns = width / 170`, clamped 2–6).
@@ -232,7 +240,7 @@ Refresh invalidates the guide, continue and library providers together.
 
 ### Downloads — what is offline
 
-- Title + storage line, clear-finished action.
+- Masthead `04`: title + storage line, clear-finished action.
 - `StatStrip`: offline / in progress / storage.
 - Section "In progress" (queued, running, paused, failed) and "Ready offline"
   (done). Each tile: status tile, media + unit, progress or error, pause/resume/
@@ -242,7 +250,7 @@ Refresh invalidates the guide, continue and library providers together.
 
 ### Settings — your copy of Best
 
-- Title + "Make Best yours".
+- Masthead `05`: title + "Make Best yours".
 - **Profile card**: mark, name, tagline, "Reader" badge, and works / offline /
   sources. Identity before configuration.
 - **Language**: segmented System / English / العربية.
@@ -260,7 +268,7 @@ Refresh invalidates the guide, continue and library providers together.
 | `BestMark`, `BestWordmark`, `BestBackdrop`, `StatStrip` | `brand.dart` | Brand surfaces; no app strings except a passed label. |
 | `SpotlightCard`, `ContinueCard` | `cards.dart` | Editorial hero and resume card. |
 | `MediaCard` | `media_card.dart` | Shelf card with badge, rank numeral and optional progress. |
-| `SectionHeader`, `EmptyState` | `sections.dart` | Accent-bar header; empty state with eyebrow + action. |
+| `SectionHeader`, `PageMasthead`, `EmptyState` | `sections.dart` | Numbered section; page masthead `02–05`; empty state with eyebrow + action. |
 | `BestCover` | `cover.dart` | Deterministic gradient fallback when art is missing. |
 | `bestTheme` | `theme.dart` | One builder for both brightnesses. |
 
@@ -275,7 +283,8 @@ in, which keeps the package reusable and testable.
   Pull-to-refresh keeps the old content visible.
 - **Error** — `EmptyState` with a plain-language title, the technical detail in
   small text, and a Retry button. No red-on-black framework banner.
-- **Empty** — eyebrow, icon in a jade/gold halo, title, one sentence, one action.
+- **Empty** — eyebrow, icon in an ember/brass plate, title, one sentence, one
+  action.
 - **Offline** — jade badge in the reader; offline counts on the series page.
 - **Destructive** — confirmation dialog with the count of affected items.
 - **Success** — floating snackbar, never a full-screen toast.
@@ -292,7 +301,8 @@ in, which keeps the package reusable and testable.
 - Dates use `YYYY-MM-DD`; storage uses `KB/MB/GB`.
 - Minimum tap target 44×44; primary buttons 52 high; icon buttons 42–52.
 - Semantic labels on cards (`Semantics(button: true, label: title)`).
-- Contrast: jade on ink ≥ 7:1, onSurfaceVariant on ink ≥ 4.6:1.
+- Contrast: ember on ink ≥ 5:1, onSurfaceVariant on ink ≥ 4.6:1, dark ink on
+  ember ≥ 5:1.
 - Text scales: cards use `maxLines` + ellipsis rather than fixed heights where
   possible; the stat strip scales values down instead of clipping.
 

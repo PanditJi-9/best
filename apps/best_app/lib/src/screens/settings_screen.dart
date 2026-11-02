@@ -35,21 +35,10 @@ class SettingsScreen extends ConsumerWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
         children: [
-          Text(
-            l10n.settingsTitle,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-              letterSpacing: -1.2,
-              height: 1,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            l10n.settingsSubtitle,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              letterSpacing: 0.2,
-            ),
+          PageMasthead(
+            index: "05",
+            title: l10n.settingsTitle,
+            subtitle: l10n.settingsSubtitle,
           ),
           const SizedBox(height: 20),
           _ProfileCard(

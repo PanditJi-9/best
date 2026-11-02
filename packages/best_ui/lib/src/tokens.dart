@@ -1,33 +1,33 @@
 import 'package:flutter/material.dart';
 
-/// The palette is deliberately small: two grounds, one signature accent, one
-/// warm highlight and one alert. A media app competes with its own artwork; the
-/// chrome must not.
+/// A small, warm editorial palette: ink and paper, one ember accent and one
+/// brass highlight, with jade kept only for progress and offline state.
 ///
-/// The identity is "ink and jade": a near-black canvas, a cool jade for action
-/// and progress, vermilion only for live/new, and a muted gold for ratings and
-/// ranks. HikariManga's blue-on-black proved the structure; this palette keeps
-/// Best recognisable beside it.
+/// Artwork is the only thing allowed to be loud. The chrome is printed in ink,
+/// ember and brass so a shelf of covers reads like a magazine spread rather than
+/// a storefront.
 abstract final class BestColors {
-  static const Color ink = Color(0xFF07080B);
-  static const Color inkRaised = Color(0xFF101218);
-  static const Color inkElevated = Color(0xFF161922);
-  static const Color inkLine = Color(0xFF232733);
-  static const Color paper = Color(0xFFF7F5F0);
-  static const Color paperRaised = Color(0xFFFFFFFF);
-  static const Color paperLine = Color(0xFFE6E1D7);
-  static const Color vermilion = Color(0xFFF05A3C);
-  static const Color gold = Color(0xFFE8B45F);
-  static const Color jade = Color(0xFF3BD3A4);
-  static const Color jadeDeep = Color(0xFF0E7A5C);
-  static const Color danger = Color(0xFFE5544B);
-  static const Color rankGold = Color(0xFFE8B45F);
+  static const Color ink = Color(0xFF0B0A08);
+  static const Color inkRaised = Color(0xFF13110D);
+  static const Color inkElevated = Color(0xFF1B1812);
+  static const Color inkLine = Color(0xFF2C261B);
+  static const Color paper = Color(0xFFF4EDDF);
+  static const Color paperRaised = Color(0xFFFBF6EA);
+  static const Color paperLine = Color(0xFFDDD2BD);
+  static const Color cinnabar = Color(0xFFE05A3C);
+  static const Color cinnabarDeep = Color(0xFFA93620);
+  static const Color brass = Color(0xFFCFA85A);
+  static const Color gold = brass;
+  static const Color jade = Color(0xFF57B394);
+  static const Color jadeDeep = Color(0xFF2F735C);
+  static const Color danger = Color(0xFFE2604D);
+  static const Color rankGold = brass;
   static const Color rankSilver = Color(0xFFB9C2CF);
   static const Color rankBronze = Color(0xFFC98A5B);
 
-  /// The two-stop signature gradient. Used on the wordmark, the spotlight art
-  /// and the primary button; never as a page background.
-  static const List<Color> aurora = <Color>[jade, gold];
+  /// The signature gradient: ember into brass. Used on the mark and the
+  /// spotlight seal, never as a page background.
+  static const List<Color> aurora = <Color>[cinnabar, brass];
 }
 
 abstract final class BestSpace {
@@ -39,11 +39,12 @@ abstract final class BestSpace {
   static const double xxl = 32;
 }
 
+/// Sharper than the previous build: an editorial page, not a rounded app card.
 abstract final class BestRadius {
-  static const double sm = 12;
-  static const double md = 18;
-  static const double lg = 26;
-  static const double xl = 34;
+  static const double sm = 6;
+  static const double md = 10;
+  static const double lg = 16;
+  static const double xl = 22;
   static const double pill = 999;
 }
 

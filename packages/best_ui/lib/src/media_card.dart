@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'cover.dart';
 import 'tokens.dart';
 
-/// The shelf card. It takes already-localized strings so this package never
-/// needs to know which language the app is in.
+/// The shelf card: a poster, a printed kind label, and a title set in the
+/// display face. It takes already-localized strings so the package never needs
+/// to know which language the app is in.
 class MediaCard extends StatelessWidget {
   const MediaCard({
     super.key,
@@ -25,8 +26,8 @@ class MediaCard extends StatelessWidget {
   /// 0..1. A zero value hides the bar entirely; an empty work is not "0% read".
   final double progress;
 
-  /// 1-based position in a ranked rail. Drawn as an outlined numeral so the
-  /// artwork stays the loudest thing on the card.
+  /// 1-based position in a ranked rail. Drawn as an outlined brass numeral so
+  /// the artwork stays the loudest thing on the card.
   final int? rank;
   final VoidCallback? onTap;
 
@@ -69,21 +70,22 @@ class MediaCard extends StatelessWidget {
                       start: BestSpace.sm,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.58),
-                          borderRadius: BorderRadius.circular(BestRadius.pill),
-                          border: Border.all(color: Colors.white12),
+                          color: BestColors.cinnabar,
+                          borderRadius: BorderRadius.circular(2),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: BestSpace.sm,
+                            horizontal: 7,
                             vertical: 3,
                           ),
                           child: Text(
                             badge!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.labelSmall?.copyWith(
-                              color: Colors.white,
+                              color: BestColors.ink,
                               fontWeight: FontWeight.w700,
-                              letterSpacing: 0.3,
+                              letterSpacing: 0.2,
                             ),
                           ),
                         ),
@@ -91,22 +93,23 @@ class MediaCard extends StatelessWidget {
                     ),
                   if (rank != null)
                     PositionedDirectional(
-                      bottom: -10,
-                      end: 6,
+                      bottom: -8,
+                      end: 5,
                       child: Text(
                         '$rank',
                         style: TextStyle(
-                          fontSize: 56,
+                          fontFamily: 'BestDisplay',
+                          fontSize: 48,
                           height: 1,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -3,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -2,
                           foreground: Paint()
                             ..style = PaintingStyle.stroke
-                            ..strokeWidth = 2
-                            ..color = Colors.white.withValues(alpha: 0.9),
+                            ..strokeWidth = 1.4
+                            ..color = BestColors.brass,
                           shadows: [
                             Shadow(
-                              color: Colors.black.withValues(alpha: 0.5),
+                              color: Colors.black.withValues(alpha: 0.55),
                               blurRadius: 8,
                             ),
                           ],
@@ -122,6 +125,8 @@ class MediaCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.titleSmall?.copyWith(
+                fontFamily: 'BestDisplay',
+                fontSize: 15,
                 fontWeight: FontWeight.w700,
                 height: 1.25,
               ),
@@ -131,8 +136,9 @@ class MediaCard extends StatelessWidget {
               subtitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
+              style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
+                letterSpacing: 0.2,
               ),
             ),
             if (progress > 0) ...[
@@ -141,8 +147,8 @@ class MediaCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(BestRadius.pill),
                 child: LinearProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
-                  minHeight: 4,
-                  color: BestColors.jade,
+                  minHeight: 3,
+                  color: BestColors.cinnabar,
                 ),
               ),
             ],

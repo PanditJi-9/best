@@ -16,7 +16,6 @@ class DownloadsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
     final downloads = ref.watch(downloadsProvider);
     final current = downloads.value ?? const <DownloadTask>[];
     final finished = current.where((task) => task.isFinished).toList();
@@ -36,42 +35,20 @@ class DownloadsScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 14, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.downloadsTitle,
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -1.2,
-                          height: 1,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        totalBytes > 0
-                            ? l10n.downloadsStorage(formatBytes(totalBytes))
-                            : l10n.downloadsNote,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (finished.isNotEmpty)
-                  IconButton(
-                    tooltip: l10n.downloadClearFinished,
-                    onPressed: () => _clearFinished(context, ref, current),
-                    icon: const Icon(Icons.delete_sweep_outlined),
-                  ),
-              ],
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+            child: PageMasthead(
+              index: "04",
+              title: l10n.downloadsTitle,
+              subtitle: totalBytes > 0
+                  ? l10n.downloadsStorage(formatBytes(totalBytes))
+                  : l10n.downloadsNote,
+              trailing: finished.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: l10n.downloadClearFinished,
+                      onPressed: () => _clearFinished(context, ref, current),
+                      icon: const Icon(Icons.delete_sweep_outlined),
+                    ),
             ),
           ),
           Expanded(

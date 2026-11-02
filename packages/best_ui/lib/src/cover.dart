@@ -51,8 +51,8 @@ class _CoverFallback extends StatelessWidget {
   final String title;
 
   static const List<List<Color>> _palettes = [
-    [Color(0xFF232338), Color(0xFF6C3550)],
-    [Color(0xFF1E2E2A), Color(0xFF3F6B57)],
+    [Color(0xFF2A1B16), Color(0xFF7A3526)],
+    [Color(0xFF1D2420), Color(0xFF3F6B57)],
     [Color(0xFF2B2118), Color(0xFF8A5A32)],
     [Color(0xFF1B2433), Color(0xFF355C7D)],
     [Color(0xFF2E1B24), Color(0xFF7B3B4C)],
@@ -80,9 +80,10 @@ class _CoverFallback extends StatelessWidget {
         child: Text(
           glyph,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.86),
-            fontSize: 42,
-            fontWeight: FontWeight.w800,
+            fontFamily: 'BestDisplay',
+            color: Colors.white.withValues(alpha: 0.88),
+            fontSize: 46,
+            fontWeight: FontWeight.w700,
             height: 1,
           ),
         ),

@@ -24,15 +24,13 @@ class BestMark extends StatelessWidget {
             end: Alignment.bottomRight,
             colors: BestColors.aurora,
           ),
-          borderRadius: BorderRadius.circular(size * 0.32),
-        ),
-        child: CustomPaint(
-          painter: _SparkPainter(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? BestColors.ink
-                : Colors.white,
+          borderRadius: BorderRadius.circular(size * 0.2),
+          border: Border.all(
+            color: Colors.black.withValues(alpha: 0.18),
+            width: 0.8,
           ),
         ),
+        child: const CustomPaint(painter: _SparkPainter(color: BestColors.ink)),
       ),
     );
   }
@@ -120,9 +118,12 @@ class BestWordmark extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1.4,
-                  height: 0.95,
+                  fontSize: 23,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: Directionality.of(context) == TextDirection.rtl
+                      ? 0
+                      : -0.7,
+                  height: 0.98,
                 ),
               ),
               if (tagline != null) ...[
@@ -208,7 +209,7 @@ class StatStrip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: BestSpace.lg),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(BestRadius.lg),
+        borderRadius: BorderRadius.circular(BestRadius.md),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: Row(

@@ -47,10 +47,11 @@ remains as an optional alternative for readers who already run one.
 - **Suwayomi, if you already run one.** Settings → **Suwayomi server** takes one
   address (`http://192.168.1.20:4567`) and Browse gains that server's sources
   over REST. Manga only, off by default.
-- **One visual system.** "Ink & Jade": a near-black canvas, jade for action and
-  progress, vermilion only for new/live, gold for ranks. The mark, wordmark,
-  spotlight, stat strip, cards and reader chrome are shared components, not
-  per-screen styling. See [docs/DESIGN.md](docs/DESIGN.md).
+- **One visual system.** "Ink & Ember": a warm near-black canvas, cinnabar for
+  action, brass for ranks and rules, and jade kept for progress and offline
+  state. Amiri and IBM Plex Sans Arabic carry the editorial voice. The mark,
+  masthead, numbered sections, cards and reader chrome are shared components,
+  not per-screen styling. See [docs/DESIGN.md](docs/DESIGN.md).
 - **A real shelf.** Add, remove, favorite, search, filter and sort. Counts and
   progress come from the local database, not from a widget's memory.
 - **A real reader.** Page-by-page reading, zoom, page restore, completion

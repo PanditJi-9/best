@@ -114,33 +114,11 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.browseTitle,
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -1.2,
-                          height: 1,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        l10n.browseSubtitle(sources.length),
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const BestMark(size: 34),
-              ],
+            child: PageMasthead(
+              index: "03",
+              title: l10n.browseTitle,
+              subtitle: l10n.browseSubtitle(sources.length),
+              trailing: const BestMark(size: 30),
             ),
           ),
           const SizedBox(height: 16),
@@ -264,14 +242,14 @@ class _SourcePill extends StatelessWidget {
       color: selected
           ? theme.colorScheme.primaryContainer
           : theme.colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(BestRadius.pill),
+      borderRadius: BorderRadius.circular(BestRadius.sm),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(BestRadius.pill),
+            borderRadius: BorderRadius.circular(BestRadius.sm),
             border: Border.all(
               color: selected
                   ? theme.colorScheme.primary.withValues(alpha: 0.55)

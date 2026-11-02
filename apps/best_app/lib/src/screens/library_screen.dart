@@ -57,7 +57,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(content: Text(l10n.refreshDone(progress.done, progress.failed))),
+        SnackBar(
+            content: Text(l10n.refreshDone(progress.done, progress.failed))),
       );
   }
 
@@ -69,7 +70,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final continuing = ref.watch(continueProvider);
     final continueEntries = continuing.value ?? const <ContinueEntry>[];
     final shelfCount = shelf.value?.length;
-    final theme = Theme.of(context);
 
     return SafeArea(
       bottom: false,
@@ -77,41 +77,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 12, 0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l10n.navLibrary,
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -1.2,
-                          height: 1,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        shelfCount == null
-                            ? l10n.tagline
-                            : l10n.librarySummary(shelfCount),
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  tooltip: l10n.sort,
-                  onPressed: () => _showSort(context, query),
-                  icon: const Icon(Icons.swap_vert),
-                ),
-              ],
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+            child: PageMasthead(
+              index: "02",
+              title: l10n.navLibrary,
+              subtitle: shelfCount == null
+                  ? l10n.tagline
+                  : l10n.librarySummary(shelfCount),
+              trailing: IconButton(
+                tooltip: l10n.sort,
+                onPressed: () => _showSort(context, query),
+                icon: const Icon(Icons.swap_vert),
+              ),
             ),
           ),
           Padding(
@@ -170,22 +147,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                             openUnit(context, ref, entry.media, entry.unit),
                       ),
                     ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: SectionHeader(
-                        title: l10n.navLibrary,
-                        trailing: shelfCount == null
-                            ? null
-                            : Text(
-                                '$shelfCount',
-                                style: theme.textTheme.labelMedium?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 12)),
                   ..._shelfSlivers(context, l10n, shelf, query),
                   const SliverToBoxAdapter(child: SizedBox(height: 24)),
                 ],

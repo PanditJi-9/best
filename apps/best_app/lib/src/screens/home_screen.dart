@@ -72,15 +72,40 @@ class HomeScreen extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                child: Row(
+                child: Column(
                   children: [
-                    Expanded(
-                        child: BestWordmark(
-                            tagline: l10n.tagline, label: l10n.appName)),
-                    IconButton.filledTonal(
-                      tooltip: l10n.searchAll,
-                      onPressed: () => context.go(Routes.browse),
-                      icon: const Icon(Icons.search, size: 22),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: BestWordmark(
+                            markSize: 30,
+                            tagline: l10n.tagline,
+                            label: l10n.appName,
+                          ),
+                        ),
+                        IconButton.outlined(
+                          tooltip: l10n.searchAll,
+                          onPressed: () => context.go(Routes.browse),
+                          style: IconButton.styleFrom(
+                            foregroundColor: theme.colorScheme.primary,
+                            side: BorderSide(
+                              color: theme.colorScheme.outlineVariant,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                BestRadius.sm,
+                              ),
+                            ),
+                            fixedSize: const Size(46, 46),
+                          ),
+                          icon: const Icon(Icons.search, size: 20),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Divider(
+                      height: 1,
+                      color: theme.colorScheme.outlineVariant,
                     ),
                   ],
                 ),
@@ -164,6 +189,7 @@ class HomeScreen extends ConsumerWidget {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: SectionHeader(
+                    index: "01",
                     title: l10n.continueTitle,
                     actionLabel: l10n.seeAll,
                     onAction: () => context.go(Routes.library),
@@ -201,6 +227,7 @@ class HomeScreen extends ConsumerWidget {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
                   child: SectionHeader(
+                    index: "02",
                     title: l10n.picksTitle,
                     actionLabel: l10n.seeAll,
                     onAction: () => context.go(Routes.browse),
@@ -238,6 +265,7 @@ class HomeScreen extends ConsumerWidget {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: SectionHeader(
+                    index: "03",
                     title: l10n.trendingTitle,
                     actionLabel: l10n.seeAll,
                     onAction: () => context.go(Routes.browse),
@@ -275,7 +303,10 @@ class HomeScreen extends ConsumerWidget {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
-                  child: SectionHeader(title: l10n.samplesTitle),
+                  child: SectionHeader(
+                    index: "04",
+                    title: l10n.samplesTitle,
+                  ),
                 ),
               ),
               SliverToBoxAdapter(
@@ -320,7 +351,7 @@ class HomeScreen extends ConsumerWidget {
                     padding: const EdgeInsets.all(BestSpace.xl),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(BestRadius.lg),
+                      borderRadius: BorderRadius.circular(BestRadius.md),
                       border: Border.all(
                         color: theme.colorScheme.outlineVariant,
                       ),
@@ -333,7 +364,8 @@ class HomeScreen extends ConsumerWidget {
                         Text(
                           l10n.libraryWaiting,
                           style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w900,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                         const SizedBox(height: BestSpace.xs),
@@ -385,39 +417,45 @@ class _SearchPrompt extends StatelessWidget {
     final theme = Theme.of(context);
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(BestRadius.md),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(BestRadius.sm),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(BestRadius.md),
-        child: Container(
+        child: SizedBox(
           height: 50,
-          padding: const EdgeInsets.symmetric(horizontal: BestSpace.lg),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(BestRadius.md),
-            border: Border.all(color: theme.colorScheme.outlineVariant),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.search,
-                size: 20,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: BestSpace.md),
-              // The prompt is a route, not a field, so the label is the only
-              // flexible child: ellipsize rather than overflow on a narrow
-              // phone or at a large text scale.
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: BestSpace.lg),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.search,
+                  size: 19,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: BestSpace.md),
+                // The prompt is a route, not a field, so the label is the only
+                // flexible child: ellipsize rather than overflow on a narrow
+                // phone or at a large text scale.
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
-              ),
-            ],
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 16,
+                  color: theme.colorScheme.primary,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -448,7 +486,7 @@ class _SampleCard extends StatelessWidget {
         width: 270,
         child: Material(
           color: theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(BestRadius.lg),
+          borderRadius: BorderRadius.circular(BestRadius.md),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
@@ -470,19 +508,18 @@ class _SampleCard extends StatelessWidget {
                   start: BestSpace.md,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(BestRadius.pill),
-                      border: Border.all(color: Colors.white24),
+                      color: BestColors.cinnabar,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
+                        horizontal: 8,
                         vertical: 4,
                       ),
                       child: Text(
                         badge,
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: Colors.white,
+                          color: BestColors.ink,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -496,16 +533,16 @@ class _SampleCard extends StatelessWidget {
                   child: Row(
                     children: [
                       DecoratedBox(
-                        decoration: const BoxDecoration(
-                          color: BestColors.jade,
-                          shape: BoxShape.circle,
+                        decoration: BoxDecoration(
+                          color: BestColors.cinnabar,
+                          borderRadius: BorderRadius.circular(BestRadius.sm),
                         ),
                         child: const Padding(
-                          padding: EdgeInsets.all(8),
+                          padding: EdgeInsets.all(7),
                           child: Icon(
                             Icons.play_arrow_rounded,
                             color: BestColors.ink,
-                            size: 22,
+                            size: 20,
                           ),
                         ),
                       ),
@@ -516,8 +553,10 @@ class _SampleCard extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.titleSmall?.copyWith(
+                            fontFamily: 'BestDisplay',
                             color: Colors.white,
-                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
