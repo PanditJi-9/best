@@ -16,6 +16,7 @@ import eu.kanade.tachiyomi.animesource.model.SAnime
 import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.NetworkHelper
+import kotlinx.serialization.json.Json
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.SourceFactory
@@ -114,6 +115,13 @@ class ExtensionHost(private val context: Context) {
         Injekt.addSingletonFactory { app }
         Injekt.addSingletonFactory { app as Context }
         Injekt.addSingleton(NetworkHelper(app))
+        // Community extensions share a Json service through Injekt; without it
+        // their static helpers fail before even making a catalogue request.
+        Injekt.addSingleton(Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+            explicitNulls = false
+        })
         try {
             val info = app.packageManager.getPackageInfo(app.packageName, 0)
             AppInfo.versionName = info.versionName ?: "0.0.0"

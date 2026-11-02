@@ -175,8 +175,15 @@ def dismiss_anr() -> None:
 
 def select_source(wanted: str) -> None:
     """Find a source even when several viewports of pills precede it."""
+    def source_in(root):
+        node = find(root, wanted)
+        if node is None:
+            # Extensions can append a qualifier, e.g. AnimeKai (Unoriginal).
+            node = find_prefix(root, wanted + " (")
+        return node
+
     root = dump()
-    row = find(root, wanted)
+    row = source_in(root)
     if row is not None:
         tap(row, wait=4)
         return
@@ -189,7 +196,7 @@ def select_source(wanted: str) -> None:
     match = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
     width = 320 if not match else int(match.group(1))
     for _ in range(14):
-        node = find(root, wanted)
+        node = source_in(root)
         if node is not None:
             tap(node, wait=4)
             return

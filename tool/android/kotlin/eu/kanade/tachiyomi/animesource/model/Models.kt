@@ -1,6 +1,8 @@
 package eu.kanade.tachiyomi.animesource.model
 
 import okhttp3.Headers
+import kotlinx.serialization.json.JsonObject
+import java.io.Serializable
 
 /**
  * One anime as an extension describes it.
@@ -10,37 +12,115 @@ import okhttp3.Headers
  * exact JVM name, so they cannot be renamed for tidiness.
  */
 @Suppress("PropertyName", "unused")
-open class SAnime {
-    var url: String = ""
-    var title: String = ""
-    var artist: String? = null
-    var author: String? = null
-    var description: String? = null
-    var genre: String? = null
-    var status: Int = 0
-    var thumbnail_url: String? = null
-    var initialized: Boolean = false
+interface SAnime : Serializable {
+    var url: String
+    var title: String
+    var artist: String?
+    var author: String?
+    var description: String?
+    var genre: String?
+    var status: Int
+    var thumbnail_url: String?
+    var background_url: String?
+    var update_strategy: AnimeUpdateStrategy
+    var fetch_type: FetchType
+    var season_number: Double
+    var initialized: Boolean
+    var memo: JsonObject
+
+    fun getGenres(): List<String>? = genre?.takeIf { it.isNotBlank() }
+        ?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }?.distinct()
+
+    fun copy(): SAnime = create().also {
+        it.url = url
+        it.title = title
+        it.artist = artist
+        it.author = author
+        it.description = description
+        it.genre = genre
+        it.status = status
+        it.thumbnail_url = thumbnail_url
+        it.background_url = background_url
+        it.update_strategy = update_strategy
+        it.fetch_type = fetch_type
+        it.season_number = season_number
+        it.initialized = initialized
+        it.memo = memo
+    }
 
     companion object {
-        fun create(): SAnime = SAnime()
+        const val UNKNOWN = 0
+        const val ONGOING = 1
+        const val COMPLETED = 2
+        const val LICENSED = 3
+        const val PUBLISHING_FINISHED = 4
+        const val CANCELLED = 5
+        const val ON_HIATUS = 6
+        const val UPCOMING = 7
+        fun create(): SAnime = SAnimeImpl()
     }
 }
 
+class SAnimeImpl : SAnime {
+    override var url: String = ""
+    override var title: String = ""
+    override var artist: String? = null
+    override var author: String? = null
+    override var description: String? = null
+    override var genre: String? = null
+    override var status: Int = SAnime.UNKNOWN
+    override var thumbnail_url: String? = null
+    override var background_url: String? = null
+    override var update_strategy: AnimeUpdateStrategy = AnimeUpdateStrategy.ALWAYS_UPDATE
+    override var fetch_type: FetchType = FetchType.Episodes
+    override var season_number: Double = -1.0
+    override var initialized: Boolean = false
+    override var memo: JsonObject = JsonObject(emptyMap())
+}
+
+enum class AnimeUpdateStrategy { ALWAYS_UPDATE, ONLY_FETCH_ONCE }
+enum class FetchType { Seasons, Episodes }
+
 /** One episode of an anime. `episode_number` is a float, as in the real API. */
 @Suppress("PropertyName", "unused")
-open class SEpisode {
-    var url: String = ""
-    var name: String = ""
-    var date_upload: Long = 0L
-    var episode_number: Float = -1f
-    var scanlator: String? = null
-    var filler: Boolean = false
-    var summary: String? = null
-    var thumbnail_url: String? = null
+interface SEpisode : Serializable {
+    var url: String
+    var name: String
+    var date_upload: Long
+    var episode_number: Float
+    var scanlator: String?
+    var fillermark: Boolean
+    var summary: String?
+    var preview_url: String?
+    var memo: JsonObject
+
+    fun copyFrom(other: SEpisode) {
+        url = other.url
+        name = other.name
+        date_upload = other.date_upload
+        episode_number = other.episode_number
+        scanlator = other.scanlator
+        fillermark = other.fillermark
+        summary = other.summary
+        preview_url = other.preview_url
+        memo = other.memo
+    }
 
     companion object {
-        fun create(): SEpisode = SEpisode()
+        fun create(): SEpisode = SEpisodeImpl()
     }
+}
+
+class SEpisodeImpl : SEpisode {
+    override var url: String = ""
+    override var name: String = ""
+    override var date_upload: Long = 0L
+    override var episode_number: Float = -1f
+    override var scanlator: String? = null
+    override var fillermark: Boolean = false
+    override var summary: String? = null
+    override var preview_url: String? = null
+    override var memo: JsonObject = JsonObject(emptyMap())
 }
 
 /** One page of a catalogue listing. */

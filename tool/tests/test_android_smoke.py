@@ -64,6 +64,15 @@ class SmokeToolsTest(unittest.TestCase):
         tap.assert_called_once()
         adb.assert_not_called()
 
+    @patch.object(smoke, "adb")
+    @patch.object(smoke, "tap")
+    def test_source_qualifier_does_not_hide_the_chip(self, tap, adb):
+        root = hierarchy("AnimeKai (Unoriginal)")
+        with patch.object(smoke, "dump", return_value=root):
+            smoke.select_source("AnimeKai")
+        self.assertIs(tap.call_args.args[0], root[0])
+        adb.assert_not_called()
+
     def test_gate_requires_loaded_package_not_builtin_label_or_failure(self):
         log = "\n".join([
             "I/BestExtensions( 123): loaded AniZone (42) from eu.kanade.tachiyomi.animeextension.all.anizone",

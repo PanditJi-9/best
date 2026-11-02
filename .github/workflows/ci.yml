@@ -133,6 +133,22 @@ jobs:
         working-directory: apps/best_app
         run: flutter build apk --release
 
+      - name: Extension runtime JVM compatibility tests
+        working-directory: apps/best_app/android
+        run: |
+          sh ./gradlew :app:testReleaseUnitTest --no-daemon
+          test -f ../build/app/test-results/testReleaseUnitTest/TEST-app.best.best_app.ext.RuntimeAbiTest.xml
+
+      - name: Keep runtime test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-abi-tests
+          path: |
+            apps/best_app/build/app/test-results/testReleaseUnitTest/
+            apps/best_app/build/app/reports/tests/testReleaseUnitTest/
+          if-no-files-found: warn
+
       # A release signed with the runner's throwaway debug key cannot be
       # updated in place, so publishing stops before the upload.
       - name: Verify the release signature

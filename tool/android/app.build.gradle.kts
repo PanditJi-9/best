@@ -34,6 +34,10 @@ android {
         versionName = flutter.versionName
     }
 
+    sourceSets.getByName("test").java.srcDir(
+        rootProject.projectDir.resolve("../../../tool/android/tests"),
+    )
+
     signingConfigs {
         if (keystorePropertiesFile.exists()) {
             create("release") {
@@ -90,10 +94,14 @@ flutter {
  */
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // Current MangaDex/AnimeXin bundles call the Kotlin Duration overloads in
+    // OkHttp 5 (e.g. CacheControl.Builder.maxStale-LRDsOJo), absent in 4.x.
+    implementation("com.squareup.okhttp3:okhttp:5.3.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("org.jsoup:jsoup:1.18.3")
     implementation("io.reactivex:rxjava:1.3.8")
     implementation("io.reactivex:rxandroid:1.2.1")
     implementation("uy.kohesive.injekt:injekt-core:1.16.1")
     implementation("androidx.preference:preference:1.2.1")
+    testImplementation("junit:junit:4.13.2")
 }
