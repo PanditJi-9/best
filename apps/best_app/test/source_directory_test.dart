@@ -68,14 +68,16 @@ void main() {
 
   Future<void> image(WidgetTester tester, String name) async {
     await tester.pumpAndSettle();
-    final boundary =
-        capture.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-    final rendered = await boundary.toImage();
-    final data = await rendered.toByteData(format: ui.ImageByteFormat.png);
-    rendered.dispose();
-    await Directory('build').create(recursive: true);
-    await File('build/source-directory-$name.png')
-        .writeAsBytes(data!.buffer.asUint8List());
+    await tester.runAsync(() async {
+      final boundary =
+          capture.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final rendered = await boundary.toImage();
+      final data = await rendered.toByteData(format: ui.ImageByteFormat.png);
+      rendered.dispose();
+      await Directory('build').create(recursive: true);
+      await File('build/source-directory-$name.png')
+          .writeAsBytes(data!.buffer.asUint8List());
+    });
   }
 
   testWidgets(
@@ -95,6 +97,14 @@ void main() {
     expect(host.attempts, [entries.first.packageName]);
     expect(
         find.text('Remove extension'), findsNothing); // Lives in the row menu.
+    await tester.tap(find.byTooltip('Extension details').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove extension'));
+    await tester.pumpAndSettle();
+    expect(host.inventory, isNotEmpty); // Confirmation has not been accepted.
+    await tester.tap(find.text('Remove extension').last);
+    await tester.pumpAndSettle();
+    expect(host.inventory, isEmpty);
     expect(tester.takeException(), isNull);
   });
 
