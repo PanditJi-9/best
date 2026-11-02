@@ -1,7 +1,10 @@
 """Offline regression tests for the emulator tooling; never connect to a phone."""
 
 from pathlib import Path
+import os
+import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
@@ -79,6 +82,41 @@ class SmokeToolsTest(unittest.TestCase):
         self.assertEqual(anime_smoke.playback_clock(hierarchy("0:12 / 24:00")), (12, 1440))
         self.assertEqual(anime_smoke.playback_clock(hierarchy("1:02:03 / 2:00:00")), (3723, 7200))
         self.assertIsNone(anime_smoke.playback_clock(hierarchy("Sample video")))
+
+    def test_single_shell_keeps_failure_status_and_always_collects_logs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            stubs = {
+                "adb": '#!/bin/sh\ncase "$*" in\n'
+                       '  *pidof*) echo 123;;\n'
+                       '  "logcat -d -v brief") echo "W/BestExtensions: diagnostic"; '
+                       'echo "  at app.best.ExtensionHost.loadSources(ExtensionHost.kt:10)";;\n'
+                       'esac\n',
+                "sleep": '#!/bin/sh\nexit 0\n',
+                "python3": '#!/bin/sh\necho "$2" >> executed.txt\n'
+                           'case "$2" in\n'
+                           '  *extension_probe.py) exit 7;;\n'
+                           '  *) exit 0;;\n'
+                           'esac\n',
+            }
+            for name, body in stubs.items():
+                path = work / name
+                path.write_text(body)
+                path.chmod(0o755)
+            result = subprocess.run(
+                ["sh", str(TOOL / "run_android_smoke.sh")],
+                cwd=work,
+                env={**os.environ, "PATH": f"{directory}:{os.environ['PATH']}"},
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            self.assertEqual(result.returncode, 7, result.stderr)
+            self.assertEqual((work / "executed.txt").read_text().splitlines(), [
+                "tool/extension_probe.py", "tool/anime_smoke.py", "tool/android_smoke.py",
+            ])
+            self.assertIn("ExtensionHost.kt:10", (work / "logcat.txt").read_text())
+            self.assertIn("BestExtensions", (work / "extensions.log").read_text())
 
 
 if __name__ == "__main__":

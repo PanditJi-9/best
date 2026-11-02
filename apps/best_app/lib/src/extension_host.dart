@@ -100,6 +100,9 @@ class ExtensionHost {
   /// `false` off Android (tests, desktop previews), where the channel is absent.
   static bool get isSupported => Platform.isAndroid;
 
+  /// An instance seam for host implementations used in offline tests.
+  bool get isAvailable => isSupported;
+
   Future<ExtensionCatalog> catalog() async {
     try {
       final raw = await _channel.invokeMapMethod<String, dynamic>('catalog');
@@ -126,7 +129,8 @@ class ExtensionHost {
 
   /// Downloads and installs an extension APK. Returns the package name when the
   /// host accepted it.
-  Future<String?> install({required String url, required String fileName}) async {
+  Future<String?> install(
+      {required String url, required String fileName}) async {
     try {
       final raw = await _channel.invokeMapMethod<String, dynamic>(
         'install',
@@ -180,13 +184,16 @@ class ExtensionHost {
         .toList(growable: false);
   }
 
-  Future<List<Media>> popular(int sourceId, {int page = 1, bool anime = false}) =>
+  Future<List<Media>> popular(int sourceId,
+          {int page = 1, bool anime = false}) =>
       _listing('popular', sourceId, page: page, anime: anime);
 
-  Future<List<Media>> latest(int sourceId, {int page = 1, bool anime = false}) =>
+  Future<List<Media>> latest(int sourceId,
+          {int page = 1, bool anime = false}) =>
       _listing('latest', sourceId, page: page, anime: anime);
 
-  Future<List<Media>> search(int sourceId, String query, {int page = 1, bool anime = false}) =>
+  Future<List<Media>> search(int sourceId, String query,
+          {int page = 1, bool anime = false}) =>
       _listing('search', sourceId, page: page, query: query, anime: anime);
 
   Future<Media> details(int sourceId, Media media, {bool anime = false}) async {
@@ -319,7 +326,8 @@ class ExtensionHost {
     return (fallbackIndex + 1).toDouble();
   }
 
-  static Media _mediaFromMap(Map<String, dynamic> map, int sourceId, {bool anime = false}) {
+  static Media _mediaFromMap(Map<String, dynamic> map, int sourceId,
+      {bool anime = false}) {
     final genres = ((map['genre'] as String?) ?? '')
         .split(',')
         .map((genre) => genre.trim())
@@ -438,15 +446,15 @@ class ExtensionRepository {
       headers: const {'Accept': 'application/json'},
     );
     if (response.statusCode != 200) {
-      throw StateError('The extension repository answered ${response.statusCode}.');
+      throw StateError(
+          'The extension repository answered ${response.statusCode}.');
     }
     final decoded = jsonDecode(response.body);
     final rawList = switch (decoded) {
       final List<dynamic> list => list,
-      final Map<String, dynamic> map =>
-        ((map['extensionList'] as Map<String, dynamic>?)?['extensions']
-                as List<dynamic>?) ??
-            const <dynamic>[],
+      final Map<String, dynamic> map => ((map['extensionList']
+              as Map<String, dynamic>?)?['extensions'] as List<dynamic>?) ??
+          const <dynamic>[],
       _ => const <dynamic>[],
     };
     return rawList
@@ -475,9 +483,8 @@ class ExtensionRepository {
       packageName: pkg,
       apkUrl: absolute,
       language: (map['lang'] as String?) ?? _languageFrom(map['sources']),
-      version: (map['version'] as String?) ??
-          (map['versionName'] as String?) ??
-          '',
+      version:
+          (map['version'] as String?) ?? (map['versionName'] as String?) ?? '',
       nsfw: map['nsfw'] == 1 ||
           map['nsfw'] == true ||
           (warning is String && warning != 'CONTENT_WARNING_NONE'),
@@ -510,7 +517,9 @@ class ExtensionInstaller {
     required this.preferences,
   });
 
-  static const String _bootstrappedKey = 'extensions_bootstrapped_v2';
+  // v2 could record success after only one of the nine downloads. Recheck that
+  // older flag once, including the anime bundles that previously failed to load.
+  static const String _bootstrappedKey = 'extensions_bootstrapped_v3';
 
   /// MangaDex, MangaFire, Weeb Central, MangaKatana and the Arabic 3asq.
   /// Matched by package name against the repository index; anything the
@@ -544,14 +553,14 @@ class ExtensionInstaller {
   /// Installs what is missing from [starterPackages]. Returns how many APKs were
   /// written. Never throws: a first launch on a bad network must still open.
   Future<int> ensureStarterSet({bool force = false}) async {
-    if (!ExtensionHost.isSupported) return 0;
+    if (!host.isAvailable) return 0;
     if (_bootstrapped && !force) return 0;
     final catalog = await host.catalog();
     final installed = catalog.sources.map((s) => s.packageName).toSet();
 
     var written = 0;
-    var reachable = 0;
-    var pending = 0;
+    var complete = true;
+    final requiredPackages = <String>{};
     final batches = <(ExtensionRepository, List<String>)>[
       (repository, starterPackages),
       if (animeRepository != null) (animeRepository!, animeStarterPackages),
@@ -562,15 +571,18 @@ class ExtensionInstaller {
         entries = await source.fetch();
       } catch (_) {
         // One dead index must not cost the reader the other shelf.
+        complete = false;
         continue;
       }
-      reachable++;
-      final wanted = entries
+      final offered = entries
           .where((entry) => packages.contains(entry.packageName))
-          .where((entry) => !installed.contains(entry.packageName))
           .toList(growable: false);
-      pending += wanted.length;
-      for (final entry in wanted) {
+      // An empty/guard index is not a successful bootstrap. Individual retired
+      // entries may be skipped, but a whole shelf must not disappear silently.
+      if (offered.isEmpty) complete = false;
+      requiredPackages.addAll(offered.map((entry) => entry.packageName));
+      for (final entry in offered) {
+        if (installed.contains(entry.packageName)) continue;
         final packageName = await host.install(
           url: entry.apkUrl,
           fileName: entry.fileName,
@@ -578,10 +590,16 @@ class ExtensionInstaller {
         if (packageName != null) written++;
       }
     }
-    // Only remember success, so a launch without a network tries again next time.
-    if (written > 0 || (reachable > 0 && pending == 0)) {
-      await preferences?.setBool(_bootstrappedKey, true);
-    }
+    // A stored APK is not necessarily compatible. Only remember a bootstrap
+    // once both indexes answered and every offered starter actually loaded.
+    final loaded =
+        (await host.catalog()).sources.map((s) => s.packageName).toSet();
+    await preferences?.setBool(
+      _bootstrappedKey,
+      complete &&
+          requiredPackages.isNotEmpty &&
+          loaded.containsAll(requiredPackages),
+    );
     return written;
   }
 

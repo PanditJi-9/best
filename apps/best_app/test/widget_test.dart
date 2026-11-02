@@ -307,4 +307,40 @@ void main() {
     expect(container.read(sourcePacksProvider).single.id, 'example');
     expect(container.read(sourceRegistryProvider).byId('example'), isNotNull);
   });
+
+  testWidgets('source pack errors fit a small phone with the keyboard open', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final container = await _pumpApp(tester);
+    await tester.tap(find.text('Settings').last);
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Add a source pack'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.drag(find.byType(ListView), const Offset(0, -160));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add a source pack'));
+    await tester.pumpAndSettle();
+
+    tester.view.viewInsets = const FakeViewPadding(bottom: 220);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '{');
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Add').hitTestable(), findsOneWidget);
+
+    container.read(settingsProvider.notifier).setLanguage('ar');
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(
+      Directionality.of(tester.element(find.byType(AlertDialog))),
+      TextDirection.rtl,
+    );
+  });
 }
