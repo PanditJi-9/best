@@ -18,6 +18,7 @@ class SourceDirectoryScreen extends ConsumerStatefulWidget {
 class _SourceDirectoryState extends ConsumerState<SourceDirectoryScreen> {
   final _search = TextEditingController();
   final _busy = <String>{};
+  final _confirming = <String>{};
   final _errors = <String, String>{};
   final _trusted = <String>{};
   String _kind = 'all';
@@ -45,8 +46,11 @@ class _SourceDirectoryState extends ConsumerState<SourceDirectoryScreen> {
           .showSnackBar(SnackBar(content: Text(l10n.directoryAndroidOnly)));
       return;
     }
-    if (_busy.contains(entry.packageName)) return;
-    setState(() => _busy.add(entry.packageName));
+    if (_busy.contains(entry.packageName) ||
+        _confirming.contains(entry.packageName)) {
+      return;
+    }
+    _confirming.add(entry.packageName);
     try {
       final preferences = ref.read(preferencesProvider);
       final trusted = {
@@ -87,6 +91,7 @@ class _SourceDirectoryState extends ConsumerState<SourceDirectoryScreen> {
         } catch (_) {/* Session trust remains. */}
       }
       if (!mounted) return;
+      setState(() => _busy.add(entry.packageName));
       final result = await ref.read(extensionInstallerProvider).activate(entry);
       if (!mounted) return;
       setState(() {
@@ -99,6 +104,7 @@ class _SourceDirectoryState extends ConsumerState<SourceDirectoryScreen> {
     } catch (error) {
       if (mounted) setState(() => _errors[entry.packageName] = '$error');
     } finally {
+      _confirming.remove(entry.packageName);
       if (mounted) setState(() => _busy.remove(entry.packageName));
     }
   }

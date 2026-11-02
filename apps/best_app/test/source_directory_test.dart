@@ -25,6 +25,9 @@ void main() {
         ..addFont(rootBundle.load('packages/best_ui/assets/fonts/${item.$2}'));
       await loader.load();
     }
+    final icons = FontLoader('MaterialIcons')
+      ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+    await icons.load();
   });
   final entries = [
     entry('AniZone', kind: 'anime'),
