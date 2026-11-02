@@ -37,8 +37,9 @@ class _BestAppState extends ConsumerState<BestApp> with WidgetsBindingObserver {
   }
 
   void _checkUpdates() {
-    if (!mounted || !_foreground || !ref.read(extensionAutoUpdatesProvider))
+    if (!mounted || !_foreground || !ref.read(extensionAutoUpdatesProvider)) {
       return;
+    }
     final network = ref.read(networkProvider).value;
     if (network == NetworkKind.none) return;
     if (ref.read(settingsProvider).wifiOnly && network != NetworkKind.wifi) {
