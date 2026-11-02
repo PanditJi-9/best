@@ -11,6 +11,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  smoke-tools:
+    name: Emulator tooling regressions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test navigation and real-extension gates without a device
+        run: python3 -m unittest discover -s tool/tests -v
+
   samples:
     name: Guide sample streams answer
     runs-on: ubuntu-latest

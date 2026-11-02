@@ -89,7 +89,11 @@ def find_any(root: ET.Element, wanted: str) -> ET.Element | None:
     from Browse, or open the built-in guide...". A plain substring search found
     that paragraph before the Browse tab and tapped the middle of the screen.
     """
-    return find(root, wanted) or find_prefix(root, wanted) or find_contains(root, wanted)
+    for finder in (find, find_prefix, find_contains):
+        node = finder(root, wanted)
+        if node is not None:
+            return node
+    return None
 
 
 def debug_texts(root: ET.Element) -> None:
@@ -169,30 +173,35 @@ def dismiss_anr() -> None:
         tap(node, wait=1.5)
 
 
-def select_guide() -> None:
-    """Browse opens on All sources; the sample films live under the guide pill."""
-    row = find_any(dump(), "All sources")
+def select_source(wanted: str) -> None:
+    """Find a source even when several viewports of pills precede it."""
+    root = dump()
+    row = find(root, wanted)
     if row is not None:
-        numbers = [int(v) for v in re.findall(r"\d+", row.get("bounds", ""))]
-        if len(numbers) == 4:
-            _, y1, _, y2 = numbers
-            y = (y1 + y2) // 2
-            size = adb("shell", "wm", "size")
-            match = re.search(r"(\d+)x(\d+)", size)
-            width = 320 if not match else int(match.group(1))
-            # The guide is the last pill, so pull the chip row to the left.
-            adb(
-                "shell",
-                "input",
-                "swipe",
-                str(width - 30),
-                str(y),
-                "20",
-                str(y),
-                "300",
-            )
-            time.sleep(1.2)
-    tap(wait_for("Best Guide", timeout=15), wait=4)
+        tap(row, wait=4)
+        return
+    row = find_any(root, "All sources")
+    if row is None:
+        row = find_any(root, "MangaDex")
+    if row is None:
+        raise SystemExit("the source chip row did not render")
+    _, y = center(row)
+    match = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
+    width = 320 if not match else int(match.group(1))
+    for _ in range(14):
+        node = find(root, wanted)
+        if node is not None:
+            tap(node, wait=4)
+            return
+        adb("shell", "input", "swipe", str(width - 25), str(y), "20", str(y), "300")
+        time.sleep(1.2)
+        root = dump()
+    debug_texts(root)
+    raise SystemExit(f"could not reach source {wanted!r}")
+
+
+def select_guide() -> None:
+    select_source("Best Guide")
 
 
 def fail_if_playback_error() -> None:
@@ -258,7 +267,10 @@ def _run() -> int:
     tap(wait_for("Neon Seoul", timeout=30, scrolls=3), wait=5)
 
     # A rerun against an emulator with saved data offers "Continue watching".
-    cta = find_any(dump(), "Watch now") or find_any(dump(), "Continue watching")
+    root = dump()
+    cta = find_any(root, "Watch now")
+    if cta is None:
+        cta = find_any(root, "Continue watching")
     if cta is None:
         cta = wait_for("Watch now", timeout=30, scrolls=4)
     tap(cta, wait=18)

@@ -1,164 +1,86 @@
 #!/usr/bin/env python3
-"""Report what the source list actually contains after a first launch.
+"""Gate the starter APKs on actual host loads, and capture the Browse labels.
 
-This is a diagnostic, not a gate: it opens the app, waits for the starter
-extension set to install itself, walks to Browse, and prints every label it can
-see. The workflow uploads the output so a failed extension load is visible
-without a device.
-
-It exits 0 even when nothing loads — `android_smoke.py` is the gate; this file
-answers "did the extensions work?".
+A built-in MangaDex chip is not proof its extension loaded. The native host
+logs each registered source with its owning package; require all nine bundles
+there, independent of the UI's deliberate manga language filtering.
 """
 
 from __future__ import annotations
 
-import subprocess
-import sys
 import re
+import sys
 import time
-import xml.etree.ElementTree as ET
 
-PACKAGE = "app.best.best_app"
-ACTIVITY = f"{PACKAGE}/.MainActivity"
-
-# Names the starter set is expected to produce. Kept loose on purpose: a source
-# label is the extension's own string and may change case or add a suffix.
-# The first five are manga bundles, the last four anime.
-EXPECTED = (
-    "MangaDex",
-    "MangaFire",
-    "Weeb",
-    "MangaKatana",
-    "3asq",
-    "AniZone",
-    "AnimePahe",
-    "AnimeKai",
-    "AnimeXin",
+from android_smoke import (
+    ACTIVITY, PACKAGE, adb, center, debug_texts, dismiss_anr, dump, find_any,
+    nodes, tap, wait_for,
 )
 
-
-def adb(*args: str, check: bool = False) -> str:
-    try:
-        result = subprocess.run(
-            ["adb", *args], check=check, capture_output=True, text=True, timeout=90
-        )
-        return result.stdout
-    except subprocess.TimeoutExpired:
-        return ""
-
-
-def labels() -> list[str]:
-    adb("shell", "uiautomator", "dump", "/sdcard/probe.xml")
-    xml = adb("shell", "cat", "/sdcard/probe.xml")
-    if not xml.lstrip().startswith("<?xml"):
-        return []
-    try:
-        root = ET.fromstring(xml)
-    except ET.ParseError:
-        return []
-    found = []
-    for node in root.iter("node"):
-        text = (node.get("text") or "").strip()
-        desc = (node.get("content-desc") or "").strip()
-        for value in (text, desc):
-            if value:
-                found.append(value)
-    return found
+MANGA_PACKAGES = (
+    "eu.kanade.tachiyomi.extension.all.mangadex",
+    "eu.kanade.tachiyomi.extension.all.mangafire",
+    "eu.kanade.tachiyomi.extension.en.weebcentral",
+    "eu.kanade.tachiyomi.extension.en.mangakatana",
+    "eu.kanade.tachiyomi.extension.ar.manga3asq",
+)
+ANIME_PACKAGES = (
+    "eu.kanade.tachiyomi.animeextension.all.anizone",
+    "eu.kanade.tachiyomi.animeextension.en.animepahe",
+    "eu.kanade.tachiyomi.animeextension.en.kotokai",
+    "eu.kanade.tachiyomi.animeextension.all.animexin",
+)
+EXPECTED = MANGA_PACKAGES + ANIME_PACKAGES
 
 
-def tap(label_prefix: str) -> bool:
-    for _ in range(6):
-        seen = labels()
-        if any(value.startswith(label_prefix) for value in seen):
-            # uiautomator cannot tap by label, so ask the app to do it through a
-            # tap on the node's bounds.
-            adb("shell", "uiautomator", "dump", "/sdcard/probe.xml")
-            xml = adb("shell", "cat", "/sdcard/probe.xml")
-            try:
-                root = ET.fromstring(xml)
-            except ET.ParseError:
-                return False
-            for node in root.iter("node"):
-                text = (node.get("text") or "").strip()
-                desc = (node.get("content-desc") or "").strip()
-                if text.startswith(label_prefix) or desc.startswith(label_prefix):
-                    bounds = node.get("bounds") or ""
-                    if bounds:
-                        try:
-                            left, top, right, bottom = (
-                                int(part)
-                                for part in bounds.replace("][", ",").strip("[]").split(",")
-                            )
-                            adb(
-                                "shell",
-                                "input",
-                                "tap",
-                                str((left + right) // 2),
-                                str((top + bottom) // 2),
-                            )
-                            return True
-                        except ValueError:
-                            continue
-        time.sleep(2)
-    return False
-
-
-def horizontal_swipe() -> None:
-    """Pull the source chip row left, so chips past the fold get laid out."""
-    size = adb("shell", "wm", "size")
-    match = re.search(r"(\d+)x(\d+)", size)
-    width, height = (320, 640) if not match else map(int, match.groups())
-    y = int(height * 0.22)
-    adb("shell", "input", "swipe", str(width - 30), str(y), "20", str(y), "300")
-    time.sleep(1.2)
+def loaded_packages(log: str) -> set[str]:
+    return set(re.findall(r"BestExtensions.*\bloaded .+ from ([\w.]+)", log))
 
 
 def main() -> int:
-    adb("shell", "am", "force-stop", PACKAGE)
-    adb("shell", "am", "start", "-n", ACTIVITY)
-    # First launch: the starter set downloads five APKs before Browse has
-    # anything to say, so give the download room and then keep checking.
-    time.sleep(30)
-    tap("Browse")
+    adb("shell", "am", "force-stop", PACKAGE, check=False)
+    adb("shell", "am", "start", "-W", "-n", ACTIVITY)
     time.sleep(8)
+    dismiss_anr()
+    tap(wait_for("Browse", timeout=40), wait=4)
 
-    seen: list[str] = []
-    for attempt in range(18):
-        seen.extend(labels())
-        if attempt in (5, 11):
-            # Still empty after a minute: the list may have rendered before the
-            # catalog arrived, so visit Browse again.
-            tap("Browse")
-        time.sleep(6)
+    # Nine first-run downloads can be slow. Keep a finite budget, and retain the
+    # failure rather than passing merely because the two built-in sources exist.
+    deadline = time.monotonic() + 150
+    while True:
+        loaded = loaded_packages(adb("logcat", "-d", "-v", "brief", check=False))
+        missing = set(EXPECTED) - loaded
+        if not missing or time.monotonic() >= deadline:
+            break
+        time.sleep(5)
 
-    # Chips past the right edge are not in the hierarchy until they are scrolled
-    # into view, so walk the row before deciding a source is missing.
-    for _ in range(4):
-        horizontal_swipe()
-        seen.extend(labels())
+    root = dump()
+    row = find_any(root, "All sources")
+    if row is None:
+        debug_texts(root)
+        raise SystemExit("source picker did not render")
+    _, y = center(row)
+    match = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
+    width = int(match.group(1)) if match else 320
+    seen: set[str] = set()
+    for _ in range(14):
+        for node in nodes(root):
+            for field in ("text", "content-desc"):
+                value = (node.get(field) or "").strip()
+                if value:
+                    seen.add(value)
+        adb("shell", "input", "swipe", str(width - 25), str(y), "20", str(y), "300")
+        time.sleep(0.8)
+        root = dump()
 
-    unique = sorted({value for value in seen if value})
-    matched = [name for name in EXPECTED if any(name.lower() in value.lower() for value in unique)]
-    ready = next(
-        (value for value in unique if "source" in value.lower() and "ready" in value.lower()),
-        "",
-    )
-
-    print("--- visible labels ---")
-    for value in unique:
-        print(value)
-    print("--- sources ready ---")
-    print(ready or "unknown")
-    print("--- expected sources found ---")
-    print(", ".join(matched) if matched else "none")
-    print(f"matched {len(matched)} of {len(EXPECTED)}")
-
-    try:
-        with open("sources.txt", "w", encoding="utf-8") as handle:
-            handle.write("\n".join(unique))
-    except OSError:
-        pass
-    return 0
+    with open("sources.txt", "w", encoding="utf-8") as handle:
+        handle.write("\n".join(sorted(seen)))
+        handle.write("\n\nLoaded starter packages:\n" + "\n".join(sorted(set(EXPECTED) & loaded)))
+        handle.write("\n\nMissing starter packages:\n" + "\n".join(sorted(missing)))
+    print(f"extension gate: {len(set(EXPECTED) & loaded)} / {len(EXPECTED)} bundles loaded")
+    for pkg in sorted(missing):
+        print(f"MISSING: {pkg}")
+    return 1 if missing else 0
 
 
 if __name__ == "__main__":

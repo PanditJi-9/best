@@ -228,6 +228,15 @@ void main() {
     await tester.tap(find.text('Browse').last);
     await tester.pumpAndSettle();
 
+    await tester.scrollUntilVisible(
+      find.text('Neon Seoul'),
+      250,
+      scrollable: find.descendant(
+        of: find.byType(GridView),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Neon Seoul'));
     await tester.pumpAndSettle();
 

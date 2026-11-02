@@ -1,0 +1,85 @@
+"""Offline regression tests for the emulator tooling; never connect to a phone."""
+
+from pathlib import Path
+import sys
+import unittest
+from unittest.mock import patch
+import xml.etree.ElementTree as ET
+
+TOOL = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(TOOL))
+import android_smoke as smoke
+import anime_smoke
+import extension_probe as probe
+
+
+def hierarchy(*labels):
+    root = ET.Element("hierarchy")
+    for label in labels:
+        ET.SubElement(root, "node", {
+            "content-desc": label, "bounds": "[20,130][120,174]",
+        })
+    return root
+
+
+class SmokeToolsTest(unittest.TestCase):
+    def test_exact_leaf_is_not_discarded_as_falsey(self):
+        root = hierarchy("Browse", "Browse Tab 3 of 5")
+        self.assertIs(smoke.find_any(root, "Browse"), root[0])
+
+    def test_navigation_prefix_precedes_paragraph_substring(self):
+        root = hierarchy("Add a work from Browse", "Browse Tab 3 of 5")
+        self.assertIs(smoke.find_any(root, "Browse"), root[1])
+
+    def test_substring_leaf_is_not_discarded(self):
+        root = hierarchy("Series — Episode 1")
+        self.assertIs(smoke.find_any(root, "Episode 1"), root[0])
+
+    def test_absent_label_returns_none(self):
+        self.assertIsNone(smoke.find_any(hierarchy("Library"), "Browse"))
+
+    @patch.object(smoke.time, "sleep")
+    @patch.object(smoke, "adb", return_value="Physical size: 320x640")
+    @patch.object(smoke, "tap")
+    def test_source_selection_walks_more_than_one_viewport(self, tap, adb, _sleep):
+        pages = [hierarchy("All sources"), hierarchy("MangaFire"),
+                 hierarchy("AnimePahe"), hierarchy("Best Guide")]
+        with patch.object(smoke, "dump", side_effect=pages):
+            smoke.select_source("Best Guide")
+        self.assertEqual(tap.call_count, 1)
+        self.assertIs(tap.call_args.args[0], pages[-1][0])
+        swipes = [call for call in adb.call_args_list if "swipe" in call.args]
+        self.assertEqual(len(swipes), 3)
+        self.assertTrue(all(call.args[4] == "152" for call in swipes))
+
+    @patch.object(smoke, "adb")
+    @patch.object(smoke, "tap")
+    def test_source_already_visible_needs_no_row_anchor(self, tap, adb):
+        root = hierarchy("AniZone")
+        with patch.object(smoke, "dump", return_value=root):
+            smoke.select_source("AniZone")
+        tap.assert_called_once()
+        adb.assert_not_called()
+
+    def test_gate_requires_loaded_package_not_builtin_label_or_failure(self):
+        log = "\n".join([
+            "I/BestExtensions( 123): loaded AniZone (42) from eu.kanade.tachiyomi.animeextension.all.anizone",
+            "W/BestExtensions( 123): extension eu.kanade.tachiyomi.animeextension.en.animepahe failed to load",
+            "Browse MangaDex 5 sources ready",
+        ])
+        self.assertEqual(probe.loaded_packages(log), {probe.ANIME_PACKAGES[0]})
+
+    def test_probe_allowlist_matches_the_app(self):
+        dart = (TOOL.parent / "apps/best_app/lib/src/extension_host.dart").read_text()
+        for package in probe.EXPECTED:
+            self.assertIn(f"'{package}'", dart)
+        self.assertEqual(len(probe.EXPECTED), 9)
+
+    def test_player_clock_handles_minutes_and_hours(self):
+        self.assertEqual(anime_smoke.playback_clock(hierarchy("0:12 / 24:00")), (12, 1440))
+        self.assertEqual(anime_smoke.playback_clock(hierarchy("1:02:03 / 2:00:00")), (3723, 7200))
+        self.assertIsNone(anime_smoke.playback_clock(hierarchy("Sample video")))
+
+
+if __name__ == "__main__":
+    unittest.main()

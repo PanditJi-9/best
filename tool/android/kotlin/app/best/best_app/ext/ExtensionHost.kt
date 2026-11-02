@@ -140,14 +140,13 @@ class ExtensionHost(private val context: Context) {
     private fun archiveInfo(file: File): android.content.pm.PackageInfo? =
         app.packageManager.getPackageArchiveInfo(file.path, PackageManager.GET_META_DATA)
 
+    @Suppress("DEPRECATION")
     private fun meta(pkg: android.content.pm.PackageInfo, key: String): String? =
-        pkg.applicationInfo?.metaData?.getString(key)?.takeIf { it.isNotBlank() }
+        pkg.applicationInfo?.metaData?.get(key)?.toString()?.takeIf { it.isNotBlank() }
 
     private fun isNsfw(pkg: android.content.pm.PackageInfo): Boolean {
         val declared = meta(pkg, KEY_NSFW) ?: meta(pkg, KEY_ANIME_NSFW)
-        return declared?.toBoolean()
-            ?: (pkg.applicationInfo?.metaData?.getBoolean(KEY_NSFW) ?: false)
-            ?: (pkg.applicationInfo?.metaData?.getBoolean(KEY_ANIME_NSFW) ?: false)
+        return declared == "1" || declared.equals("true", ignoreCase = true)
     }
 
     /** Reads an APK's identity without loading any of its code. */
@@ -189,11 +188,20 @@ class ExtensionHost(private val context: Context) {
         val factoryName = meta(pkg, KEY_FACTORY) ?: meta(pkg, KEY_ANIME_FACTORY)
 
         val produced = mutableListOf<Any>()
-        if (!className.isNullOrBlank()) {
-            runCatching { instantiate(loader, className) }.getOrNull()?.let { produced += it }
+        fun tryEntry(name: String) {
+            // Android manifest class names may be package-relative, e.g.
+            // `.ExtensionGenerated`. Class.forName does not expand them.
+            val qualified = when {
+                name.startsWith(".") -> pkg.packageName + name
+                !name.contains(".") -> "${pkg.packageName}.$name"
+                else -> name
+            }
+            runCatching { instantiate(loader, qualified) }
+                .onSuccess { produced += it }
+                .onFailure { error -> Log.w(TAG, "entry $qualified failed", error) }
         }
-        if (!factoryName.isNullOrBlank()) {
-            runCatching { instantiate(loader, factoryName) }.getOrNull()?.let { produced += it }
+        for (declared in listOfNotNull(className, factoryName)) {
+            declared.split(';').map { it.trim() }.filter { it.isNotEmpty() }.forEach { tryEntry(it) }
         }
         // Some bundles only declare a factory class; try the conventional names
         // so an extension with unusual metadata still has a chance to load.
@@ -202,7 +210,7 @@ class ExtensionHost(private val context: Context) {
                 "${pkg.packageName}.Extension",
                 "${pkg.packageName}.SourceFactory",
             )) {
-                runCatching { instantiate(loader, candidate) }.getOrNull()?.let { produced += it }
+                tryEntry(candidate)
             }
         }
         return produced.flatMap { expand(it) }
@@ -356,6 +364,7 @@ class ExtensionHost(private val context: Context) {
                 outcome.fold(
                     onSuccess = { result.success(it) },
                     onFailure = { error ->
+                        Log.w(TAG, "extension request failed", error)
                         result.error("extension-error", error.message ?: "The extension failed.", null)
                     },
                 )

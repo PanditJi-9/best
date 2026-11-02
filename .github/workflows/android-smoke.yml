@@ -68,30 +68,7 @@ jobs:
           emulator-options: >-
             -no-window -gpu swiftshader_indirect -no-snapshot -noaudio
             -no-boot-anim
-          script: |
-            set -x
-            unzip -l apps/best_app/build/app/outputs/flutter-apk/app-release.apk | grep -E 'lib/(arm64-v8a|armeabi-v7a|x86_64)/lib(app|flutter)\.so' || true
-            adb install -r apps/best_app/build/app/outputs/flutter-apk/app-release.apk
-            adb logcat -c
-            adb shell am start -W -n app.best.best_app/.MainActivity
-            sleep 25
-            adb exec-out screencap -p > screenshot.png || true
-            adb shell uiautomator dump /sdcard/window.xml || true
-            adb shell cat /sdcard/window.xml | head -c 6000 || true
-            adb shell pidof app.best.best_app || true
-            adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' || true
-            adb logcat -d -v brief | grep -iE 'flutter|AndroidRuntime|best_app|FATAL|impeller|libflutter' | tail -200 || true
-            test -n "$(adb shell pidof app.best.best_app)"
-            adb logcat -d -v brief | grep -iE 'ExoPlayer|MediaCodec|Playback|FATAL|AndroidRuntime' | tail -120 || true
-            set +e
-            python3 tool/android_smoke.py
-            smoke=$?
-            # Diagnostic, not a gate: does the starter extension set install
-            # itself and reach Browse? Runs even when the gate above failed.
-            python3 tool/extension_probe.py
-            adb logcat -d -v brief | grep -iE 'BestExtensions|extension|injekt|tachiyomi|DexClassLoader|ClassNotFound|NoClassDef' | tail -200 > extensions.log
-            set -e
-            test $smoke -eq 0
+          script: sh tool/run_android_smoke.sh
 
       - name: Keep the screenshots
         if: always()
@@ -103,4 +80,7 @@ jobs:
             playback.png
             sources.txt
             extensions.log
+            logcat.txt
+            anime-*.png
+            anime-results.json
           if-no-files-found: warn

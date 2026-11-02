@@ -1004,31 +1004,35 @@ class _AddPackDialogState extends ConsumerState<_AddPackDialog> {
       title: Text(l10n.addSourcePack),
       content: SizedBox(
         width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.sourcePacksBody,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                height: 1.5,
+        // The editor and validation error can outgrow the dialog, especially
+        // with the keyboard open. Keep the actions outside the scrolling body.
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.sourcePacksBody,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  height: 1.5,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _controller,
-              minLines: 6,
-              maxLines: 12,
-              autocorrect: false,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-              decoration: InputDecoration(
-                hintText: l10n.sourcePackHint,
-                errorText: _error,
-                errorMaxLines: 3,
+              const SizedBox(height: 12),
+              TextField(
+                controller: _controller,
+                minLines: 6,
+                maxLines: 12,
+                autocorrect: false,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                decoration: InputDecoration(
+                  hintText: l10n.sourcePackHint,
+                  errorText: _error,
+                  errorMaxLines: 3,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       actions: [
