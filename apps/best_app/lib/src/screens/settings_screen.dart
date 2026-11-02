@@ -211,15 +211,28 @@ class SettingsScreen extends ConsumerWidget {
               children: [
                 _LinkTile(
                   icon: Icons.inventory_2_outlined,
-                  title: l10n.extensionsReady(extensions.sources.length),
+                  title: l10n.directoryTitle,
                   subtitle: l10n.extensionsHint,
-                  onTap: () => _updateExtensions(context, ref),
+                  onTap: () => context.push(Routes.sources),
+                ),
+                const Divider(height: 1, indent: 52),
+                SwitchListTile(
+                  title: Text(l10n.directoryAutoUpdates),
+                  subtitle: Text(l10n.directoryAutoUpdatesBody),
+                  value: ref.watch(extensionAutoUpdatesProvider),
+                  onChanged: ref
+                      .read(extensionAutoUpdatesProvider.notifier)
+                      .setEnabled,
                 ),
                 const Divider(height: 1, indent: 52),
                 _LinkTile(
                   icon: Icons.system_update_alt_rounded,
-                  title: l10n.extensionsUpdate,
-                  onTap: () => _updateExtensions(context, ref),
+                  title: ref.watch(extensionUpdatesProvider).isLoading
+                      ? l10n.directoryUpdating
+                      : l10n.extensionsUpdate,
+                  onTap: ref.watch(extensionUpdatesProvider).isLoading
+                      ? null
+                      : () => _updateExtensions(context, ref),
                 ),
                 if (extensions.problems.isNotEmpty) ...[
                   const Divider(height: 1, indent: 52),
@@ -379,16 +392,20 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
-/// Installs anything the starter set is still missing and reloads the catalogue.
+/// Checks numeric upstream versions for the user's activated extensions only.
 Future<void> _updateExtensions(BuildContext context, WidgetRef ref) async {
   final l10n = AppLocalizations.of(context);
   final messenger = ScaffoldMessenger.of(context);
-  final installer = ref.read(extensionInstallerProvider);
-  final written = await installer.ensureStarterSet(force: true);
-  ref.invalidate(extensionCatalogProvider);
+  await ref.read(extensionUpdatesProvider.notifier).check(force: true);
   if (!context.mounted) return;
   messenger.showSnackBar(
-    SnackBar(content: Text(l10n.refreshDone(written, 0))),
+    SnackBar(
+        content: Text(ref.read(extensionUpdatesProvider).hasError ||
+                ref.read(extensionUpdatesProvider).value?.errors.isNotEmpty ==
+                    true
+            ? l10n.directoryUpdateFailed
+            : l10n.directoryUpdateDone(
+                ref.read(extensionUpdatesProvider).value?.updated ?? 0))),
   );
 }
 
@@ -1062,7 +1079,7 @@ class _LinkTile extends StatelessWidget {
 
   /// Omitted when the row is self-explanatory, e.g. a plain action.
   final String? subtitle;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

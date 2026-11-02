@@ -80,12 +80,16 @@ abstract interface class SourceAdapter {
 /// disabling an adapter must be visible to the next screen without rebuilding
 /// the object graph.
 class SourceRegistry {
-  SourceRegistry(this._provider);
+  SourceRegistry(this._provider, {SourceAdapter? Function(String)? fallback})
+      : _fallback = fallback;
 
-  SourceRegistry.fixed(List<SourceAdapter> sources)
-      : _provider = (() => sources);
+  SourceRegistry.fixed(List<SourceAdapter> sources,
+      {SourceAdapter? Function(String)? fallback})
+      : _provider = (() => sources),
+        _fallback = fallback;
 
   final List<SourceAdapter> Function() _provider;
+  final SourceAdapter? Function(String)? _fallback;
 
   List<SourceAdapter> get all => List.unmodifiable(_provider());
 
@@ -93,6 +97,6 @@ class SourceRegistry {
     for (final source in all) {
       if (source.id == id) return source;
     }
-    return null;
+    return _fallback?.call(id);
   }
 }

@@ -54,8 +54,8 @@ final Provider<DownloadManager> downloadManagerProvider =
   void applyPolicy() {
     final settings = ref.read(settingsProvider);
     final network = ref.read(networkProvider).value ?? NetworkKind.unknown;
-    manager.mayDownload = () =>
-        !settings.wifiOnly || network != NetworkKind.mobile;
+    manager.mayDownload =
+        () => !settings.wifiOnly || network != NetworkKind.mobile;
     manager.storageCap = () => settings.storageCapGb * 1024 * 1024 * 1024;
     if (manager.mayDownload()) {
       unawaited(manager.pump().catchError((Object _) {}));
@@ -125,8 +125,7 @@ class SourcePacksController extends Notifier<List<SourcePack>> {
 
   /// Canonical documents for every installed pack, so a backup or a sync can
   /// carry them. Re-encoding means the stored copy is normalised on the way out.
-  List<String> exportAll() =>
-      [for (final pack in state) pack.encode()];
+  List<String> exportAll() => [for (final pack in state) pack.encode()];
 
   /// Installs packs from a backup, skipping the reserved ids and any document
   /// that does not parse. Returns how many were actually installed.
@@ -204,6 +203,7 @@ final Provider<ExtensionInstaller> extensionInstallerProvider =
     repository: ExtensionRepository(
       indexUrl: ExtensionRepository.defaultIndexUrl,
       client: client,
+      preferences: ref.watch(preferencesProvider),
     ),
     // Anime bundles come from a different index and link against a different
     // runtime, but they install into the same private folder and show up in the
@@ -211,6 +211,7 @@ final Provider<ExtensionInstaller> extensionInstallerProvider =
     animeRepository: ExtensionRepository(
       indexUrl: ExtensionRepository.defaultAnimeIndexUrl,
       client: client,
+      preferences: ref.watch(preferencesProvider),
     ),
     preferences: ref.watch(preferencesProvider),
   );
@@ -218,17 +219,56 @@ final Provider<ExtensionInstaller> extensionInstallerProvider =
 
 /// Every source the installed extension APKs expose.
 ///
-/// Reading this is also what installs the starter set on a first launch: the
-/// install is idempotent, so the shelf is populated without a visit to Settings
-/// and without a second launch.
+/// Inventory reads never install anything on a first launch.
 final FutureProvider<ExtensionCatalog> extensionCatalogProvider =
     FutureProvider<ExtensionCatalog>((ref) async {
   final host = ref.watch(extensionHostProvider);
-  if (!ExtensionHost.isSupported) return const ExtensionCatalog.empty();
-  final installer = ref.watch(extensionInstallerProvider);
-  await installer.ensureStarterSet();
+  if (!host.isAvailable) return const ExtensionCatalog.empty();
   return host.catalog();
 });
+
+final extensionDirectoryProvider = FutureProvider<ExtensionDirectory>(
+    (ref) => ref.watch(extensionInstallerProvider).directory());
+
+class ExtensionAutoUpdatesController extends Notifier<bool> {
+  @override
+  bool build() =>
+      ref.watch(preferencesProvider)?.getBool('extension_auto_updates') ?? true;
+  void setEnabled(bool enabled) {
+    unawaited(ref
+        .read(preferencesProvider)
+        ?.setBool('extension_auto_updates', enabled));
+    state = enabled;
+  }
+}
+
+final extensionAutoUpdatesProvider =
+    NotifierProvider<ExtensionAutoUpdatesController, bool>(
+        ExtensionAutoUpdatesController.new);
+
+class ExtensionUpdatesController
+    extends Notifier<AsyncValue<ExtensionUpdateResult>> {
+  @override
+  AsyncValue<ExtensionUpdateResult> build() =>
+      const AsyncData(ExtensionUpdateResult());
+  Future<void> check({bool force = false}) async {
+    if (state.isLoading) return;
+    state = const AsyncLoading();
+    try {
+      final result =
+          await ref.read(extensionInstallerProvider).checkUpdates(force: force);
+      if (!ref.mounted) return;
+      state = AsyncData(result);
+      if (result.updated > 0) ref.invalidate(extensionCatalogProvider);
+      if (result.checked) ref.invalidate(extensionDirectoryProvider);
+    } catch (error, stack) {
+      if (ref.mounted) state = AsyncError(error, stack);
+    }
+  }
+}
+
+final extensionUpdatesProvider = NotifierProvider<ExtensionUpdatesController,
+    AsyncValue<ExtensionUpdateResult>>(ExtensionUpdatesController.new);
 
 final Provider<SourceRegistry> sourceRegistryProvider =
     Provider<SourceRegistry>((ref) {
@@ -239,14 +279,14 @@ final Provider<SourceRegistry> sourceRegistryProvider =
   final settings = ref.watch(settingsProvider);
   final language = settings.languageCode ??
       WidgetsBinding.instance.platformDispatcher.locale.languageCode;
-  // Real catalogues lead: Browse opens on MangaDex, and the bundled guide sits
-  // last as the offline demo instead of the first thing a reader sees.
+  // Only chosen sites are discoverable. The guide remains an explicit offline
+  // demo, and the legacy MangaDex API is a by-id fallback for existing libraries.
   final suwayomi = ref.watch(suwayomiClientProvider);
   final remoteSources =
       ref.watch(suwayomiSourcesProvider).value ?? const <SuwayomiSourceInfo>[];
   final extensionHost = ref.watch(extensionHostProvider);
-  final extensions =
-      ref.watch(extensionCatalogProvider).value ?? const ExtensionCatalog.empty();
+  final extensions = ref.watch(extensionCatalogProvider).value ??
+      const ExtensionCatalog.empty();
 
   return SourceRegistry.fixed(<SourceAdapter>[
     // A configured server leads: its sources are the ones the reader chose to
@@ -254,10 +294,6 @@ final Provider<SourceRegistry> sourceRegistryProvider =
     if (suwayomi != null)
       for (final info in remoteSources)
         SuwayomiSource(client: suwayomi, info: info),
-    MangaDexSource(
-      client: client,
-      language: language == 'ar' ? 'ar' : 'en',
-    ),
     for (final pack in packs) JsonSourceAdapter(pack: pack, client: client),
     // Installed extensions sit beside the built-in catalogues: they are real
     // sources the reader brought, and a library entry must keep resolving to the
@@ -266,9 +302,7 @@ final Provider<SourceRegistry> sourceRegistryProvider =
     // them would bury the catalogue under forty identical rows, so the shelf
     // keeps the reader's language plus the language-neutral bundles.
     //
-    // Anime bundles are the exception: there are only a handful, most of them
-    // English-subbed, and hiding them under an Arabic interface would leave the
-    // anime shelf empty. They stay whatever the interface language is.
+    // Anime bundles remain visible whatever the interface language is.
     for (final info in extensions.sources.where(
       (info) =>
           info.isAnime ||
@@ -278,7 +312,11 @@ final Provider<SourceRegistry> sourceRegistryProvider =
     ))
       ExtensionSourceAdapter(host: extensionHost, info: info),
     const DemoSource(),
-  ]);
+  ],
+      fallback: (id) => id == 'mangadex'
+          ? MangaDexSource(
+              client: client, language: language == 'ar' ? 'ar' : 'en')
+          : null);
 });
 
 class AppSettings {
@@ -319,8 +357,7 @@ class AppSettings {
       themeMode: themeMode ?? this.themeMode,
       wifiOnly: wifiOnly ?? this.wifiOnly,
       storageCapGb: storageCapGb ?? this.storageCapGb,
-      suwayomiUrl:
-          clearSuwayomi ? null : (suwayomiUrl ?? this.suwayomiUrl),
+      suwayomiUrl: clearSuwayomi ? null : (suwayomiUrl ?? this.suwayomiUrl),
     );
   }
 }
@@ -480,15 +517,12 @@ final FutureProvider<DiscoverFeed> discoverProvider =
   final works = <Media>[];
   final seen = <String>{};
 
-  for (final source in registry.all) {
+  for (final source in registry.all.take(3)) {
     if (source.id == DemoSource.sourceId) continue;
     // A server can host hundreds of sources; asking all of them on every home
     // refresh would hammer it. Server sources are one tap away in Browse.
     if (source.id.startsWith('suwayomi:')) continue;
-    // An extension parses a live web page, which can take seconds. Home stays on
-    // the built-in catalogue so it opens immediately; extension sources are the
-    // point of Browse, where the reader picks one on purpose.
-    if (source.id.startsWith('mihon:')) continue;
+    // The front door probes at most three chosen sources, not the full index.
     try {
       final page = await source.popular().timeout(
             const Duration(seconds: 15),
@@ -574,12 +608,10 @@ final FutureProvider<List<Media>> curatedProvider =
     raw = cached;
   } else {
     try {
-      final response = await client
-          .get(
-            Uri.parse(kCuratedRemote),
-            headers: const {'Accept': 'application/json'},
-          )
-          .timeout(const Duration(seconds: 8));
+      final response = await client.get(
+        Uri.parse(kCuratedRemote),
+        headers: const {'Accept': 'application/json'},
+      ).timeout(const Duration(seconds: 8));
       if (response.statusCode == 200) {
         CuratedList.parse(response.body); // Validate before it is cached.
         raw = response.body;
@@ -613,6 +645,7 @@ final FutureProvider<List<Media>> curatedProvider =
   }
 
   final resolved = await Future.wait(list.picks.map((pick) async {
+    if (!registry.all.any((s) => s.id == pick.sourceId)) return null;
     final source = registry.byId(pick.sourceId);
     if (source == null) return null;
     try {
@@ -864,7 +897,8 @@ final watchProvider = FutureProvider.family<WatchData, WatchKey>((
 /// The series screen gets its data from a provider that also talks to the
 /// source; a plan change or a new list must not trigger a network refresh, so
 /// it watches this tiny query instead.
-final mediaByIdProvider = FutureProvider.family<Media?, String>((ref, id) async {
+final mediaByIdProvider =
+    FutureProvider.family<Media?, String>((ref, id) async {
   ref.watch(libraryChangesProvider);
   return ref.watch(repositoryProvider).mediaById(id);
 });

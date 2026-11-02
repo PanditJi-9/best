@@ -32,25 +32,19 @@ void main() {
     });
   });
 
-  group('starter sets', () {
-    test('anime and manga bundles are separate allowlists', () {
-      expect(ExtensionInstaller.starterPackages, isNotEmpty);
-      expect(ExtensionInstaller.animeStarterPackages, isNotEmpty);
-      expect(
-        ExtensionInstaller.starterPackages
-            .where((pkg) => ExtensionInstaller.animeStarterPackages.contains(pkg)),
-        isEmpty,
-      );
-      // Anime bundles declare their entry point under their own metadata key,
-      // which is exactly what the package name encodes.
-      for (final pkg in ExtensionInstaller.animeStarterPackages) {
-        expect(pkg, contains('animeextension'));
-      }
-      for (final pkg in ExtensionInstaller.starterPackages) {
-        expect(pkg, isNot(contains('animeextension')));
-      }
+  group('repository inventory', () {
+    test('keeps an incompatible installed package independently of sources',
+        () {
+      final item = InstalledExtension.fromMap({
+        'packageName': 'eu.kanade.tachiyomi.animeextension.all.test',
+        'kind': 'anime',
+        'versionCode': 16015,
+        'versionName': '16.15',
+      });
+      final catalog = ExtensionCatalog(
+          sources: const [], problems: const [], installed: [item]);
+      expect(catalog.installed.single.versionCode, 16015);
     });
-
     test('the two repositories are different indexes', () {
       expect(
         ExtensionRepository.defaultAnimeIndexUrl,

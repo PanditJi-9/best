@@ -10,6 +10,7 @@ import 'screens/library_screen.dart';
 import 'screens/reader_screen.dart';
 import 'screens/series_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/source_directory_screen.dart';
 import 'screens/shell_screen.dart';
 import 'screens/stats_screen.dart';
 import 'screens/sync_screen.dart';
@@ -67,6 +68,10 @@ GoRouter buildRouter() => GoRouter(
               ],
             ),
           ],
+        ),
+        GoRoute(
+          path: Routes.sources,
+          builder: (context, state) => const SourceDirectoryScreen(),
         ),
         GoRoute(
           path: '/series',

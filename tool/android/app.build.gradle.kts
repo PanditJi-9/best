@@ -98,6 +98,7 @@ dependencies {
     // OkHttp 5 (e.g. CacheControl.Builder.maxStale-LRDsOJo), absent in 4.x.
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json-okio:1.9.0")
     implementation("org.jsoup:jsoup:1.18.3")
     implementation("io.reactivex:rxjava:1.3.8")
     implementation("io.reactivex:rxandroid:1.2.1")

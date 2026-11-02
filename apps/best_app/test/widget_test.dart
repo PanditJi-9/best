@@ -24,6 +24,9 @@ Future<ProviderContainer> _pumpApp(
     child: const BestApp(),
   );
   await tester.pumpWidget(scope);
+  addTearDown(() async {
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   await tester.pumpAndSettle();
   return ProviderScope.containerOf(
     tester.element(find.byType(BestApp)),

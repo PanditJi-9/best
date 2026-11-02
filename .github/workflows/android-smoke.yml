@@ -95,6 +95,8 @@ jobs:
           name: android-smoke
           path: |
             screenshot.png
+            directory.png
+            directory.xml
             playback.png
             sources.txt
             extensions.log

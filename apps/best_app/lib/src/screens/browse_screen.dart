@@ -4,10 +4,12 @@ import 'package:best_domain/best_domain.dart';
 import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../actions.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../labels.dart';
+import '../navigation.dart';
 import '../providers.dart';
 
 class BrowseScreen extends ConsumerStatefulWidget {
@@ -118,10 +120,20 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
               index: "03",
               title: l10n.browseTitle,
               subtitle: l10n.browseSubtitle(sources.length),
-              trailing: const BestMark(size: 30),
+              trailing: IconButton(
+                  tooltip: l10n.directoryTitle,
+                  onPressed: () => context.push(Routes.sources),
+                  icon: const Icon(Icons.extension_outlined)),
             ),
           ),
           const SizedBox(height: 16),
+          Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: OutlinedButton.icon(
+                  onPressed: () => context.push(Routes.sources),
+                  icon: const Icon(Icons.add_rounded),
+                  label: Text(l10n.directoryTitle))),
+          const SizedBox(height: 8),
           SizedBox(
             height: 44,
             child: ListView.separated(

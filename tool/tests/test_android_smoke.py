@@ -81,11 +81,29 @@ class SmokeToolsTest(unittest.TestCase):
         ])
         self.assertEqual(probe.loaded_packages(log), {probe.ANIME_PACKAGES[0]})
 
-    def test_probe_allowlist_matches_the_app(self):
+    def test_regression_selections_are_not_a_mandatory_app_starter_set(self):
         dart = (TOOL.parent / "apps/best_app/lib/src/extension_host.dart").read_text()
         for package in probe.EXPECTED:
-            self.assertIn(f"'{package}'", dart)
+            self.assertNotIn(f"'{package}'", dart)
         self.assertEqual(len(probe.EXPECTED), 9)
+        providers = (TOOL.parent / "apps/best_app/lib/src/providers.dart").read_text()
+        self.assertNotIn("ensureStarterSet", providers)
+
+    @patch.object(probe.time, "sleep")
+    @patch.object(probe, "adb")
+    @patch.object(probe, "tap")
+    @patch.object(probe, "wait_for")
+    def test_directory_activation_searches_by_package_and_requires_host_load(self, wait, tap, adb, _sleep):
+        package = probe.EXPECTED[0]
+        root = hierarchy("Search")
+        root[0].set("class", "android.widget.EditText")
+        pages = [root, hierarchy("Activate"), hierarchy("Trust & activate")]
+        adb.return_value = f"I/BestExtensions: loaded Test (42) from {package}"
+        with patch.object(probe, "dump", side_effect=pages):
+            probe.activate_from_directory(package)
+        self.assertIn(unittest.mock.call("shell", "input", "text", package), adb.call_args_list)
+        self.assertEqual(tap.call_count, 4)
+        wait.assert_called_once_with("Cancel")
 
     def test_player_clock_handles_minutes_and_hours(self):
         self.assertEqual(anime_smoke.playback_clock(hierarchy("0:12 / 24:00")), (12, 1440))

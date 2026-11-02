@@ -20,11 +20,62 @@ import okhttp3.Request;
 import okhttp3.Response;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 /** Pin the JVM contract that real extension dex uses, not merely Kotlin syntax. */
 public class RuntimeAbiTest {
+    private static final String PACKAGE = "eu.kanade.tachiyomi.extension.all.test";
+
+    @Test public void jsonOkioExportsTheClassAnimeKaiLinksAgainst() throws Exception {
+        Class<?> streams = Class.forName("kotlinx.serialization.json.okio.OkioStreamsKt");
+        assertTrue(java.util.Arrays.stream(streams.getMethods())
+            .anyMatch(method -> method.getName().equals("decodeFromBufferedSource")));
+    }
+
+    @Test public void verifiedSamePublisherUpdateIsAccepted() {
+        ExtensionInstallPolicy.INSTANCE.validateIdentity(PACKAGE, 12L, PACKAGE, 12L,
+            Set.of("publisher"), 11L, Set.of("publisher"));
+    }
+
+    @Test(expected = IllegalArgumentException.class) public void changedPackageIsRejectedBeforeReplacement() {
+        ExtensionInstallPolicy.INSTANCE.validateIdentity(PACKAGE, 12L, PACKAGE + "wrong", 12L,
+            Set.of("publisher"), 11L, Set.of("publisher"));
+    }
+
+    @Test(expected = IllegalArgumentException.class) public void changedPublisherSignatureIsRejected() {
+        ExtensionInstallPolicy.INSTANCE.validateIdentity(PACKAGE, 12L, PACKAGE, 12L,
+            Set.of("intruder"), 11L, Set.of("publisher"));
+    }
+
+    @Test(expected = IllegalArgumentException.class) public void unsignedArchiveIsRejected() {
+        ExtensionInstallPolicy.INSTANCE.validateIdentity(PACKAGE, 12L, PACKAGE, 12L,
+            Set.of(), null, null);
+    }
+
+    @Test(expected = IllegalArgumentException.class) public void unexpectedVersionIsRejected() {
+        ExtensionInstallPolicy.INSTANCE.validateIdentity(PACKAGE, 12L, PACKAGE, 13L,
+            Set.of("publisher"), null, null);
+    }
+
+    @Test(expected = IllegalArgumentException.class) public void extensionDowngradeIsRejected() {
+        ExtensionInstallPolicy.INSTANCE.validateIdentity(PACKAGE, 10L, PACKAGE, 10L,
+            Set.of("publisher"), 11L, Set.of("publisher"));
+    }
+
+    @Test public void downloadsRequireTrustedHttpsPublisherAndRedirectHosts() {
+        assertTrue(ExtensionInstallPolicy.INSTANCE.allowDownload(
+            "https://github.com/keiyoushi/extensions/releases/download/tag/test.apk", false));
+        assertTrue(ExtensionInstallPolicy.INSTANCE.allowDownload(
+            "https://raw.githubusercontent.com/yuzono/anime-repo/repo/apk/test.apk", false));
+        assertTrue(ExtensionInstallPolicy.INSTANCE.allowDownload("https://release-assets.githubusercontent.com/test.apk", true));
+        assertFalse(ExtensionInstallPolicy.INSTANCE.allowDownload("https://release-assets.githubusercontent.com/test.apk", false));
+        assertFalse(ExtensionInstallPolicy.INSTANCE.allowDownload("http://github.com/keiyoushi/extensions/releases/download/tag/test.apk", false));
+        assertFalse(ExtensionInstallPolicy.INSTANCE.allowDownload("https://evil.test/test.apk", true));
+        assertFalse(ExtensionInstallPolicy.INSTANCE.allowDownload("https://github.com/attacker/extensions/releases/download/tag/test.apk", false));
+        assertFalse(ExtensionInstallPolicy.INSTANCE.allowDownload("https://raw.githubusercontent.com/yuzono/anime-repo/repo/apk/../../other/test.apk", false));
+    }
     @Test public void animeModelsAreInterfacesWithRealFactories() {
         assertTrue(SAnime.class.isInterface());
         assertTrue(SEpisode.class.isInterface());

@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.system.Os
 import android.util.Log
 import dalvik.system.DexClassLoader
 import eu.kanade.tachiyomi.AppInfo
@@ -38,6 +39,7 @@ import uy.kohesive.injekt.api.addSingletonFactory
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -146,7 +148,23 @@ class ExtensionHost(private val context: Context) {
 
     @Suppress("DEPRECATION")
     private fun archiveInfo(file: File): android.content.pm.PackageInfo? =
-        app.packageManager.getPackageArchiveInfo(file.path, PackageManager.GET_META_DATA)
+        app.packageManager.getPackageArchiveInfo(file.path, PackageManager.GET_META_DATA or
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) PackageManager.GET_SIGNING_CERTIFICATES
+            else PackageManager.GET_SIGNATURES)
+
+    @Suppress("DEPRECATION")
+    private fun versionCode(pkg: android.content.pm.PackageInfo): Long =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) pkg.longVersionCode else pkg.versionCode.toLong()
+
+    @Suppress("DEPRECATION")
+    private fun signers(pkg: android.content.pm.PackageInfo): Set<String> {
+        val certs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+            pkg.signingInfo?.apkContentsSigners else pkg.signatures
+        return certs?.map { cert ->
+            MessageDigest.getInstance("SHA-256").digest(cert.toByteArray())
+                .joinToString("") { "%02x".format(it) }
+        }?.toSet() ?: emptySet()
+    }
 
     @Suppress("DEPRECATION")
     private fun meta(pkg: android.content.pm.PackageInfo, key: String): String? =
@@ -168,6 +186,7 @@ class ExtensionHost(private val context: Context) {
             },
             "packageName" to pkg.packageName,
             "versionName" to (pkg.versionName ?: ""),
+            "versionCode" to versionCode(pkg),
             "nsfw" to isNsfw(pkg),
             "libVersion" to (meta(pkg, KEY_LIB_VERSION) ?: ""),
             "fileName" to file.name,
@@ -254,7 +273,7 @@ class ExtensionHost(private val context: Context) {
 
     private fun ensureLoaded(): List<Map<String, Any?>> {
         val problems = mutableListOf<Map<String, Any?>>()
-        for (file in apkFiles()) {
+        for (file in apkFiles().sortedByDescending { archiveInfo(it)?.let(::versionCode) ?: 0 }) {
             val identity = describe(file) ?: continue
             val pkgName = identity["packageName"] as? String ?: continue
             val already = sourceOwner.values.contains(pkgName)
@@ -304,11 +323,13 @@ class ExtensionHost(private val context: Context) {
             "install" -> {
                 val url = call.argument<String>("url")
                 val fileName = call.argument<String>("fileName") ?: "extension.apk"
-                if (url.isNullOrBlank()) {
-                    result.error("bad-argument", "An extension url is required.", null)
+                val expectedPackage = call.argument<String>("expectedPackage")
+                val expectedVersion = call.argument<Number>("expectedVersionCode")?.toLong()
+                if (url.isNullOrBlank() || expectedPackage.isNullOrBlank() || expectedVersion == null) {
+                    result.error("bad-argument", "An extension url, package and version are required.", null)
                     return
                 }
-                respond(result) { install(url, fileName) }
+                respond(result) { install(url, fileName, expectedPackage, expectedVersion) }
             }
             "remove" -> {
                 val pkgName = call.argument<String>("packageName")
@@ -383,20 +404,28 @@ class ExtensionHost(private val context: Context) {
     // ------------------------------------------------------------------- calls
 
     /** Installed extensions plus every source they expose. */
+    @Synchronized
     private fun catalog(): Map<String, Any?> {
         val problems = ensureLoaded()
+        val inventory = apkFiles().mapNotNull(::describe)
+            .sortedByDescending { (it["versionCode"] as? Long) ?: 0 }
+            .distinctBy { it["packageName"] }
+        val identities = inventory.associateBy { it["packageName"] }
         Log.i(TAG, "catalog: ${sources.size} manga, ${animeSources.size} anime, ${problems.size} problem(s)")
         val entries = mutableListOf<Map<String, Any?>>()
         sources.forEach { (id, source) ->
             val catalogue = source as? CatalogueSource
-            entries += entry(id, source.name, "manga", catalogue?.lang, catalogue?.supportsLatest == true)
+            entries += entry(id, source.name, "manga", catalogue?.lang, catalogue?.supportsLatest == true,
+                identities[sourceOwner[id]] ?: emptyMap())
         }
         animeSources.forEach { (id, source) ->
-            entries += entry(id, source.name, "anime", source.lang, source.supportsLatest)
+            entries += entry(id, source.name, "anime", source.lang, source.supportsLatest,
+                identities[sourceOwner[id]] ?: emptyMap())
         }
         return mapOf<String, Any?>(
             "sources" to entries,
             "problems" to problems,
+            "installed" to inventory,
         )
     }
 
@@ -407,12 +436,9 @@ class ExtensionHost(private val context: Context) {
         kind: String,
         lang: String?,
         supportsLatest: Boolean,
+        identity: Map<String, Any?>,
     ): Map<String, Any?> {
         val owner = sourceOwner[id]
-        val identity = apkFiles()
-            .firstOrNull { describe(it)?.get("packageName") == owner }
-            ?.let { describe(it) }
-            ?: emptyMap()
         return mapOf(
             "sourceId" to id,
             "name" to name,
@@ -425,49 +451,89 @@ class ExtensionHost(private val context: Context) {
         )
     }
 
-    private fun install(url: String, fileName: String): Map<String, Any?> {
-        val safeName = fileName.replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "extension.apk" }
-            .let { if (it.endsWith(".apk")) it else "$it.apk" }
-        val target = File(extensionsDir, safeName)
-        val staged = File(extensionsDir, "$safeName.part")
+    @Synchronized
+    private fun install(url: String, fileName: String, expectedPackage: String,
+                        expectedVersion: Long): Map<String, Any?> {
+        require(ExtensionInstallPolicy.allowDownload(url)) { "Only the configured publisher repositories are allowed." }
+        val staged = File.createTempFile("install-", ".part", extensionsDir)
+        try {
+        download(url, staged)
+        val pkg = archiveInfo(staged) ?: error("The download is not a valid APK.")
+        require(meta(pkg, KEY_CLASS) != null || meta(pkg, KEY_FACTORY) != null ||
+            meta(pkg, KEY_ANIME_CLASS) != null || meta(pkg, KEY_ANIME_FACTORY) != null) {
+            "The APK does not declare an extension entry point."
+        }
+        val previous = apkFiles().mapNotNull { file -> archiveInfo(file)?.let { file to it } }
+            .filter { it.second.packageName == expectedPackage }
+        val newest = previous.maxByOrNull { versionCode(it.second) }?.second
+        ExtensionInstallPolicy.validateIdentity(expectedPackage, expectedVersion,
+            pkg.packageName, versionCode(pkg), signers(pkg), newest?.let(::versionCode), newest?.let(::signers))
+        // Check every duplicate left by the legacy filename installer as well.
+        require(previous.all { signers(it.second) == signers(pkg) }) { "Conflicting installed signing certificates." }
+        val target = File(extensionsDir, "$expectedPackage.apk")
+        check(staged.setReadOnly()) { "Could not protect the extension APK." }
+        // Atomic same-filesystem replacement. No old APK is touched on any
+        // network, identity, certificate or version validation failure.
+        Os.rename(staged.path, target.path)
+        previous.filter { it.first.path != target.path }.forEach { it.first.delete() }
+        unload(expectedPackage)
+        Log.i(TAG, "installed $expectedPackage version $expectedVersion from $fileName")
+        return describe(target) ?: error("The extension could not be read after installation.")
+        } finally { staged.delete() }
+    }
+
+    private fun download(url: String, staged: File, redirects: Int = 0) {
+        require(redirects <= 5 && ExtensionInstallPolicy.allowDownload(url, redirects > 0)) {
+            "The extension download redirected outside a trusted HTTPS host."
+        }
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 30_000
             readTimeout = 60_000
-            instanceFollowRedirects = true
+            instanceFollowRedirects = false
             setRequestProperty("User-Agent", "Best/1.0")
         }
         try {
             val code = connection.responseCode
+            if (code in listOf(301, 302, 303, 307, 308)) {
+                val location = connection.getHeaderField("Location") ?: error("Missing download redirect.")
+                download(URL(URL(url), location).toString(), staged, redirects + 1)
+                return
+            }
             if (code !in 200..299) throw IllegalStateException("The extension download answered HTTP $code.")
+            require(connection.contentLengthLong <= 32 * 1024 * 1024) { "The extension APK is too large." }
             connection.inputStream.use { input ->
-                staged.outputStream().use { output -> input.copyTo(output, 64 * 1024) }
+                staged.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        total += read
+                        require(total <= 32 * 1024 * 1024) { "The extension APK is too large." }
+                        output.write(buffer, 0, read)
+                    }
+                }
             }
         } finally {
             connection.disconnect()
         }
-        if (!staged.renameTo(target)) {
-            staged.delete()
-            throw IllegalStateException("The extension could not be stored.")
-        }
-        target.setReadOnly()
-        // A new APK means the old classes must go, so the next catalog reloads.
-        sources.clear()
-        animeSources.clear()
-        sourceOwner.clear()
-        val identity = describe(target)
-        return identity ?: mapOf<String, Any?>("fileName" to target.name)
     }
 
-    private fun uninstall(packageName: String?): Boolean {
-        if (packageName.isNullOrBlank()) return false
+    private fun unload(packageName: String) {
         sourceOwner.filterValues { it == packageName }.keys.forEach {
             sources.remove(it)
             animeSources.remove(it)
             sourceOwner.remove(it)
         }
-        val removed = apkFiles().filter { describe(it)?.get("packageName") == packageName }
-            .onEach { it.delete() }
-            .isNotEmpty()
+    }
+
+    @Synchronized
+    private fun uninstall(packageName: String?): Boolean {
+        if (packageName.isNullOrBlank()) return false
+        val files = apkFiles().filter { describe(it)?.get("packageName") == packageName }
+        if (files.isEmpty()) return false
+        val removed = files.all { it.delete() }
+        unload(packageName)
         return removed
     }
 

@@ -11,6 +11,7 @@ abstract final class Routes {
   static const String browse = '/browse';
   static const String downloads = '/downloads';
   static const String settings = '/settings';
+  static const String sources = '/sources';
   static const String stats = '/stats';
   static const String backup = '/backup';
   static const String sync = '/sync';
