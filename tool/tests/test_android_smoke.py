@@ -92,6 +92,15 @@ class SmokeToolsTest(unittest.TestCase):
         self.assertEqual(anime_smoke.playback_clock(hierarchy("1:02:03 / 2:00:00")), (3723, 7200))
         self.assertIsNone(anime_smoke.playback_clock(hierarchy("Sample video")))
 
+    def test_runtime_workflows_use_bash_for_the_generated_gradle_wrapper(self):
+        # Recent Flutter templates generate a Bash wrapper (arrays), not a
+        # POSIX-sh script. Calling it with sh fails before any JVM test runs.
+        for name in ("ci.yml", "android-smoke.yml"):
+            workflow = (TOOL.parent / ".github/workflows" / name).read_text()
+            self.assertIn("bash ./gradlew :app:testReleaseUnitTest --no-daemon", workflow)
+            self.assertNotIn("\n          sh ./gradlew :app:testReleaseUnitTest", workflow)
+            self.assertIn("TEST-app.best.best_app.ext.RuntimeAbiTest.xml", workflow)
+
     def test_single_shell_keeps_failure_status_and_always_collects_logs(self):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)

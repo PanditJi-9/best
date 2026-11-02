@@ -136,7 +136,7 @@ jobs:
       - name: Extension runtime JVM compatibility tests
         working-directory: apps/best_app/android
         run: |
-          sh ./gradlew :app:testReleaseUnitTest --no-daemon
+          bash ./gradlew :app:testReleaseUnitTest --no-daemon
           test -f ../build/app/test-results/testReleaseUnitTest/TEST-app.best.best_app.ext.RuntimeAbiTest.xml
 
       - name: Keep runtime test reports
