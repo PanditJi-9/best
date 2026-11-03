@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:best_domain/best_domain.dart';
 import 'package:flutter/services.dart';
