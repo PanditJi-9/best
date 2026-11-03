@@ -8,6 +8,7 @@ the report and fail on runtime ABI errors even if another site answers.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import re
 import sys
@@ -21,6 +22,12 @@ from android_smoke import (
 from anime_smoke import error_on_screen
 
 SOURCES = ("MangaDex", "MangaFire", "Weeb Central", "MangaKatana")
+
+# A targeted run can replace the default four, so a single reported source can
+# be reproduced without dropping the broad regression to save emulator time.
+_override = os.environ.get("MANGA_SMOKE_SOURCES", "").strip()
+if _override:
+    SOURCES = tuple(name.strip() for name in _override.split(",") if name.strip())
 
 
 def manga_card(root):

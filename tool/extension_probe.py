@@ -8,6 +8,7 @@ to the test only; the application must not silently install them on startup.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 import time
@@ -31,7 +32,13 @@ ANIME_PACKAGES = (
     "eu.kanade.tachiyomi.animeextension.en.kotokai",
     "eu.kanade.tachiyomi.animeextension.all.animexin",
 )
-EXPECTED = MANGA_PACKAGES + ANIME_PACKAGES
+# Targeted runs add packages through the workflow input; the default nine stay
+# the regression selection.
+EXPECTED = MANGA_PACKAGES + ANIME_PACKAGES + tuple(
+    package.strip()
+    for package in os.environ.get("EXTRA_PACKAGES", "").split(",")
+    if package.strip()
+)
 
 
 def activate_from_directory(package: str) -> None:
