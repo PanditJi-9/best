@@ -318,6 +318,7 @@ class ExtensionHost {
           title: title.isEmpty ? 'Chapter ${units.length + 1}' : title,
           kind: media.kind.isReading ? UnitKind.chapter : UnitKind.episode,
           publishedAt: ((map['dateUpload'] as num?)?.toInt() ?? 0) * 1000,
+          memo: (map['memo'] as String?) ?? '',
         ),
       );
     }
@@ -327,7 +328,11 @@ class ExtensionHost {
   Future<List<MediaResource>> pages(int sourceId, MediaUnit unit) async {
     final raw = await _channel.invokeMethod<List<dynamic>>(
       'pages',
-      <String, dynamic>{'sourceId': sourceId, 'url': unit.url},
+      <String, dynamic>{
+        'sourceId': sourceId,
+        'url': unit.url,
+        'memo': unit.memo,
+      },
     );
     final list = raw ?? const <dynamic>[];
     final resources = <MediaResource>[];

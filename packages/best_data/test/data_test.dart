@@ -218,6 +218,101 @@ void main() {
     expect(await repository.downloadFor(task.unitId), isNull);
   });
 
+  test('a chapter memo survives storage and a memo-less refresh', () async {
+    await repository.saveMedia(work('a'));
+    await repository.saveUnits([
+      MediaUnit(
+        mediaId: 'test::a',
+        url: 'unit-1',
+        number: 1,
+        title: 'Chapter 1',
+        kind: UnitKind.chapter,
+        memo: '{"mangaPath":"/manga/a"}',
+      ),
+    ]);
+
+    expect((await repository.unitsFor('test::a')).single.memo,
+        '{"mangaPath":"/manga/a"}');
+
+    // A later catalogue refresh that omits the memo must not erase the value
+    // the reader needs when it opens the chapter.
+    await repository.saveUnits([unit('a', 1)]);
+    expect((await repository.unitsFor('test::a')).single.memo,
+        '{"mangaPath":"/manga/a"}');
+  });
+
+  test('the in-memory library keeps a memo when a refresh omits it', () async {
+    final memory = MemoryLibraryRepository();
+    await memory.saveMedia(work('a'));
+    await memory.saveUnits([
+      MediaUnit(
+        mediaId: 'test::a',
+        url: 'unit-1',
+        number: 1,
+        title: 'Chapter 1',
+        kind: UnitKind.chapter,
+        memo: '{"mangaPath":"/manga/a"}',
+      ),
+    ]);
+    await memory.saveUnits([unit('a', 1)]);
+
+    expect((await memory.unitsFor('test::a')).single.memo,
+        '{"mangaPath":"/manga/a"}');
+  });
+
+  test('upgrading a version 4 database adds the unit memo column', () async {
+    final folder = await Directory.systemTemp.createTemp('best-memo-migrate');
+    addTearDown(() async {
+      if (await folder.exists()) await folder.delete(recursive: true);
+    });
+    final path = p.join(folder.path, 'best.db');
+
+    final old = await databaseFactoryFfi.openDatabase(
+      path,
+      options: OpenDatabaseOptions(
+        version: 4,
+        onCreate: (db, version) async {
+          await db.execute('CREATE TABLE media (id TEXT PRIMARY KEY)');
+          await db.execute('''
+            CREATE TABLE unit (
+              id TEXT PRIMARY KEY,
+              media_id TEXT NOT NULL,
+              url TEXT NOT NULL,
+              kind TEXT NOT NULL,
+              number REAL NOT NULL,
+              title TEXT NOT NULL,
+              published_at INTEGER NOT NULL DEFAULT 0,
+              page_count INTEGER NOT NULL DEFAULT 0,
+              UNIQUE (media_id, url)
+            )
+          ''');
+          await db.execute("INSERT INTO media (id) VALUES ('test::a')");
+          await db.execute('''
+            INSERT INTO unit (id, media_id, url, kind, number, title)
+            VALUES ('test::a::unit-1', 'test::a', 'unit-1', 'chapter', 1, 'Chapter 1')
+          ''');
+        },
+      ),
+    );
+    await old.close();
+
+    final upgraded = await AppDatabase.open(
+      factory: databaseFactoryFfi,
+      path: path,
+    );
+    final migrated = SqfliteLibraryRepository(upgraded.db);
+    addTearDown(migrated.close);
+
+    final before = (await migrated.unitsFor('test::a')).single;
+    expect(before.title, 'Chapter 1');
+    expect(before.memo, '');
+
+    await migrated
+        .saveUnits([before.copyWith(memo: '{"mangaPath":"/manga/a"}')]);
+    expect((await migrated.unitsFor('test::a')).single.memo,
+        '{"mangaPath":"/manga/a"}');
+  });
+
   test('upgrading a version 1 database adds the downloads table', () async {
     final folder = await Directory.systemTemp.createTemp('best-migrate-test');
     addTearDown(() async {

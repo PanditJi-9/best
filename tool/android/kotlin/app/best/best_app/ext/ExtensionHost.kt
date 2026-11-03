@@ -18,6 +18,7 @@ import eu.kanade.tachiyomi.animesource.model.SEpisode
 import eu.kanade.tachiyomi.animesource.model.Video
 import eu.kanade.tachiyomi.network.NetworkHelper
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.SourceFactory
@@ -397,7 +398,8 @@ class ExtensionHost(private val context: Context) {
             "pages" -> {
                 val id = call.argument<Number>("sourceId")?.toLong()
                 val url = call.argument<String>("url").orEmpty()
-                respond(result) { pages(id, url) }
+                val memo = call.argument<String>("memo").orEmpty()
+                respond(result) { pages(id, url, memo) }
             }
             "episodes" -> {
                 val id = call.argument<Number>("sourceId")?.toLong()
@@ -636,9 +638,18 @@ class ExtensionHost(private val context: Context) {
             .map { chapterToMap(it, source) }
     }
 
-    private suspend fun pages(id: Long?, url: String): List<Map<String, Any?>> {
+    private suspend fun pages(id: Long?, url: String, memo: String): List<Map<String, Any?>> {
         val source = id?.let { sourceFor(it) } ?: throw IllegalStateException("Unknown source.")
-        val chapter = SChapter.create().apply { this.url = url }
+        // Madara-derived sources (Mangalek among them) keep the manga path in
+        // `chapter.memo` and refuse to build a page list without it
+        // ("Refresh the chapter list."), so the memo the chapter list produced
+        // must travel back with the chapter the reader asks for.
+        val chapter = SChapter.create().apply {
+            this.url = url
+            if (memo.isNotBlank()) {
+                runCatching { this.memo = Json.parseToJsonElement(memo).jsonObject }
+            }
+        }
         val raw = source.getPageList(chapter)
         // Pages may come back as an index or as a direct image url; resolve both
         // so the reader never has to know which style the extension used.
@@ -824,6 +835,7 @@ class ExtensionHost(private val context: Context) {
         "dateUpload" to chapter.date_upload,
         "chapterNumber" to chapter.chapter_number,
         "scanlator" to chapter.scanlator,
+        "memo" to chapter.memo.toString(),
         "sourceId" to source.id,
     )
 }

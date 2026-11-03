@@ -253,13 +253,14 @@ class SqfliteLibraryRepository implements LibraryRepository {
       wrote = true;
       batch.rawInsert(
         '''
-        INSERT INTO unit (id, media_id, url, kind, number, title, published_at, page_count)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO unit (id, media_id, url, kind, number, title, published_at, page_count, memo)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           number = excluded.number,
           title = CASE WHEN excluded.title = '' THEN unit.title ELSE excluded.title END,
           published_at = MAX(unit.published_at, excluded.published_at),
-          page_count = MAX(unit.page_count, excluded.page_count)
+          page_count = MAX(unit.page_count, excluded.page_count),
+          memo = CASE WHEN excluded.memo = '' THEN unit.memo ELSE excluded.memo END
         ''',
         [
           unit.id,
@@ -270,6 +271,7 @@ class SqfliteLibraryRepository implements LibraryRepository {
           unit.title,
           unit.publishedAt,
           unit.pageCount,
+          unit.memo,
         ],
       );
     }
@@ -333,6 +335,7 @@ class SqfliteLibraryRepository implements LibraryRepository {
              u.id AS unit_id, u.url AS unit_url, u.kind AS unit_kind,
              u.number AS unit_number, u.title AS unit_title,
              u.published_at AS unit_published_at, u.page_count AS unit_page_count,
+             u.memo AS unit_memo,
              p.position AS progress_position, p.total AS progress_total,
              p.completed AS progress_completed, p.updated_at AS progress_updated_at
       FROM progress p
@@ -353,6 +356,7 @@ class SqfliteLibraryRepository implements LibraryRepository {
         kind: UnitKind.values.byName(row['unit_kind'] as String),
         publishedAt: (row['unit_published_at'] as int?) ?? 0,
         pageCount: (row['unit_page_count'] as int?) ?? 0,
+        memo: (row['unit_memo'] as String?) ?? '',
       );
       final progress = UnitProgress(
         unitId: unit.id,
@@ -474,6 +478,7 @@ class SqfliteLibraryRepository implements LibraryRepository {
       kind: UnitKind.values.byName(row['kind'] as String),
       publishedAt: (row['published_at'] as int?) ?? 0,
       pageCount: (row['page_count'] as int?) ?? 0,
+      memo: (row['memo'] as String?) ?? '',
     );
   }
 

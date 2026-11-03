@@ -63,6 +63,7 @@ class LibraryBackup {
             'kind': unit.kind.name,
             'publishedAt': unit.publishedAt,
             'pageCount': unit.pageCount,
+            'memo': unit.memo,
           },
       ],
       'progress': [
@@ -180,6 +181,7 @@ class LibraryBackup {
           : UnitKind.chapter,
       publishedAt: _int(row['publishedAt']),
       pageCount: _int(row['pageCount']),
+      memo: _optionalString(row['memo']) ?? '',
     );
   }
 

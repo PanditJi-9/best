@@ -91,6 +91,40 @@ void main() {
     expect(calls, 7);
   });
 
+  test('a chapter memo reaches the page request it belongs to', () async {
+    const memo = '{"mangaPath":"/manga/otherworldly-evil-monarch"}';
+    final calls = <MethodCall>[];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (call.method == 'chapters') {
+        return [
+          {
+            'url': 'chapter-1',
+            'name': 'One',
+            'chapterNumber': 1,
+            'memo': memo,
+          },
+        ];
+      }
+      if (call.method == 'pages') return <dynamic>[];
+      return null;
+    });
+
+    const media = Media(
+      ref: SourceRef('mihon:42', 'manga-x'),
+      title: 'X',
+      kind: MediaKind.manga,
+    );
+    final units = await host.chapters(42, media);
+    expect(units.single.memo, memo);
+
+    await host.pages(42, units.single);
+
+    expect(calls.last.method, 'pages');
+    expect(calls.last.arguments,
+        {'sourceId': 42, 'url': 'chapter-1', 'memo': memo});
+  });
+
   test('only mihon source references expose an extension id', () {
     expect(extensionSourceIdOf('mihon:1234'), 1234);
     expect(extensionSourceIdOf('mangadex'), isNull);

@@ -8,7 +8,7 @@ import 'package:sqflite_common/sqlite_api.dart';
 class AppDatabase {
   AppDatabase._(this.db);
 
-  static const int schemaVersion = 4;
+  static const int schemaVersion = 5;
   static const String fileName = 'best.db';
 
   final Database db;
@@ -37,6 +37,9 @@ class AppDatabase {
           if (oldVersion < 4) {
             await _addShelfColumns(db);
             await _createActivity(db);
+          }
+          if (oldVersion < 5) {
+            await _addUnitMemo(db);
           }
         },
       ),
@@ -79,6 +82,7 @@ class AppDatabase {
         title TEXT NOT NULL,
         published_at INTEGER NOT NULL DEFAULT 0,
         page_count INTEGER NOT NULL DEFAULT 0,
+        memo TEXT NOT NULL DEFAULT '',
         UNIQUE (media_id, url)
       )
     ''');
@@ -100,6 +104,14 @@ class AppDatabase {
     await db.execute('CREATE INDEX unit_media ON unit (media_id, number)');
     await db
         .execute('CREATE INDEX progress_recent ON progress (updated_at DESC)');
+  }
+
+  /// extensions-lib `memo` travels with a chapter so sources that keep their
+  /// manga path there can build a page list from a stored chapter.
+  static Future<void> _addUnitMemo(Database db) async {
+    await db.execute(
+      "ALTER TABLE unit ADD COLUMN memo TEXT NOT NULL DEFAULT ''",
+    );
   }
 
   static Future<void> _createDownloads(Database db) async {

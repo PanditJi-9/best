@@ -16,6 +16,7 @@ class MediaUnit {
     required this.kind,
     this.publishedAt = 0,
     this.pageCount = 0,
+    this.memo = '',
   });
 
   final String mediaId;
@@ -32,6 +33,13 @@ class MediaUnit {
   /// Pages for a chapter, `0` when unknown. Unused for episodes.
   final int pageCount;
 
+  /// Opaque JSON the source attached to this unit (extensions-lib `memo`).
+  ///
+  /// Madara-derived extensions keep the manga path here and refuse to build a
+  /// page list without it, so the reader has to send it back when it asks for
+  /// pages. Stored as the source wrote it; Best never interprets the contents.
+  final String memo;
+
   String get id => unitIdOf(mediaId, url);
 
   String get displayTitle => title.trim().isNotEmpty ? title : _fallbackTitle;
@@ -43,7 +51,13 @@ class MediaUnit {
     return kind == UnitKind.chapter ? 'Chapter $rounded' : 'Episode $rounded';
   }
 
-  MediaUnit copyWith({double? number, String? title, int? pageCount, int? publishedAt}) {
+  MediaUnit copyWith({
+    double? number,
+    String? title,
+    int? pageCount,
+    int? publishedAt,
+    String? memo,
+  }) {
     return MediaUnit(
       mediaId: mediaId,
       url: url,
@@ -52,6 +66,7 @@ class MediaUnit {
       kind: kind,
       publishedAt: publishedAt ?? this.publishedAt,
       pageCount: pageCount ?? this.pageCount,
+      memo: memo ?? this.memo,
     );
   }
 

@@ -24,6 +24,19 @@ void main() {
       );
       expect(first.id, 'demo::one::ch-1');
     });
+
+    test('a chapter keeps the memo its source attached', () {
+      const unit = MediaUnit(
+        mediaId: 'demo::one',
+        url: 'ch-1',
+        number: 1,
+        title: 'Chapter 1',
+        kind: UnitKind.chapter,
+        memo: '{"mangaPath":"/manga/one"}',
+      );
+      expect(unit.memo, '{"mangaPath":"/manga/one"}');
+      expect(unit.copyWith(pageCount: 20).memo, '{"mangaPath":"/manga/one"}');
+    });
   });
 
   group('progress merge', () {

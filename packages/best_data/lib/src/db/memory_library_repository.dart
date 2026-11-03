@@ -156,7 +156,8 @@ class MemoryLibraryRepository implements LibraryRepository {
   Future<List<DailyActivity>> activity({int days = 400}) async {
     final rows = _activity.values.toList()
       ..sort((a, b) => a.day.compareTo(b.day));
-    return List.unmodifiable(rows.skip(rows.length > days ? rows.length - days : 0));
+    return List.unmodifiable(
+        rows.skip(rows.length > days ? rows.length - days : 0));
   }
 
   @override
@@ -209,6 +210,7 @@ class MemoryLibraryRepository implements LibraryRepository {
               pageCount: unit.pageCount > existing.pageCount
                   ? unit.pageCount
                   : existing.pageCount,
+              memo: unit.memo.isEmpty ? existing.memo : unit.memo,
             );
     }
     if (wrote) _notify();
