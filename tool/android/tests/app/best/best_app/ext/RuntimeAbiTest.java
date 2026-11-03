@@ -158,6 +158,22 @@ public class RuntimeAbiTest {
             .noneMatch(i -> i.getClass().getSimpleName().equals("BrotliInterceptor")));
     }
 
+    @Test public void extensionSettingsKeepThePreferenceTypesSourcesBuild() throws Exception {
+        // Mangalek and most Madara bundles add a ListPreference for
+        // preferred_mirror. A missing preference runtime would silently remove
+        // the only way to move a blocked source to a working domain.
+        Class<?> list = Class.forName("androidx.preference.ListPreference");
+        assertNotNull(list.getMethod("setEntryValues", CharSequence[].class));
+        assertTrue(androidx.preference.TwoStatePreference.class.isAssignableFrom(
+            Class.forName("androidx.preference.SwitchPreferenceCompat")));
+        assertTrue(androidx.preference.Preference.class.isAssignableFrom(
+            Class.forName("androidx.preference.PreferenceGroup")));
+        Class<?> host = Class.forName("app.best.best_app.ext.SourcePreferences");
+        assertNotNull(host.getMethod("describe", android.content.Context.class, long.class, Object.class));
+        assertNotNull(host.getMethod("apply", android.content.Context.class, long.class,
+            Object.class, String.class, String.class));
+    }
+
     @Test public void httpExceptionKeepsTheMihonConstructorAndParent() throws Exception {
         Class<?> type = Class.forName("eu.kanade.tachiyomi.network.HttpException");
         assertTrue(IllegalStateException.class.isAssignableFrom(type));

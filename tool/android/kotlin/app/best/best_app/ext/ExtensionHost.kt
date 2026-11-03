@@ -284,33 +284,56 @@ class ExtensionHost(private val context: Context) {
         for (file in apkFiles().sortedByDescending { archiveInfo(it)?.let(::versionCode) ?: 0 }) {
             val identity = describe(file) ?: continue
             val pkgName = identity["packageName"] as? String ?: continue
-            val already = sourceOwner.values.contains(pkgName)
-            if (already) continue
-            try {
-                val loaded = loadSources(file)
-                loaded.forEach { source ->
-                    when (source) {
-                        is AnimeSource -> animeSources[source.id] = source
-                        is Source -> sources[source.id] = source
-                    }
-                    val id = when (source) {
-                        is AnimeSource -> source.id
-                        is Source -> source.id
-                        else -> 0L
-                    }
-                    sourceOwner[id] = pkgName
-                    Log.i(TAG, "loaded ${nameOf(source)} ($id) from $pkgName")
-                }
-                if (loaded.isEmpty()) {
-                    Log.w(TAG, "no source could be created by $pkgName")
-                    problems += identity + ("error" to "No source could be created.")
-                }
-            } catch (t: Throwable) {
-                Log.w(TAG, "extension $pkgName failed to load", t)
-                problems += identity + ("error" to (t.message ?: t::class.java.simpleName))
-            }
+            if (sourceOwner.values.contains(pkgName)) continue
+            val error = register(file, pkgName)
+            if (error != null) problems += identity + ("error" to error)
         }
         return problems
+    }
+
+    /** Loads one APK's sources; returns a human-readable error when it cannot. */
+    private fun register(file: File, pkgName: String): String? = try {
+        val loaded = loadSources(file)
+        loaded.forEach { source ->
+            when (source) {
+                is AnimeSource -> animeSources[source.id] = source
+                is Source -> sources[source.id] = source
+            }
+            val id = when (source) {
+                is AnimeSource -> source.id
+                is Source -> source.id
+                else -> 0L
+            }
+            sourceOwner[id] = pkgName
+            Log.i(TAG, "loaded ${nameOf(source)} ($id) from $pkgName")
+        }
+        if (loaded.isEmpty()) {
+            Log.w(TAG, "no source could be created by $pkgName")
+            "No source could be created."
+        } else {
+            null
+        }
+    } catch (t: Throwable) {
+        Log.w(TAG, "extension $pkgName failed to load", t)
+        t.message ?: t::class.java.simpleName
+    }
+
+    /**
+     * Re-creates a package's sources after a setting changed. A source may read
+     * its domain, credentials or headers once in a constructor, so writing the
+     * preference is not enough on its own.
+     */
+    private fun reloadPackage(pkgName: String?) {
+        if (pkgName == null) return
+        sourceOwner.filterValues { it == pkgName }.keys.toList().forEach { id ->
+            sources.remove(id)
+            animeSources.remove(id)
+            sourceOwner.remove(id)
+        }
+        val file = apkFiles().firstOrNull {
+            describe(it)?.get("packageName") == pkgName
+        } ?: return
+        register(file, pkgName)
     }
 
     private fun nameOf(source: Any): String = when (source) {
@@ -395,6 +418,20 @@ class ExtensionHost(private val context: Context) {
                 val url = call.argument<String>("url").orEmpty()
                 val headers = call.argument<Map<String, String>>("headers") ?: emptyMap()
                 respond(result) { imageBytes(id, url, headers) }
+            }
+            "settings" -> {
+                val id = call.argument<Number>("sourceId")?.toLong()
+                respond(result) { settingsFor(id) }
+            }
+            "setSetting" -> {
+                val id = call.argument<Number>("sourceId")?.toLong()
+                val key = call.argument<String>("key")
+                val value = call.argument<String>("value")
+                if (id == null || key.isNullOrBlank() || value == null) {
+                    result.error("bad-argument", "A source id, setting key and value are required.", null)
+                    return
+                }
+                respond(result) { setSetting(id, key, value) }
             }
             else -> result.notImplemented()
         }
@@ -690,6 +727,22 @@ class ExtensionHost(private val context: Context) {
         return collected
             .filter { it.videoUrl.isNotBlank() }
             .map { videoToMap(it, source) }
+    }
+
+    /** The settings screen an extension declares, as JSON, or `[]` when none. */
+    private fun settingsFor(id: Long?): String {
+        if (id == null) return "[]"
+        val source = sources[id] ?: animeSources[id] ?: return "[]"
+        return SourcePreferences.describe(app, id, source).toString()
+    }
+
+    private fun setSetting(id: Long, key: String, value: String): Boolean {
+        val source = sources[id] ?: animeSources[id] ?: return false
+        if (!SourcePreferences.apply(app, id, source, key, value)) return false
+        // Re-create the package's sources so a value read in a constructor (a
+        // domain, a token) takes effect without a restart.
+        reloadPackage(sourceOwner[id])
+        return true
     }
 
     private fun headersFor(id: Long?): Map<String, Any?> {

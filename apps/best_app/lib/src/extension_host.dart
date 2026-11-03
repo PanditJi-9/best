@@ -365,13 +365,58 @@ class ExtensionHost {
     Map<String, String> headers = const {},
   }) async {
     try {
-      return await _channel.invokeMethod<Uint8List>('imageBytes', <String, dynamic>{
+      return await _channel
+          .invokeMethod<Uint8List>('imageBytes', <String, dynamic>{
         'sourceId': sourceId,
         'url': url,
         'headers': headers,
       });
     } on MissingPluginException {
       return null;
+    }
+  }
+
+  /// The settings this extension declares, or an empty list when it has none.
+  ///
+  /// The host builds the same `androidx.preference` screen the extension would
+  /// show under Mihon, so the values are the ones the source itself reads.
+  Future<List<SourceSetting>> settings(int sourceId) async {
+    try {
+      final raw = await _channel.invokeMethod<String>(
+        'settings',
+        <String, dynamic>{'sourceId': sourceId},
+      );
+      if (raw == null || raw.isEmpty) return const <SourceSetting>[];
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const <SourceSetting>[];
+      return decoded
+          .whereType<Map<dynamic, dynamic>>()
+          .map((map) => SourceSetting.fromMap(
+                map.map((key, value) => MapEntry('$key', value)),
+              ))
+          .where((setting) => setting.key.isNotEmpty)
+          .toList(growable: false);
+    } on MissingPluginException {
+      return const <SourceSetting>[];
+    } on PlatformException {
+      return const <SourceSetting>[];
+    }
+  }
+
+  /// Writes one setting and re-creates the extension's sources. Returns whether
+  /// the extension accepted the key.
+  Future<bool> setSetting(int sourceId, String key, String value) async {
+    try {
+      return await _channel.invokeMethod<bool>('setSetting', <String, dynamic>{
+            'sourceId': sourceId,
+            'key': key,
+            'value': value,
+          }) ??
+          false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
     }
   }
 
@@ -461,6 +506,89 @@ class ExtensionHost {
       6 => MediaStatus.hiatus,
       _ => MediaStatus.unknown,
     };
+  }
+}
+
+/// Whether an installed extension source belongs in the shelf for [language].
+///
+/// A bundle such as MangaDex exposes forty language variants of one site, and
+/// listing them all would bury the picker. A bundle with a single source has no
+/// such ambiguity, so a source the reader explicitly activated stays visible
+/// even when the interface language differs — otherwise activating "مانجا ليك"
+/// with an English interface would look like nothing happened.
+bool extensionSourceVisible({
+  required String sourceLanguage,
+  required String interfaceLanguage,
+  required int packageSourceCount,
+}) {
+  if (sourceLanguage.isEmpty || sourceLanguage == 'all') return true;
+  if (sourceLanguage == interfaceLanguage) return true;
+  return packageSourceCount <= 1;
+}
+
+/// One control an extension declares in its own settings screen.
+///
+/// Community extensions keep their mirror, image quality, login and content
+/// filters here; without this the app could only ever use the first domain the
+/// extension was built with.
+class SourceSetting {
+  const SourceSetting({
+    required this.key,
+    required this.type,
+    required this.title,
+    this.summary = '',
+    this.value = '',
+    this.entries = const [],
+    this.entryValues = const [],
+    this.values = const [],
+  });
+
+  final String key;
+  final String type;
+  final String title;
+  final String summary;
+
+  /// A list's selected value, a text value, or `true`/`false` for a switch.
+  final String value;
+  final List<String> entries;
+  final List<String> entryValues;
+  final List<String> values;
+
+  bool get isList =>
+      type == 'list' &&
+      entries.isNotEmpty &&
+      entries.length == entryValues.length;
+  bool get isSwitch => type == 'switch';
+  bool get isText => type == 'text';
+  bool get isMulti => type == 'multi';
+
+  /// The label the extension would show for the current value.
+  String get selectedLabel {
+    if (isList) {
+      final index = entryValues.indexOf(value);
+      if (index >= 0 && index < entries.length) return entries[index];
+    }
+    if (isMulti) return values.join(', ');
+    return value;
+  }
+
+  factory SourceSetting.fromMap(Map<String, dynamic> map) {
+    List<String> strings(Object? raw) => raw is List
+        ? raw.map((value) => '$value').toList(growable: false)
+        : const [];
+    final rawValue = map['value'];
+    return SourceSetting(
+      key: (map['key'] as String?) ?? '',
+      type: (map['type'] as String?) ?? '',
+      title: (map['title'] as String?) ?? '',
+      summary: (map['summary'] as String?) ?? '',
+      value: rawValue is bool
+          ? (rawValue ? 'true' : 'false')
+          : (rawValue?.toString() ?? ''),
+      entries: strings(map['entries']),
+      entryValues: strings(map['entryValues']),
+      values: strings(map['values']),
+    );
   }
 }
 

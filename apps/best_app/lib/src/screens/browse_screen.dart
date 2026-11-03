@@ -7,10 +7,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../actions.dart';
+import '../extension_host.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../labels.dart';
 import '../navigation.dart';
 import '../providers.dart';
+import 'source_settings_sheet.dart';
 
 class BrowseScreen extends ConsumerStatefulWidget {
   const BrowseScreen({super.key});
@@ -109,6 +111,18 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
       }
     }
 
+    final extension = source is ExtensionSourceAdapter ? source : null;
+
+    Future<void> openSettings() async {
+      if (extension == null) return;
+      final changed = await showSourceSettings(
+        context,
+        host: extension.host,
+        info: extension.info,
+      );
+      if (changed) await reload();
+    }
+
     return SafeArea(
       bottom: false,
       child: Column(
@@ -120,10 +134,24 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
               index: "03",
               title: l10n.browseTitle,
               subtitle: l10n.browseSubtitle(sources.length),
-              trailing: IconButton(
-                  tooltip: l10n.directoryTitle,
-                  onPressed: () => context.push(Routes.sources),
-                  icon: const Icon(Icons.extension_outlined)),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (extension != null)
+                    Semantics(
+                      label: l10n.sourceSettings,
+                      button: true,
+                      child: IconButton(
+                          tooltip: l10n.sourceSettings,
+                          onPressed: openSettings,
+                          icon: const Icon(Icons.tune_rounded)),
+                    ),
+                  IconButton(
+                      tooltip: l10n.directoryTitle,
+                      onPressed: () => context.push(Routes.sources),
+                      icon: const Icon(Icons.extension_outlined)),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -189,11 +217,26 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
               error: (error, stack) => EmptyState(
                 icon: Icons.cloud_off_outlined,
                 title: l10n.sourceError,
-                body: '$error',
-                action: FilledButton.icon(
-                  onPressed: reload,
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: Text(l10n.retry),
+                body: extension == null
+                    ? '$error'
+                    : '${l10n.sourceSettingsHint}\n\n$error',
+                action: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: reload,
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: Text(l10n.retry),
+                    ),
+                    if (extension != null) ...[
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: openSettings,
+                        icon: const Icon(Icons.tune_rounded, size: 18),
+                        label: Text(l10n.sourceSettings),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               data: (works) {

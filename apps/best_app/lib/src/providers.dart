@@ -287,6 +287,11 @@ final Provider<SourceRegistry> sourceRegistryProvider =
   final extensionHost = ref.watch(extensionHostProvider);
   final extensions = ref.watch(extensionCatalogProvider).value ??
       const ExtensionCatalog.empty();
+  final packageCounts = <String, int>{};
+  for (final info in extensions.sources) {
+    packageCounts[info.packageName] =
+        (packageCounts[info.packageName] ?? 0) + 1;
+  }
 
   return SourceRegistry.fixed(<SourceAdapter>[
     // A configured server leads: its sources are the ones the reader chose to
@@ -300,16 +305,17 @@ final Provider<SourceRegistry> sourceRegistryProvider =
     // same adapter across launches.
     // An extension like MangaDex exposes one source per language. Showing all of
     // them would bury the catalogue under forty identical rows, so the shelf
-    // keeps the reader's language plus the language-neutral bundles.
+    // keeps the reader's language, the language-neutral bundles, and any
+    // single-source bundle the reader activated on purpose.
     //
     // Anime bundles remain visible whatever the interface language is.
-    for (final info in extensions.sources.where(
-      (info) =>
-          info.isAnime ||
-          info.language.isEmpty ||
-          info.language == 'all' ||
-          info.language == language,
-    ))
+    for (final info in extensions.sources.where((info) =>
+        info.isAnime ||
+        extensionSourceVisible(
+          sourceLanguage: info.language,
+          interfaceLanguage: language,
+          packageSourceCount: packageCounts[info.packageName] ?? 1,
+        )))
       ExtensionSourceAdapter(host: extensionHost, info: info),
     const DemoSource(),
   ],
