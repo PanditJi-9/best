@@ -183,7 +183,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            build/app/outputs/flutter-apk/app-release.apk \
-            --title "Best ${GITHUB_REF_NAME}" \
-            --generate-notes
+          # An Arabic note file per version, when the release ships one, so the
+          # published page explains the change in the reader's language.
+          notes="../../docs/releases/${GITHUB_REF_NAME#v}.md"
+          if [ -f "$notes" ]; then
+            gh release create "${GITHUB_REF_NAME}" \
+              build/app/outputs/flutter-apk/app-release.apk \
+              --title "Best ${GITHUB_REF_NAME}" \
+              --notes-file "$notes"
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              build/app/outputs/flutter-apk/app-release.apk \
+              --title "Best ${GITHUB_REF_NAME}" \
+              --generate-notes
+          fi
