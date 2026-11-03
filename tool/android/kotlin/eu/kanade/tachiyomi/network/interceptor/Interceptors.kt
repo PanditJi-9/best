@@ -33,16 +33,42 @@ class UserAgentInterceptor : Interceptor {
 class CloudflareInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val response = chain.proceed(chain.request())
-        val challenge = response.header("cf-mitigated") == "challenge" ||
-            (response.code in listOf(403, 503) &&
-                response.header("server")?.contains("cloudflare", ignoreCase = true) == true &&
-                response.peekBody(8192).string().let {
-                    it.contains("cf-chl-") || it.contains("/cdn-cgi/challenge-platform/")
-                })
-        if (challenge) {
-            response.close()
-            throw IOException("This site requires Cloudflare browser verification, which is not available in Best yet.")
+        if (!isBrowserChallenge(response)) return response
+        // Closing a response whose body is already unusable must not replace the
+        // challenge with a crash of its own.
+        runCatching { response.close() }
+        throw IOException(CHALLENGE)
+    }
+
+    private fun isBrowserChallenge(response: Response): Boolean {
+        // Modern Cloudflare sets this on every managed challenge, including a
+        // 200 response, so it is checked before the body is touched at all.
+        if (response.header("cf-mitigated")?.equals("challenge", ignoreCase = true) == true) {
+            return true
         }
-        return response
+        if (response.code !in REFUSALS) return false
+        if (response.header("server")?.contains("cloudflare", ignoreCase = true) != true) {
+            return false
+        }
+        return try {
+            val body = response.peekBody(SNIFF_BYTES).string()
+            body.contains("cf-chl-") ||
+                body.contains("/cdn-cgi/challenge-platform/") ||
+                body.contains("Just a moment")
+        } catch (_: Exception) {
+            // Run 41627263558: a retried call handed this interceptor a response
+            // whose body was already closed, so sniffing it threw
+            // IllegalStateException("closed") and a Cloudflare refusal became a
+            // broken source. The refusal code plus the Cloudflare server header
+            // already identify the answer, so report it as a challenge.
+            true
+        }
+    }
+
+    private companion object {
+        const val CHALLENGE =
+            "This site requires Cloudflare browser verification, which is not available in Best yet."
+        const val SNIFF_BYTES = 8192L
+        val REFUSALS = listOf(403, 503)
     }
 }

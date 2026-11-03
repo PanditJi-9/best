@@ -32,6 +32,8 @@
   "sourceSettingsFailed": "The extension did not accept this setting.",
   "nothingHere": "Nothing here yet",
   "nothingHereBody": "This source returned no works for this page.",
+  "noPagesTitle": "No pages in this chapter",
+  "noPagesBody": "The source returned no page images. Try another chapter, or switch the server in the source settings.",
   "addToLibrary": "Add to library",
   "inLibrary": "In library",
   "removeFromLibrary": "Remove from library",

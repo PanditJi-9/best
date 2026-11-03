@@ -207,8 +207,10 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                   icon: Icons.play_circle_outline,
                   title: unit.kind == UnitKind.episode
                       ? l10n.videoInPlayer
-                      : l10n.nothingHere,
-                  body: l10n.nothingHereBody,
+                      : l10n.noPagesTitle,
+                  body: unit.kind == UnitKind.episode
+                      ? l10n.nothingHereBody
+                      : l10n.noPagesBody,
                 ),
               ),
             )

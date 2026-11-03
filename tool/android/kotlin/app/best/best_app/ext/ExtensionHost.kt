@@ -651,6 +651,14 @@ class ExtensionHost(private val context: Context) {
             }
         }
         val raw = source.getPageList(chapter)
+        // A source that returns an empty list looks like "this chapter has no
+        // pages" in the reader, and there is no other way to tell a parse that
+        // found nothing from a request that hit the wrong URL.
+        Log.i(
+            TAG,
+            "pages: ${source.name} $url memo=${memo.length}B -> ${raw.size}" +
+                (raw.firstOrNull()?.let { " first=[${it.url}|${it.imageUrl}]" } ?: ""),
+        )
         // Pages may come back as an index or as a direct image url; resolve both
         // so the reader never has to know which style the extension used.
         return raw.mapIndexed { position, page ->

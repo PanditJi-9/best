@@ -24,7 +24,9 @@ import okhttp3.Response;
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
 import okhttp3.Protocol;
+import okhttp3.MediaType;
 import okhttp3.ResponseBody;
+import okio.BufferedSource;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -84,6 +86,32 @@ public class RuntimeAbiTest {
             fail("Offline must remain an error.");
         } catch (IOException error) {
             assertSame(original, error);
+        }
+    }
+
+    @Test public void aChallengeWhoseBodyIsAlreadyClosedIsStillReportedAsAChallenge() throws Exception {
+        // Run 41627263558: AnimePahe's popular request reached this interceptor
+        // with a body that was already closed, peekBody threw
+        // IllegalStateException("closed"), and the source looked broken instead
+        // of reporting that the site wants browser verification.
+        OkHttpClient client = extensionClient().newBuilder().addInterceptor(chain -> {
+            // Exactly what peekBody hit: a body whose source refuses to open.
+            ResponseBody body = new ResponseBody() {
+                @Override public MediaType contentType() { return MediaType.parse("text/html"); }
+                @Override public long contentLength() { return 0L; }
+                @Override public BufferedSource source() {
+                    throw new IllegalStateException("closed");
+                }
+            };
+            return new Response.Builder().request(chain.request())
+                .protocol(Protocol.HTTP_1_1).code(403).message("Forbidden")
+                .header("server", "cloudflare").body(body).build();
+        }).build();
+        try {
+            client.newCall(new Request.Builder().url("https://fixture.test/").build()).execute();
+            fail("A Cloudflare refusal must not become a successful response.");
+        } catch (IOException error) {
+            assertTrue(error.getMessage().contains("browser verification"));
         }
     }
 
