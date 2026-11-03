@@ -104,4 +104,8 @@ jobs:
             anime-*.png
             anime-*.xml
             anime-results.json
+            manga-*.png
+            manga-*.xml
+            manga-results.json
+            manga-runtime-errors.json
           if-no-files-found: warn

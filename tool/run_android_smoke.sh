@@ -18,6 +18,7 @@ test -n "$(adb shell pidof app.best.best_app)"
 
 smoke=0
 python3 -u tool/extension_probe.py || smoke=$?
+python3 -u tool/manga_smoke.py || smoke=$?
 python3 -u tool/anime_smoke.py || smoke=$?
 python3 -u tool/android_smoke.py || smoke=$?
 exit "$smoke"

@@ -194,6 +194,9 @@ abstract class HttpSource : CatalogueSource {
         return GET(url, headers)
     }
 
+    /** Keeps the protected extension hook while letting Best honor custom image URLs/headers. */
+    fun pageImageRequest(page: Page): Request = imageRequest(page)
+
     open suspend fun getImageUrl(page: Page): String = fetchImageUrl(page).awaitOne()
 
     protected open suspend fun getImage(page: Page): Response = fetchImage(page).awaitOne()

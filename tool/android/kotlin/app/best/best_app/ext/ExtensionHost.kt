@@ -25,6 +25,7 @@ import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.SMangaUpdate
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -32,6 +33,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.addSingleton
@@ -557,21 +560,32 @@ class ExtensionHost(private val context: Context) {
         return pageToMap(source.getSearchManga(page, query, FilterList()), source)
     }
 
+    // KeiSource rejects concurrent metadata/chapter updates. Flutter asks for
+    // both in parallel, so serialize just those calls per installed source.
+    private val mangaUpdateLocks = ConcurrentHashMap<Long, Mutex>()
+
+    private suspend fun mangaUpdate(
+        source: Source, url: String, details: Boolean, chapters: Boolean,
+    ): SMangaUpdate =
+        mangaUpdateLocks.computeIfAbsent(source.id) { Mutex() }.withLock {
+            source.getMangaUpdate(SManga.create().apply { this.url = url },
+                emptyList(), details, chapters)
+        }
+
     private suspend fun details(id: Long?, url: String): Map<String, Any?> {
         animeFor(id ?: 0L)?.let { source ->
             val anime = SAnime.create().apply { this.url = url }
             return animeToMap(source.getAnimeDetails(anime), source)
         }
         val source = id?.let { sourceFor(it) } ?: throw IllegalStateException("Unknown source.")
-        val manga = SManga.create().apply { this.url = url }
-        return mangaToMap(source.getMangaDetails(manga), source)
+        return mangaToMap(mangaUpdate(source, url, details = true, chapters = false).manga, source)
     }
 
     private suspend fun chapters(id: Long?, url: String): List<Map<String, Any?>> {
         animeFor(id ?: 0L)?.let { return episodes(id, url) }
         val source = id?.let { sourceFor(it) } ?: throw IllegalStateException("Unknown source.")
-        val manga = SManga.create().apply { this.url = url }
-        return source.getChapterList(manga).map { chapterToMap(it, source) }
+        return mangaUpdate(source, url, details = false, chapters = true).chapters
+            .map { chapterToMap(it, source) }
     }
 
     private suspend fun pages(id: Long?, url: String): List<Map<String, Any?>> {
@@ -587,10 +601,14 @@ class ExtensionHost(private val context: Context) {
             } else {
                 page.imageUrl
             }
+            // Modern MangaDex returns metadata + a relative image suffix. Its
+            // own imageRequest resolves that into the actual CDN request.
+            if (!resolved.isNullOrBlank()) page.imageUrl = resolved
+            val imageRequest = http?.pageImageRequest(page)
             mapOf<String, Any?>(
                 "index" to (page.index.takeIf { it > 0 } ?: position),
-                "url" to (resolved ?: page.url),
-                "headers" to headersFor(id)["headers"],
+                "url" to (imageRequest?.url?.toString() ?: resolved ?: page.url),
+                "headers" to (imageRequest?.headers?.toMultimap() ?: headersFor(id)["headers"]),
             )
         }
     }

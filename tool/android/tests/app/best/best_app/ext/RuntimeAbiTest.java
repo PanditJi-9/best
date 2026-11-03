@@ -13,11 +13,18 @@ import eu.kanade.tachiyomi.source.model.MangasPage;
 import eu.kanade.tachiyomi.source.model.Page;
 import eu.kanade.tachiyomi.source.model.SChapter;
 import eu.kanade.tachiyomi.source.model.SManga;
+import eu.kanade.tachiyomi.source.model.SMangaUpdate;
+import kotlin.coroutines.Continuation;
 import kotlin.jvm.internal.DefaultConstructorMarker;
 import okhttp3.CacheControl;
 import okhttp3.Headers;
 import okhttp3.Request;
 import okhttp3.Response;
+import okhttp3.Interceptor;
+import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
+import okhttp3.ResponseBody;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -27,6 +34,115 @@ import static org.junit.Assert.*;
 /** Pin the JVM contract that real extension dex uses, not merely Kotlin syntax. */
 public class RuntimeAbiTest {
     private static final String PACKAGE = "eu.kanade.tachiyomi.extension.all.test";
+
+    private static OkHttpClient extensionClient() throws Exception {
+        return (OkHttpClient) Class.forName("eu.kanade.tachiyomi.network.NetworkKt")
+            .getMethod("createExtensionHttpClient").invoke(null);
+    }
+
+    private static Response response(Interceptor.Chain chain, int code) {
+        return new Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+            .code(code).message("fixture").body(ResponseBody.create("fixture", null)).build();
+    }
+
+    @Test public void defaultClientMeetsTheCurrentKeiyoushiInterceptorContract() throws Exception {
+        List<Interceptor> interceptors = extensionClient().interceptors();
+        assertEquals("UncaughtExceptionInterceptor", interceptors.get(0).getClass().getSimpleName());
+        for (String required : new String[] {"UserAgentInterceptor", "CloudflareInterceptor"}) {
+            assertTrue(required, interceptors.stream().anyMatch(i -> i.getClass().getSimpleName().equals(required)));
+        }
+    }
+
+    @Test public void userAgentIsSuppliedWithoutOverwritingSourceHeaders() throws Exception {
+        OkHttpClient client = extensionClient().newBuilder().addInterceptor(chain -> response(chain, 200)).build();
+        Request request = new Request.Builder().url("https://fixture.test/").build();
+        try (Response result = client.newCall(request).execute()) {
+            assertTrue(result.request().header("User-Agent").contains("Mozilla"));
+        }
+        try (Response result = client.newCall(request.newBuilder().header("User-Agent", "source-specific").build()).execute()) {
+            assertEquals("source-specific", result.request().header("User-Agent"));
+        }
+    }
+
+    @Test public void uncaughtInterceptorExceptionsBecomeNonFatalIoErrors() throws Exception {
+        IllegalStateException original = new IllegalStateException("source parser failed");
+        OkHttpClient client = extensionClient().newBuilder().addInterceptor(chain -> { throw original; }).build();
+        try {
+            client.newCall(new Request.Builder().url("https://fixture.test/").build()).execute();
+            fail("A source error must not escape OkHttp as a fatal runtime exception.");
+        } catch (IOException error) {
+            assertSame(original, error.getCause());
+        }
+    }
+
+    @Test public void networkIoExceptionsKeepTheirIdentity() throws Exception {
+        IOException original = new IOException("offline");
+        OkHttpClient client = extensionClient().newBuilder().addInterceptor(chain -> { throw original; }).build();
+        try {
+            client.newCall(new Request.Builder().url("https://fixture.test/").build()).execute();
+            fail("Offline must remain an error.");
+        } catch (IOException error) {
+            assertSame(original, error);
+        }
+    }
+
+    @Test public void browserChallengesAreReportedNotFakedAsSuccessfulResponses() throws Exception {
+        OkHttpClient client = extensionClient().newBuilder().addInterceptor(chain ->
+            response(chain, 403).newBuilder().header("cf-mitigated", "challenge").build()).build();
+        try {
+            client.newCall(new Request.Builder().url("https://fixture.test/").build()).execute();
+            fail("Best does not claim to solve browser verification.");
+        } catch (IOException error) {
+            assertTrue(error.getMessage().contains("browser verification"));
+        }
+        OkHttpClient ordinary = extensionClient().newBuilder().addInterceptor(chain -> response(chain, 403)).build();
+        try (Response result = ordinary.newCall(new Request.Builder().url("https://fixture.test/").build()).execute()) {
+            assertEquals(403, result.code());
+        }
+    }
+
+    @Test public void modernMangaUpdateModelAndSuspendContractAreAvailable() throws Exception {
+        Class<?> update = Class.forName("eu.kanade.tachiyomi.source.model.SMangaUpdate");
+        SManga manga = SManga.Companion.create();
+        List<SChapter> chapters = Collections.singletonList(SChapter.Companion.create());
+        Object value = update.getConstructor(SManga.class, List.class).newInstance(manga, chapters);
+        assertSame(manga, update.getMethod("getManga").invoke(value));
+        assertEquals(chapters, update.getMethod("getChapters").invoke(value));
+        assertEquals(Object.class, Class.forName("eu.kanade.tachiyomi.source.Source")
+            .getMethod("getMangaUpdate", SManga.class, List.class, boolean.class, boolean.class,
+                kotlin.coroutines.Continuation.class).getReturnType());
+    }
+
+    @Test public void imageRequestsHonorTheExtensionsOwnUrlAndHeaders() {
+        MangaUrlFixture source = new MangaUrlFixture();
+        Page page = new Page(0, "https://page.test/metadata", "/relative-image.jpg", null);
+        Request request = source.pageImageRequest(page);
+        assertEquals("https://cdn.test/resolved-image.jpg", request.url().toString());
+        assertEquals("source-header", request.header("Referer"));
+    }
+
+    @Test public void legacyMangaUpdatesForwardOnlyTheRequestedFetches() {
+        LegacyMangaFixture source = new LegacyMangaFixture();
+        SManga manga = SManga.Companion.create();
+        List<SChapter> existing = Collections.singletonList(SChapter.Companion.create());
+        SMangaUpdate result = (SMangaUpdate) source.getMangaUpdate(manga, existing, false, false, null);
+        assertSame(manga, result.getManga());
+        assertSame(existing, result.getChapters());
+        assertEquals(0, source.detailsCalls);
+        assertEquals(0, source.chapterCalls);
+
+        result = (SMangaUpdate) source.getMangaUpdate(manga, existing, true, false, null);
+        assertSame(source.details, result.getManga());
+        assertSame(existing, result.getChapters());
+        assertEquals(1, source.detailsCalls);
+        assertEquals(0, source.chapterCalls);
+
+        result = (SMangaUpdate) source.getMangaUpdate(manga, existing, false, true, null);
+        assertSame(manga, result.getManga());
+        assertSame(source.chapters, result.getChapters());
+        assertEquals(1, source.detailsCalls);
+        assertEquals(1, source.chapterCalls);
+    }
 
     @Test public void jsonOkioExportsTheClassAnimeKaiLinksAgainst() throws Exception {
         Class<?> streams = Class.forName("kotlinx.serialization.json.okio.OkioStreamsKt");
@@ -195,11 +311,15 @@ public class RuntimeAbiTest {
     }
 
     /** No network or Android service is involved in these URL-contract tests. */
-    private static final class MangaUrlFixture extends HttpSource {
+    private static class MangaUrlFixture extends HttpSource {
         @Override public String getBaseUrl() { return "https://manga.test"; }
         @Override public String getName() { return "URL fixture"; }
         @Override public String getLang() { return "en"; }
         @Override public boolean getSupportsLatest() { return true; }
+        @Override protected Request imageRequest(Page page) {
+            return new Request.Builder().url("https://cdn.test/resolved-image.jpg")
+                .header("Referer", "source-header").build();
+        }
         @Override protected Request popularMangaRequest(int page) { throw new UnsupportedOperationException(); }
         @Override protected MangasPage popularMangaParse(Response response) { throw new UnsupportedOperationException(); }
         @Override protected Request searchMangaRequest(int page, String query, FilterList filters) { throw new UnsupportedOperationException(); }
@@ -210,5 +330,22 @@ public class RuntimeAbiTest {
         @Override protected List<SChapter> chapterListParse(Response response) { throw new UnsupportedOperationException(); }
         @Override protected List<Page> pageListParse(Response response) { throw new UnsupportedOperationException(); }
         @Override protected String imageUrlParse(Response response) { throw new UnsupportedOperationException(); }
+    }
+
+    private static final class LegacyMangaFixture extends MangaUrlFixture {
+        final SManga details = SManga.Companion.create();
+        final List<SChapter> chapters = Collections.singletonList(SChapter.Companion.create());
+        int detailsCalls;
+        int chapterCalls;
+
+        @Override public Object getMangaDetails(SManga manga, Continuation<? super SManga> continuation) {
+            detailsCalls++;
+            return details;
+        }
+
+        @Override public Object getChapterList(SManga manga, Continuation<? super List<? extends SChapter>> continuation) {
+            chapterCalls++;
+            return chapters;
+        }
     }
 }

@@ -1,6 +1,9 @@
 package eu.kanade.tachiyomi.network
 
 import android.content.Context
+import eu.kanade.tachiyomi.network.interceptor.CloudflareInterceptor
+import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
+import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
@@ -51,17 +54,23 @@ class MemoryCookieJar : CookieJar {
  */
 class NetworkHelper(@Suppress("UNUSED_PARAMETER") context: Context) {
 
-    val client: OkHttpClient = OkHttpClient.Builder()
-        .cookieJar(MemoryCookieJar())
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .followRedirects(true)
-        .followSslRedirects(true)
-        .build()
+    val client: OkHttpClient = createExtensionHttpClient()
 
     val defaultUserAgent: String = DEFAULT_USER_AGENT
 }
+
+/** Keiyoushi's client inspects these named application interceptors at runtime. */
+fun createExtensionHttpClient(): OkHttpClient = OkHttpClient.Builder()
+    .addInterceptor(UncaughtExceptionInterceptor())
+    .addInterceptor(UserAgentInterceptor())
+    .addInterceptor(CloudflareInterceptor())
+    .cookieJar(MemoryCookieJar())
+    .connectTimeout(30, TimeUnit.SECONDS)
+    .readTimeout(30, TimeUnit.SECONDS)
+    .writeTimeout(30, TimeUnit.SECONDS)
+    .followRedirects(true)
+    .followSslRedirects(true)
+    .build()
 
 /** Reads the body once and closes the response, for hosts that only want text. */
 fun Response.bodyText(): String = use { it.body?.string().orEmpty() }

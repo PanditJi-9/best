@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Open real extension catalogues, episodes and video on the Actions emulator.
 
-All starter bundles must load (extension_probe.py). This gate additionally
+All selected test bundles must load (extension_probe.py). This gate additionally
 requires at least one real anime to play and advance; a sample film, empty
 catalogue, decoded URL or stationary player alone cannot pass it.
 """

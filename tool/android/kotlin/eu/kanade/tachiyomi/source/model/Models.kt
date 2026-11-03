@@ -102,6 +102,10 @@ class Page(
 @Suppress("unused")
 data class MangasPage(val mangas: List<SManga>, val hasNextPage: Boolean)
 
+/** Current extensions-lib update result; class and constructor are ABI, not a data class. */
+@Suppress("unused")
+class SMangaUpdate(val manga: SManga, val chapters: List<SChapter>)
+
 @Suppress("unused")
 enum class UpdateStrategy {
     ALWAYS_UPDATE,

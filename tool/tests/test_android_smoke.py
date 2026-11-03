@@ -174,7 +174,8 @@ class SmokeToolsTest(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 7, result.stderr)
             self.assertEqual((work / "executed.txt").read_text().splitlines(), [
-                "tool/extension_probe.py", "tool/anime_smoke.py", "tool/android_smoke.py",
+                "tool/extension_probe.py", "tool/manga_smoke.py",
+                "tool/anime_smoke.py", "tool/android_smoke.py",
             ])
             self.assertIn("ExtensionHost.kt:10", (work / "logcat.txt").read_text())
             self.assertIn("BestExtensions", (work / "extensions.log").read_text())
