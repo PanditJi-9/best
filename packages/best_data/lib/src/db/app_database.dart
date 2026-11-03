@@ -108,7 +108,16 @@ class AppDatabase {
 
   /// extensions-lib `memo` travels with a chapter so sources that keep their
   /// manga path there can build a page list from a stored chapter.
+  ///
+  /// Guarded because a partial or hand-made database may not have a `unit`
+  /// table at all; a migration must not turn that into an open failure.
   static Future<void> _addUnitMemo(Database db) async {
+    final tables = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'unit'",
+    );
+    if (tables.isEmpty) return;
+    final columns = await db.rawQuery('PRAGMA table_info(unit)');
+    if (columns.any((row) => row['name'] == 'memo')) return;
     await db.execute(
       "ALTER TABLE unit ADD COLUMN memo TEXT NOT NULL DEFAULT ''",
     );
