@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.source.model
 
 import android.net.Uri
+import kotlinx.serialization.json.JsonObject
 
 /**
  * The real, working implementation of the Mihon/Komikku source model.
@@ -37,6 +38,15 @@ interface SManga {
 
     var update_strategy: UpdateStrategy
 
+    /**
+     * Extra, source-private metadata.
+     *
+     * extensions-lib 1.6 added this and 18 of the 90 audited manga APKs call
+     * it, so a host without it fails at the first catalogue request with
+     * `NoSuchMethodError: setMemo(JsonObject)`. It is never shown to readers.
+     */
+    var memo: JsonObject
+
     var initialized: Boolean
 
     companion object {
@@ -62,6 +72,7 @@ class SMangaImpl : SManga {
     override var status: Int = SManga.UNKNOWN
     override var thumbnail_url: String? = null
     override var update_strategy: UpdateStrategy = UpdateStrategy.ALWAYS_UPDATE
+    override var memo: JsonObject = JsonObject(emptyMap())
     override var initialized: Boolean = false
 }
 
@@ -78,6 +89,8 @@ interface SChapter {
 
     var scanlator: String?
 
+    var memo: JsonObject
+
     companion object {
         fun create(): SChapter = SChapterImpl()
     }
@@ -89,6 +102,7 @@ class SChapterImpl : SChapter {
     override var date_upload: Long = 0L
     override var chapter_number: Float = -1f
     override var scanlator: String? = null
+    override var memo: JsonObject = JsonObject(emptyMap())
 }
 
 @Suppress("unused")

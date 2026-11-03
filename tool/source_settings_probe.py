@@ -5,6 +5,12 @@ A source that only knows its first domain is a source that dies when that
 domain is blocked. The host builds the `androidx.preference` screen the
 extension declares, so this gate opens it through the real app, picks another
 server, and re-opens the sheet to prove the extension read the new value back.
+
+The semantics tree of a modal sheet still contains the screen underneath it.
+Selecting every clickable node therefore taps a source chip behind the scrim,
+which dismisses the sheet instead of opening the setting — exactly what run
+41617910370 did. Rows are therefore restricted to the sheet region (below its
+hint) and dialog choices to nodes that were not clickable before the dialog.
 """
 
 from __future__ import annotations
@@ -29,6 +35,7 @@ SETTINGS = ("Source settings", "إعدادات المصدر")
 SAVED = ("Setting saved", "حُفظ الإعداد")
 CANCEL = ("Cancel", "إلغاء")
 CLOSE = ("Close", "إغلاق")
+NAV = ("Home", "Library", "Browse", "Downloads", "Settings")
 
 
 def label(node) -> str:
@@ -53,6 +60,19 @@ def visible_texts(root) -> list[str]:
     return seen
 
 
+def bounds_top(node) -> int:
+    numbers = [int(value) for value in re.findall(r"\d+", node.get("bounds", ""))]
+    return numbers[1] if len(numbers) == 4 else 0
+
+
+def hint_top(root) -> int:
+    for hint in HINTS:
+        node = find_any(root, hint)
+        if node is not None:
+            return bounds_top(node)
+    return 0
+
+
 def open_sheet() -> None:
     deadline = time.monotonic() + 30
     gear = None
@@ -75,8 +95,15 @@ def open_sheet() -> None:
     raise RuntimeError("the settings sheet did not open")
 
 
-def setting_rows(root):
-    """Clickable rows inside the sheet, top to bottom, excluding chrome."""
+def setting_rows(root, floor: int | None = None):
+    """Clickable rows inside the sheet, top to bottom, excluding chrome.
+
+    `floor` is the sheet's own top. Everything above it belongs to the screen
+    behind the modal, so a tap there closes the sheet instead of opening a
+    setting.
+    """
+    if floor is None:
+        floor = hint_top(root)
     rows = []
     for node in nodes(root):
         if node.get("clickable") != "true":
@@ -84,19 +111,34 @@ def setting_rows(root):
         value = label(node)
         if not value:
             continue
-        if any(chrome in value for chrome in SETTINGS + CLOSE):
+        if any(chrome in value for chrome in SETTINGS + CLOSE + NAV):
             continue
         if any(hint in value for hint in HINTS):
             continue
         if any(cancel in value for cancel in CANCEL):
             continue
+        if bounds_top(node) < floor:
+            continue
         rows.append(node)
-    def top(node) -> int:
-        numbers = [int(value) for value in re.findall(r"\d+", node.get("bounds", ""))]
-        return numbers[1] if len(numbers) == 4 else 0
-
-    rows.sort(key=top)
+    rows.sort(key=bounds_top)
     return rows
+
+
+def clickable_labels(root) -> set[str]:
+    return {label(node) for node in nodes(root)
+            if node.get("clickable") == "true" and label(node)}
+
+
+def dialog_options(root, before: set[str]):
+    """Choices that the dialog added, not the sheet or screen behind it."""
+    options = [node for node in nodes(root)
+               if node.get("clickable") == "true"
+               and label(node)
+               and label(node) not in before
+               and not any(cancel_text in label(node) for cancel_text in CANCEL)
+               and not any(chrome in label(node) for chrome in SETTINGS + CLOSE)]
+    options.sort(key=bounds_top)
+    return options
 
 
 def main() -> int:
@@ -120,6 +162,7 @@ def main() -> int:
         debug_texts(root)
         raise RuntimeError(f"{SOURCE} exposed no settings rows")
 
+    before = clickable_labels(root)
     tap(rows[0], wait=2)
     deadline = time.monotonic() + 30
     dialog = None
@@ -133,9 +176,7 @@ def main() -> int:
         debug_texts(root)
         raise RuntimeError("the setting did not open a choice dialog")
 
-    cancel = first_label(dialog, CANCEL)
-    options = [node for node in setting_rows(dialog)
-               if node is not cancel and label(node) not in CANCEL]
+    options = dialog_options(dialog, before)
     if len(options) < 2:
         debug_texts(dialog)
         raise RuntimeError("the setting offered fewer than two choices")

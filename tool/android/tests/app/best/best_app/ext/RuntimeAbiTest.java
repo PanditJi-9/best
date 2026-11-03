@@ -114,6 +114,25 @@ public class RuntimeAbiTest {
                 kotlin.coroutines.Continuation.class).getReturnType());
     }
 
+    @Test public void mangaMemoAccessorsMatchExtensionsLib16() throws Exception {
+        // extensions-lib 1.6 added SManga/SChapter.memo. 18 of the 90 audited
+        // manga APKs call setMemo, and without it the source dies on the first
+        // catalogue request with NoSuchMethodError instead of a network error.
+        kotlinx.serialization.json.JsonObject empty =
+            new kotlinx.serialization.json.JsonObject(Collections.emptyMap());
+        SManga manga = SManga.Companion.create();
+        SChapter chapter = SChapter.Companion.create();
+        for (Class<?> type : new Class<?>[] {SManga.class, SChapter.class}) {
+            assertEquals(kotlinx.serialization.json.JsonObject.class,
+                type.getMethod("getMemo").getReturnType());
+            type.getMethod("setMemo", kotlinx.serialization.json.JsonObject.class);
+        }
+        manga.setMemo(empty);
+        chapter.setMemo(empty);
+        assertSame(empty, manga.getMemo());
+        assertSame(empty, chapter.getMemo());
+    }
+
     @Test public void imageRequestsHonorTheExtensionsOwnUrlAndHeaders() {
         MangaUrlFixture source = new MangaUrlFixture();
         Page page = new Page(0, "https://page.test/metadata", "/relative-image.jpg", null);

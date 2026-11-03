@@ -37,6 +37,43 @@ class SourceSettingsProbeTest(unittest.TestCase):
             ["الخادم البديل المفضل\nmangalik.net"],
         )
 
+    def test_a_source_chip_behind_the_sheet_is_not_a_setting_row(self):
+        # Run 41617910370 tapped the chip above the scrim, which dismissed the
+        # sheet, so the choice dialog never opened.
+        root = hierarchy(
+            ("مانجا ليك", "true", "[143,223][242,267]"),
+            ("These controls come from the extension itself", "false",
+             "[20,345][300,395]"),
+            ("الخادم البديل المفضل\nmangalik.net", "true", "[20,400][300,460]"),
+            ("Browse", "true", "[128,576][192,640]"),
+        )
+
+        rows = probe.setting_rows(root)
+
+        self.assertEqual(
+            [probe.label(node) for node in rows],
+            ["الخادم البديل المفضل\nmangalik.net"],
+        )
+
+    def test_dialog_choices_ignore_the_sheet_row_it_opened_from(self):
+        sheet = hierarchy(
+            ("الخادم البديل المفضل\nmangalik.net", "true", "[20,400][300,460]"),
+        )
+        before = probe.clickable_labels(sheet)
+        dialog = hierarchy(
+            ("الخادم البديل المفضل\nmangalik.net", "true", "[20,400][300,460]"),
+            ("mangalik.net", "true", "[40,200][280,260]"),
+            ("lekmanga.online", "true", "[40,260][280,320]"),
+            ("Cancel", "true", "[240,340][300,380]"),
+        )
+
+        options = probe.dialog_options(dialog, before)
+
+        self.assertEqual(
+            [probe.label(node) for node in options],
+            ["mangalik.net", "lekmanga.online"],
+        )
+
     def test_rows_keep_the_order_the_extension_declared(self):
         root = hierarchy(
             ("second\nvalue-b", "true", "[0,300][320,360]"),
