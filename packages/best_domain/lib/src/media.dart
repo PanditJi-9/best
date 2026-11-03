@@ -69,6 +69,7 @@ class Media {
     this.year,
     this.status = MediaStatus.unknown,
     this.genres = const [],
+    this.memo = '',
     this.inLibrary = false,
     this.favorite = false,
     this.state = ReadingState.none,
@@ -87,6 +88,14 @@ class Media {
   final int? year;
   final MediaStatus status;
   final List<String> genres;
+
+  /// Opaque JSON the source attached to this work (extensions-lib `memo`).
+  ///
+  /// Madara-derived extensions keep the canonical manga path here and build
+  /// chapter URLs from it, so it has to survive from the catalogue card to the
+  /// chapter list. Empty means "the source said nothing".
+  final String memo;
+
   final bool inLibrary;
   final bool favorite;
 
@@ -115,6 +124,7 @@ class Media {
     int? year,
     MediaStatus? status,
     List<String>? genres,
+    String? memo,
     bool? inLibrary,
     bool? favorite,
     ReadingState? state,
@@ -133,6 +143,7 @@ class Media {
       year: year ?? this.year,
       status: status ?? this.status,
       genres: genres ?? this.genres,
+      memo: memo ?? this.memo,
       inLibrary: inLibrary ?? this.inLibrary,
       favorite: favorite ?? this.favorite,
       state: state ?? this.state,

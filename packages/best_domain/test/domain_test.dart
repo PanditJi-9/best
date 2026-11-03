@@ -37,6 +37,25 @@ void main() {
       expect(unit.memo, '{"mangaPath":"/manga/one"}');
       expect(unit.copyWith(pageCount: 20).memo, '{"mangaPath":"/manga/one"}');
     });
+
+    test('a work keeps the memo its source attached', () {
+      // Madara-derived sources put the canonical manga path on the catalogue
+      // card and build chapter URLs from it, so it cannot be dropped on the way
+      // to the chapter list.
+      const media = Media(
+        ref: SourceRef('mihon:1', '775'),
+        title: 'Otherworldly Evil Monarch',
+        kind: MediaKind.manga,
+        memo: '{"path":"/manga/otherworldly-evil-monarch/"}',
+      );
+      expect(media.memo, '{"path":"/manga/otherworldly-evil-monarch/"}');
+      expect(media.copyWith(title: 'x').memo, media.memo);
+      expect(
+        const Media(ref: SourceRef('mihon:1', '1'), title: 'a', kind: MediaKind.manga)
+            .memo,
+        isEmpty,
+      );
+    });
   });
 
   group('progress merge', () {

@@ -8,7 +8,7 @@ import 'package:sqflite_common/sqlite_api.dart';
 class AppDatabase {
   AppDatabase._(this.db);
 
-  static const int schemaVersion = 5;
+  static const int schemaVersion = 6;
   static const String fileName = 'best.db';
 
   final Database db;
@@ -41,6 +41,9 @@ class AppDatabase {
           if (oldVersion < 5) {
             await _addUnitMemo(db);
           }
+          if (oldVersion < 6) {
+            await _addMediaMemo(db);
+          }
         },
       ),
     );
@@ -62,6 +65,7 @@ class AppDatabase {
         status TEXT NOT NULL,
         year INTEGER,
         genres TEXT NOT NULL DEFAULT '[]',
+        memo TEXT NOT NULL DEFAULT '',
         in_library INTEGER NOT NULL DEFAULT 0,
         favorite INTEGER NOT NULL DEFAULT 0,
         state TEXT NOT NULL DEFAULT 'none',
@@ -120,6 +124,21 @@ class AppDatabase {
     if (columns.any((row) => row['name'] == 'memo')) return;
     await db.execute(
       "ALTER TABLE unit ADD COLUMN memo TEXT NOT NULL DEFAULT ''",
+    );
+  }
+
+  /// The work-level counterpart of `unit.memo`: Madara-derived sources keep the
+  /// canonical manga path on the catalogue card and build chapter and page
+  /// URLs from it, so it must outlive the catalogue screen.
+  static Future<void> _addMediaMemo(Database db) async {
+    final tables = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'media'",
+    );
+    if (tables.isEmpty) return;
+    final columns = await db.rawQuery('PRAGMA table_info(media)');
+    if (columns.any((row) => row['name'] == 'memo')) return;
+    await db.execute(
+      "ALTER TABLE media ADD COLUMN memo TEXT NOT NULL DEFAULT ''",
     );
   }
 

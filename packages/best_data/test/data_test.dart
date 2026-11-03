@@ -139,6 +139,33 @@ void main() {
     expect(await repository.progressFor(unit('a', 1).id), isNotNull);
   });
 
+  test('a work-level memo survives the round trip and is never cleared', () async {
+    const memo = '{"path":"/manga/otherworldly-evil-monarch/"}';
+    final media = Media(
+      ref: const SourceRef('test', '775'),
+      title: 'Otherworldly Evil Monarch',
+      kind: MediaKind.manga,
+      memo: memo,
+      inLibrary: true,
+      addedAt: 1,
+    );
+    await repository.saveMedia(media);
+    expect((await repository.mediaById(media.id))!.memo, memo);
+
+    // A later catalogue refresh that knows nothing about the memo must not
+    // erase it: the chapter list depends on it.
+    await repository.saveMedia(media.copyWith(memo: ''));
+    expect((await repository.mediaById(media.id))!.memo, memo);
+
+    final memory = MemoryLibraryRepository();
+    await memory.saveMedia(media);
+    await memory.saveMedia(media.copyWith(memo: '', title: 'refreshed'));
+    final stored = await memory.mediaById(media.id);
+    expect(stored!.memo, memo);
+    expect(stored.title, 'refreshed');
+    await memory.close();
+  });
+
   test('the changes stream fires after a write', () async {
     final event = repository.changes.first;
     await repository.saveMedia(work('a'));

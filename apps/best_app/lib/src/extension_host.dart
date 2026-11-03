@@ -283,7 +283,11 @@ class ExtensionHost {
   Future<Media> details(int sourceId, Media media, {bool anime = false}) async {
     final raw = await _channel.invokeMapMethod<String, dynamic>(
       'details',
-      <String, dynamic>{'sourceId': sourceId, 'url': media.ref.url},
+      <String, dynamic>{
+        'sourceId': sourceId,
+        'url': media.ref.url,
+        'memo': media.memo,
+      },
     );
     if (raw == null) return media;
     final fresh = _mediaFromMap(raw, sourceId, anime: anime);
@@ -294,13 +298,38 @@ class ExtensionHost {
       author: fresh.author,
       status: fresh.status,
       genres: fresh.genres.isEmpty ? null : fresh.genres,
+      memo: _preferMemo(media.memo, fresh.memo),
     );
+  }
+
+  /// Keeps a work memo that actually names the work.
+  ///
+  /// A source handed a bare post id answers with the path it was given, so the
+  /// memo it reports can be the site root. Replacing a real manga path with `/`
+  /// would break every chapter and page URL that is built from it.
+  static String _preferMemo(String current, String fresh) {
+    if (fresh.isEmpty) return current;
+    String? path;
+    try {
+      final decoded = jsonDecode(fresh);
+      if (decoded is Map && decoded['path'] is String) {
+        path = decoded['path'] as String;
+      }
+    } on FormatException {
+      return current;
+    }
+    if (path == null || path.isEmpty || path == '/') return current;
+    return fresh;
   }
 
   Future<List<MediaUnit>> chapters(int sourceId, Media media) async {
     final raw = await _channel.invokeMethod<List<dynamic>>(
       'chapters',
-      <String, dynamic>{'sourceId': sourceId, 'url': media.ref.url},
+      <String, dynamic>{
+        'sourceId': sourceId,
+        'url': media.ref.url,
+        'memo': media.memo,
+      },
     );
     final list = raw ?? const <dynamic>[];
     final units = <MediaUnit>[];
@@ -500,6 +529,7 @@ class ExtensionHost {
       author: (map['author'] as String?) ?? (map['artist'] as String?),
       status: _statusFrom(map['status'] as num?),
       genres: genres,
+      memo: (map['memo'] as String?) ?? '',
     );
   }
 

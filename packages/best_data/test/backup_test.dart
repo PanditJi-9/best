@@ -20,6 +20,7 @@ void main() {
       year: 2024,
       status: MediaStatus.ongoing,
       genres: const ['fantasy'],
+      memo: '{"path":"/manga/forest-shadow/"}',
       inLibrary: inLibrary,
       favorite: favorite,
       state: state,
@@ -62,6 +63,7 @@ void main() {
       expect(decoded.media.single.nativeTitle, 'Forest Shadow');
       expect(decoded.media.single.state, ReadingState.reading);
       expect(decoded.media.single.tags, ['favourites']);
+      expect(decoded.media.single.memo, '{"path":"/manga/forest-shadow/"}');
       expect(decoded.media.single.favorite, isFalse);
       expect(decoded.units.single.number, 1);
       expect(decoded.progress.single.position, 4);
@@ -138,6 +140,7 @@ void main() {
 
       final restored = await repository.mediaById(work().id);
       expect(restored?.state, ReadingState.reading);
+      expect(restored?.memo, '{"path":"/manga/forest-shadow/"}');
       expect(restored?.tags, ['favourites']);
       expect(await repository.progressFor(unit.id), isNotNull);
       expect(await repository.activity(), hasLength(1));

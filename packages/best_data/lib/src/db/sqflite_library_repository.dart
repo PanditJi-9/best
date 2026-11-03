@@ -78,9 +78,9 @@ class SqfliteLibraryRepository implements LibraryRepository {
       '''
       INSERT INTO media (
         id, source_id, url, title, native_title, cover_url, synopsis, author,
-        kind, status, year, genres, in_library, favorite, state, tags,
+        kind, status, year, genres, memo, in_library, favorite, state, tags,
         added_at, last_opened_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         title = excluded.title,
         native_title = COALESCE(excluded.native_title, media.native_title),
@@ -91,6 +91,7 @@ class SqfliteLibraryRepository implements LibraryRepository {
         status = excluded.status,
         year = COALESCE(excluded.year, media.year),
         genres = CASE WHEN excluded.genres = '[]' THEN media.genres ELSE excluded.genres END,
+        memo = CASE WHEN excluded.memo = '' THEN media.memo ELSE excluded.memo END,
         in_library = MAX(media.in_library, excluded.in_library),
         favorite = MAX(media.favorite, excluded.favorite),
         -- A catalogue refresh must not clear the person's plan or lists; only
@@ -113,6 +114,7 @@ class SqfliteLibraryRepository implements LibraryRepository {
         media.status.name,
         media.year,
         jsonEncode(media.genres),
+        media.memo,
         media.inLibrary ? 1 : 0,
         media.favorite ? 1 : 0,
         media.state.name,
@@ -460,6 +462,7 @@ class SqfliteLibraryRepository implements LibraryRepository {
       year: row['year'] as int?,
       status: MediaStatus.values.byName(row['status'] as String),
       genres: _genres(row['genres'] as String?),
+      memo: (row['memo'] as String?) ?? '',
       inLibrary: ((row['in_library'] as int?) ?? 0) == 1,
       favorite: ((row['favorite'] as int?) ?? 0) == 1,
       state: _state(row['state'] as String?),

@@ -388,12 +388,14 @@ class ExtensionHost(private val context: Context) {
             "details" -> {
                 val id = call.argument<Number>("sourceId")?.toLong()
                 val url = call.argument<String>("url").orEmpty()
-                respond(result) { details(id, url) }
+                val memo = call.argument<String>("memo").orEmpty()
+                respond(result) { details(id, url, memo) }
             }
             "chapters" -> {
                 val id = call.argument<Number>("sourceId")?.toLong()
                 val url = call.argument<String>("url").orEmpty()
-                respond(result) { chapters(id, url) }
+                val memo = call.argument<String>("memo").orEmpty()
+                respond(result) { chapters(id, url, memo) }
             }
             "pages" -> {
                 val id = call.argument<Number>("sourceId")?.toLong()
@@ -615,26 +617,38 @@ class ExtensionHost(private val context: Context) {
     private val mangaUpdateLocks = ConcurrentHashMap<Long, Mutex>()
 
     private suspend fun mangaUpdate(
-        source: Source, url: String, details: Boolean, chapters: Boolean,
+        source: Source, url: String, memo: String, details: Boolean, chapters: Boolean,
     ): SMangaUpdate =
         mangaUpdateLocks.computeIfAbsent(source.id) { Mutex() }.withLock {
-            source.getMangaUpdate(SManga.create().apply { this.url = url },
-                emptyList(), details, chapters)
+            val manga = SManga.create().apply {
+                this.url = url
+                // Madara-derived sources keep the canonical manga path in the
+                // catalogue card's memo and build chapter/page URLs from it.
+                // Without it the chapter list is fetched for `/?p=<id>` and the
+                // pages resolve against the wrong path.
+                if (memo.isNotBlank()) {
+                    runCatching { this.memo = Json.parseToJsonElement(memo).jsonObject }
+                }
+            }
+            source.getMangaUpdate(manga, emptyList(), details, chapters)
         }
 
-    private suspend fun details(id: Long?, url: String): Map<String, Any?> {
+    private suspend fun details(id: Long?, url: String, memo: String = ""): Map<String, Any?> {
         animeFor(id ?: 0L)?.let { source ->
             val anime = SAnime.create().apply { this.url = url }
             return animeToMap(source.getAnimeDetails(anime), source)
         }
         val source = id?.let { sourceFor(it) } ?: throw IllegalStateException("Unknown source.")
-        return mangaToMap(mangaUpdate(source, url, details = true, chapters = false).manga, source)
+        return mangaToMap(
+            mangaUpdate(source, url, memo, details = true, chapters = false).manga,
+            source,
+        )
     }
 
-    private suspend fun chapters(id: Long?, url: String): List<Map<String, Any?>> {
+    private suspend fun chapters(id: Long?, url: String, memo: String = ""): List<Map<String, Any?>> {
         animeFor(id ?: 0L)?.let { return episodes(id, url) }
         val source = id?.let { sourceFor(it) } ?: throw IllegalStateException("Unknown source.")
-        return mangaUpdate(source, url, details = false, chapters = true).chapters
+        return mangaUpdate(source, url, memo, details = false, chapters = true).chapters
             .map { chapterToMap(it, source) }
     }
 
@@ -793,6 +807,9 @@ class ExtensionHost(private val context: Context) {
                 ?: manga.thumbnail_url
             ),
         "sourceId" to source?.id,
+        // Round-trips the work-level memo; `SManga.memo` is a JsonObject, and
+        // an empty one must not look like data to the store.
+        "memo" to (manga.memo.takeIf { it.isNotEmpty() }?.toString() ?: ""),
     )
 
     private fun animesPageToMap(page: AnimesPage, source: AnimeSource): Map<String, Any?> = mapOf<String, Any?>(

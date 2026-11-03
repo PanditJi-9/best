@@ -125,6 +125,66 @@ void main() {
         {'sourceId': 42, 'url': 'chapter-1', 'memo': memo});
   });
 
+  test('a work memo travels with the chapter and details requests', () async {
+    const memo = '{"path":"/manga/otherworldly-evil-monarch/"}';
+    final calls = <MethodCall>[];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      if (call.method == 'chapters') {
+        return [
+          {'url': 'chapter-1', 'name': 'One', 'chapterNumber': 1, 'memo': ''},
+        ];
+      }
+      if (call.method == 'details') {
+        return {'url': '775', 'title': 'Otherworldly Evil Monarch'};
+      }
+      return null;
+    });
+
+    const media = Media(
+      ref: SourceRef('mihon:42', '775'),
+      title: 'Otherworldly Evil Monarch',
+      kind: MediaKind.manga,
+      memo: memo,
+    );
+    await host.chapters(42, media);
+    expect(calls.last.method, 'chapters');
+    expect(calls.last.arguments,
+        {'sourceId': 42, 'url': '775', 'memo': memo});
+
+    final fresh = await host.details(42, media);
+    expect(calls.last.method, 'details');
+    expect(calls.last.arguments, {'sourceId': 42, 'url': '775', 'memo': memo});
+    // A details refresh that carries no memo must not wipe the one we have.
+    expect(fresh.memo, memo);
+  });
+
+  test('a details refresh cannot replace a real manga path with the site root',
+      () async {
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'details') {
+        // What a Madara source reports after being handed a bare post id: the
+        // path of the page it fetched, which is the site root.
+        return {
+          'url': '775',
+          'title': 'Otherworldly Evil Monarch',
+          'memo': '{"path":"/","genres":[]}',
+        };
+      }
+      return null;
+    });
+
+    const media = Media(
+      ref: SourceRef('mihon:42', '775'),
+      title: 'Otherworldly Evil Monarch',
+      kind: MediaKind.manga,
+      memo: '{"path":"/manga/otherworldly-evil-monarch/"}',
+    );
+    final fresh = await host.details(42, media);
+    expect(fresh.memo, '{"path":"/manga/otherworldly-evil-monarch/"}');
+    expect(fresh.title, 'Otherworldly Evil Monarch');
+  });
+
   test('only mihon source references expose an extension id', () {
     expect(extensionSourceIdOf('mihon:1234'), 1234);
     expect(extensionSourceIdOf('mangadex'), isNull);
