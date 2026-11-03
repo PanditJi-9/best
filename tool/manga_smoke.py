@@ -40,6 +40,24 @@ def reader_pages(root) -> int | None:
     return None
 
 
+# Reader semantics for a decoded page and for a failed one, in both app
+# languages. A page counter alone proved insufficient: MangaFire listed 112
+# pages while showing a broken-image icon.
+READY_LABELS = ("page image", "صورة الصفحة")
+FAILED_LABELS = ("this page did not load", "لم تُحمَّل هذه الصفحة")
+
+
+def page_image_state(root) -> str:
+    for node in nodes(root):
+        text = ((node.get("text") or "") + " " +
+                (node.get("content-desc") or "")).lower()
+        if any(label in text for label in FAILED_LABELS):
+            return "failed"
+        if any(label in text for label in READY_LABELS):
+            return "ready"
+    return "pending"
+
+
 def runtime_contract_errors(log: str) -> list[str]:
     return [line for line in log.splitlines()
             if "BestExtensions" in line and any(error in line for error in (
@@ -97,10 +115,21 @@ def check_source(name: str, report: dict) -> None:
             raise RuntimeError(f"{name} pages: {error}")
         count = reader_pages(root)
         if count is not None and count > 0 and find_any(root, report["title"]) is not None:
-            report.update(reader=True, page_count=count)
+            state = "pending"
+            image_deadline = time.monotonic() + 30
+            while state == "pending" and time.monotonic() < image_deadline:
+                root = dump()
+                state = page_image_state(root)
+                if state == "pending":
+                    time.sleep(2)
             Path(f"manga-{name}-reader.xml").write_text(ET.tostring(root, encoding="unicode"))
             screenshot(f"manga-{name}-reader.png")
-            return  # Inspect the screenshot separately; a page count is not image-decode proof.
+            if state == "failed":
+                raise RuntimeError(f"{name} reader: the page image did not load")
+            if state == "pending":
+                raise RuntimeError(f"{name} reader: no page image appeared")
+            report.update(reader=True, page_count=count)
+            return
         time.sleep(2)
     debug_texts(root)
     raise RuntimeError(f"{name} reader did not expose real chapter pages")

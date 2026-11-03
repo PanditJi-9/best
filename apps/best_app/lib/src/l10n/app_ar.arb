@@ -85,6 +85,8 @@
       }
     }
   },
+  "pageImage": "صورة الصفحة",
+  "pageImageError": "لم تُحمَّل هذه الصفحة",
   "readerEnd": "نهاية هذه الوحدة",
   "pages": "{count, plural, zero{لا صفحات} one{صفحة واحدة} two{صفحتان} few{{count} صفحات} many{{count} صفحة} other{{count} صفحة}}",
   "@pages": {

@@ -312,11 +312,32 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 }
 
+Widget _pageFrame(
+  BuildContext context,
+  Widget child,
+  int? frame,
+  bool wasSynchronouslyLoaded,
+) {
+  if (frame == null && !wasSynchronouslyLoaded) {
+    return const Center(
+      child: CircularProgressIndicator(color: Colors.white54),
+    );
+  }
+  // Announced by screen readers, and the smoke gate waits for it so a page
+  // count alone can never be mistaken for a decoded image again.
+  return Semantics(
+    label: AppLocalizations.of(context).pageImage,
+    image: true,
+    child: child,
+  );
+}
+
 Widget _networkImage(String url, Map<String, String> headers) {
   return Image.network(
     url,
     headers: headers.isEmpty ? null : headers,
     fit: BoxFit.contain,
+    frameBuilder: _pageFrame,
     loadingBuilder: (context, child, progress) {
       if (progress == null) return child;
       return const Center(
@@ -335,25 +356,29 @@ class _PageError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = message;
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.broken_image_outlined,
-            color: Colors.white38,
-            size: 40,
-          ),
-          if (text != null && text.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white54, fontSize: 12),
+    return Semantics(
+      label: AppLocalizations.of(context).pageImageError,
+      container: true,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.broken_image_outlined,
+              color: Colors.white38,
+              size: 40,
             ),
+            if (text != null && text.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                text,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -418,6 +443,7 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                         bytes,
                         fit: BoxFit.contain,
                         gaplessPlayback: true,
+                        frameBuilder: _pageFrame,
                         errorBuilder: (context, error, stack) =>
                             const _PageError(),
                       );

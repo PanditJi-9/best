@@ -30,6 +30,12 @@ class MangaSmokeTest(unittest.TestCase):
         self.assertEqual(manga.reader_pages(hierarchy("Page 1 of 23")), 23)
         self.assertEqual(manga.reader_pages(hierarchy("Page 1 of 0")), 0)
 
+    def test_page_counter_alone_is_not_image_decode_proof(self):
+        self.assertEqual(manga.page_image_state(hierarchy("Page 1 of 23")), "pending")
+        self.assertEqual(manga.page_image_state(hierarchy("Page image")), "ready")
+        self.assertEqual(
+            manga.page_image_state(hierarchy("This page did not load")), "failed")
+
     def test_runtime_contract_failures_are_not_mislabelled_as_site_outages(self):
         lines = ["W/BestExtensions: UncaughtExceptionInterceptor must be present in default client",
                  "W/BestExtensions: java.lang.AbstractMethodError: getMangaDetails",
@@ -45,11 +51,18 @@ class MangaSmokeTest(unittest.TestCase):
             with self.subTest(label=label):
                 report = {"source": "MangaDex", "catalogue": False, "chapters": False, "reader": False}
                 screens = [hierarchy("Real title\nManga"), hierarchy(label),
-                           hierarchy("Real title", "Page 1 of 23")]
+                           hierarchy("Real title", "Page 1 of 23", "Page image")]
+                seen = {"count": 0}
+
+                def fake_dump():
+                    screen = screens[min(seen["count"], len(screens) - 1)]
+                    seen["count"] += 1
+                    return screen
+
                 with patch.object(manga, "adb"), patch.object(manga.time, "sleep"), \
                         patch.object(manga, "dismiss_anr"), patch.object(manga, "wait_for"), \
                         patch.object(manga, "select_source") as select, \
-                        patch.object(manga, "dump", side_effect=screens), \
+                        patch.object(manga, "dump", side_effect=fake_dump), \
                         patch.object(manga, "tap") as tap, \
                         patch.object(manga, "screenshot") as screenshot, \
                         patch.object(manga, "swipe_up") as swipe, \

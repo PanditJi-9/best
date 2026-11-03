@@ -85,6 +85,8 @@
       }
     }
   },
+  "pageImage": "Page image",
+  "pageImageError": "This page did not load",
   "readerEnd": "End of this unit",
   "pages": "{count} pages",
   "@pages": {
