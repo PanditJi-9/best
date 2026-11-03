@@ -8,7 +8,7 @@ import 'package:sqflite_common/sqlite_api.dart';
 class AppDatabase {
   AppDatabase._(this.db);
 
-  static const int schemaVersion = 6;
+  static const int schemaVersion = 7;
   static const String fileName = 'best.db';
 
   final Database db;
@@ -44,6 +44,9 @@ class AppDatabase {
           if (oldVersion < 6) {
             await _addMediaMemo(db);
           }
+          if (oldVersion < 7) {
+            await _addMediaRating(db);
+          }
         },
       ),
     );
@@ -65,6 +68,7 @@ class AppDatabase {
         status TEXT NOT NULL,
         year INTEGER,
         genres TEXT NOT NULL DEFAULT '[]',
+        rating REAL,
         memo TEXT NOT NULL DEFAULT '',
         in_library INTEGER NOT NULL DEFAULT 0,
         favorite INTEGER NOT NULL DEFAULT 0,
@@ -140,6 +144,18 @@ class AppDatabase {
     await db.execute(
       "ALTER TABLE media ADD COLUMN memo TEXT NOT NULL DEFAULT ''",
     );
+  }
+
+  /// A source score on a 0–10 scale. `NULL` means the source does not rate
+  /// works, which is different from a score of zero.
+  static Future<void> _addMediaRating(Database db) async {
+    final tables = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'media'",
+    );
+    if (tables.isEmpty) return;
+    final columns = await db.rawQuery('PRAGMA table_info(media)');
+    if (columns.any((row) => row['name'] == 'rating')) return;
+    await db.execute('ALTER TABLE media ADD COLUMN rating REAL');
   }
 
   static Future<void> _createDownloads(Database db) async {

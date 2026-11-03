@@ -30,363 +30,368 @@ class SettingsScreen extends ConsumerWidget {
     final extensions = ref.watch(extensionCatalogProvider).value ??
         const ExtensionCatalog.empty();
 
-    return SafeArea(
-      bottom: false,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
-        children: [
-          PageMasthead(
-            index: "05",
-            title: l10n.settingsTitle,
-            subtitle: l10n.settingsSubtitle,
-          ),
-          const SizedBox(height: 20),
-          _ProfileCard(
-            works: works,
-            offline: offline,
-            sources: sources.length,
-          ),
-          _Group(
-            title: l10n.language,
-            icon: Icons.translate_rounded,
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: _Segmented<String?>(
-                selected: settings.languageCode,
-                options: [
-                  _SegmentOption(
-                    value: null,
-                    icon: Icons.brightness_auto_outlined,
-                    label: l10n.languageSystem,
-                  ),
-                  _SegmentOption(
-                    value: 'en',
-                    icon: Icons.text_fields_rounded,
-                    label: l10n.english,
-                  ),
-                  _SegmentOption(
-                    value: 'ar',
-                    icon: Icons.language_rounded,
-                    label: l10n.arabic,
-                  ),
-                ],
-                onSelect: (code) =>
-                    ref.read(settingsProvider.notifier).setLanguage(code),
-              ),
+    return Scaffold(
+      appBar: AppBar(),
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+          children: [
+            PageMasthead(
+              index: "09",
+              title: l10n.settingsTitle,
+              subtitle: l10n.settingsSubtitle,
             ),
-          ),
-          _Group(
-            title: l10n.appearance,
-            icon: Icons.palette_outlined,
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: _Segmented<ThemeMode>(
-                selected: settings.themeMode,
-                options: [
-                  for (final mode in ThemeMode.values)
+            const SizedBox(height: 20),
+            _ProfileCard(
+              works: works,
+              offline: offline,
+              sources: sources.length,
+            ),
+            _Group(
+              title: l10n.language,
+              icon: Icons.translate_rounded,
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: _Segmented<String?>(
+                  selected: settings.languageCode,
+                  options: [
                     _SegmentOption(
-                      value: mode,
-                      icon: switch (mode) {
-                        ThemeMode.system => Icons.brightness_auto_outlined,
-                        ThemeMode.light => Icons.light_mode_outlined,
-                        ThemeMode.dark => Icons.dark_mode_outlined,
-                      },
-                      label: themeLabel(l10n, mode),
+                      value: null,
+                      icon: Icons.brightness_auto_outlined,
+                      label: l10n.languageSystem,
                     ),
-                ],
-                onSelect: (mode) =>
-                    ref.read(settingsProvider.notifier).setThemeMode(mode),
+                    _SegmentOption(
+                      value: 'en',
+                      icon: Icons.text_fields_rounded,
+                      label: l10n.english,
+                    ),
+                    _SegmentOption(
+                      value: 'ar',
+                      icon: Icons.language_rounded,
+                      label: l10n.arabic,
+                    ),
+                  ],
+                  onSelect: (code) =>
+                      ref.read(settingsProvider.notifier).setLanguage(code),
+                ),
               ),
             ),
-          ),
-          _Group(
-            title: l10n.offlineGroup,
-            icon: Icons.cloud_download_outlined,
-            child: Column(
-              children: [
-                SwitchListTile.adaptive(
-                  value: settings.wifiOnly,
-                  onChanged: (value) =>
-                      ref.read(settingsProvider.notifier).setWifiOnly(value),
-                  secondary: const Icon(Icons.wifi_rounded, size: 19),
-                  title: Text(
-                    l10n.wifiOnlyTitle,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  subtitle: Text(
-                    l10n.wifiOnlyBody,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  contentPadding: const EdgeInsetsDirectional.only(
-                    start: 14,
-                    end: 8,
-                  ),
-                ),
-                const Divider(height: 1, indent: 52),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.storage_rounded,
-                            size: 19,
-                            color: theme.colorScheme.primary,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              l10n.storageCapTitle,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
+            _Group(
+              title: l10n.appearance,
+              icon: Icons.palette_outlined,
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: _Segmented<ThemeMode>(
+                  selected: settings.themeMode,
+                  options: [
+                    for (final mode in ThemeMode.values)
+                      _SegmentOption(
+                        value: mode,
+                        icon: switch (mode) {
+                          ThemeMode.system => Icons.brightness_auto_outlined,
+                          ThemeMode.light => Icons.light_mode_outlined,
+                          ThemeMode.dark => Icons.dark_mode_outlined,
+                        },
+                        label: themeLabel(l10n, mode),
                       ),
-                      const SizedBox(height: 10),
-                      _Segmented<int>(
-                        selected: settings.storageCapGb,
-                        options: [
-                          _SegmentOption(
-                            value: 0,
-                            icon: Icons.all_inclusive_rounded,
-                            label: l10n.storageCapOff,
-                          ),
-                          for (final gb in const [1, 2, 5])
-                            _SegmentOption(
-                              value: gb,
-                              icon: Icons.sd_storage_outlined,
-                              label: '$gb GB',
-                            ),
-                        ],
-                        onSelect: (value) => ref
-                            .read(settingsProvider.notifier)
-                            .setStorageCapGb(value),
-                      ),
-                    ],
-                  ),
+                  ],
+                  onSelect: (mode) =>
+                      ref.read(settingsProvider.notifier).setThemeMode(mode),
                 ),
-              ],
+              ),
             ),
-          ),
-          _Group(
-            title: l10n.dataGroup,
-            icon: Icons.shield_moon_outlined,
-            child: Column(
-              children: [
-                _LinkTile(
-                  icon: Icons.insights_outlined,
-                  title: l10n.statsTitle,
-                  subtitle: l10n.statsSubtitle,
-                  onTap: () => context.push(Routes.stats),
-                ),
-                const Divider(height: 1, indent: 52),
-                _LinkTile(
-                  icon: Icons.settings_backup_restore,
-                  title: l10n.backupTitle,
-                  subtitle: l10n.backupShort,
-                  onTap: () => context.push(Routes.backup),
-                ),
-                const Divider(height: 1, indent: 52),
-                _LinkTile(
-                  icon: Icons.sync_rounded,
-                  title: l10n.syncTitle,
-                  subtitle: l10n.syncShort,
-                  onTap: () => context.push(Routes.sync),
-                ),
-              ],
-            ),
-          ),
-          _Group(
-            title: l10n.extensionsTitle,
-            icon: Icons.extension_outlined,
-            child: Column(
-              children: [
-                _LinkTile(
-                  icon: Icons.inventory_2_outlined,
-                  title: l10n.directoryTitle,
-                  subtitle: l10n.extensionsHint,
-                  onTap: () => context.push(Routes.sources),
-                ),
-                const Divider(height: 1, indent: 52),
-                SwitchListTile(
-                  title: Text(l10n.directoryAutoUpdates),
-                  subtitle: Text(l10n.directoryAutoUpdatesBody),
-                  value: ref.watch(extensionAutoUpdatesProvider),
-                  onChanged: ref
-                      .read(extensionAutoUpdatesProvider.notifier)
-                      .setEnabled,
-                ),
-                const Divider(height: 1, indent: 52),
-                _LinkTile(
-                  icon: Icons.system_update_alt_rounded,
-                  title: ref.watch(extensionUpdatesProvider).isLoading
-                      ? l10n.directoryUpdating
-                      : l10n.extensionsUpdate,
-                  onTap: ref.watch(extensionUpdatesProvider).isLoading
-                      ? null
-                      : () => _updateExtensions(context, ref),
-                ),
-                if (extensions.problems.isNotEmpty) ...[
-                  const Divider(height: 1, indent: 52),
-                  _LinkTile(
-                    icon: Icons.warning_amber_rounded,
-                    title: l10n.extensionsFailed(extensions.problems.length),
-                    subtitle: extensions.problems.first.message,
-                    onTap: () => _showProblems(context, extensions),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          _Group(
-            title: l10n.suwayomiTitle,
-            icon: Icons.dns_outlined,
-            child: Column(
-              children: [
-                _LinkTile(
-                  icon: Icons.link_rounded,
-                  title: settings.suwayomiUrl ?? l10n.suwayomiNone,
-                  subtitle: l10n.suwayomiShort,
-                  onTap: () => _openServer(context, ref),
-                ),
-                if (settings.suwayomiUrl != null) ...[
-                  const Divider(height: 1, indent: 52),
-                  _LinkTile(
-                    icon: Icons.link_off_rounded,
-                    title: l10n.suwayomiDisconnect,
-                    onTap: () {
-                      ref.read(settingsProvider.notifier).setSuwayomiUrl(null);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(l10n.suwayomiRemoved)),
-                      );
-                    },
-                  ),
-                ],
-              ],
-            ),
-          ),
-          _Group(
-            title: l10n.sourcePacks,
-            icon: Icons.extension_outlined,
-            child: Column(
-              children: [
-                const _PackTile(
-                  icon: Icons.auto_stories_outlined,
-                  label: 'MangaDex',
-                  builtIn: true,
-                ),
-                const _PackTile(
-                  icon: Icons.menu_book_outlined,
-                  label: 'Best Guide',
-                  builtIn: true,
-                ),
-                for (final pack in packs)
-                  _PackTile(
-                    icon: Icons.extension_outlined,
-                    label: pack.name,
-                    detail: pack.language,
-                    onRemove: () {
-                      ref.read(sourcePacksProvider.notifier).remove(pack.id);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(l10n.sourcePackRemoved)),
-                      );
-                    },
-                  ),
-                Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: TextButton.icon(
-                      onPressed: () => _openAddPack(context, ref),
-                      icon: const Icon(Icons.add_link_rounded, size: 19),
-                      label: Text(l10n.addSourcePack),
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(0, 44),
-                        backgroundColor: theme.colorScheme.primary.withValues(
-                          alpha: 0.08,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(BestRadius.md),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          _Group(
-            title: l10n.about,
-            icon: Icons.info_outline_rounded,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+            _Group(
+              title: l10n.offlineGroup,
+              icon: Icons.cloud_download_outlined,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      const BestMark(size: 44),
-                      const SizedBox(width: BestSpace.md),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  SwitchListTile.adaptive(
+                    value: settings.wifiOnly,
+                    onChanged: (value) =>
+                        ref.read(settingsProvider.notifier).setWifiOnly(value),
+                    secondary: const Icon(Icons.wifi_rounded, size: 19),
+                    title: Text(
+                      l10n.wifiOnlyTitle,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: Text(
+                      l10n.wifiOnlyBody,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    contentPadding: const EdgeInsetsDirectional.only(
+                      start: 14,
+                      end: 8,
+                    ),
+                  ),
+                  const Divider(height: 1, indent: 52),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            Text(
-                              l10n.appName,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.3,
-                              ),
+                            Icon(
+                              Icons.storage_rounded,
+                              size: 19,
+                              color: theme.colorScheme.primary,
                             ),
-                            Text(
-                              l10n.tagline,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                l10n.storageCapTitle,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ],
                         ),
-                      ),
-                      Icon(
-                        Icons.verified_outlined,
-                        size: 20,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    l10n.aboutBody,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      height: 1.65,
+                        const SizedBox(height: 10),
+                        _Segmented<int>(
+                          selected: settings.storageCapGb,
+                          options: [
+                            _SegmentOption(
+                              value: 0,
+                              icon: Icons.all_inclusive_rounded,
+                              label: l10n.storageCapOff,
+                            ),
+                            for (final gb in const [1, 2, 5])
+                              _SegmentOption(
+                                value: gb,
+                                icon: Icons.sd_storage_outlined,
+                                label: '$gb GB',
+                              ),
+                          ],
+                          onSelect: (value) => ref
+                              .read(settingsProvider.notifier)
+                              .setStorageCapGb(value),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 18),
-          Center(
-            child: Text(
-              '${l10n.appName} · ${l10n.tagline}',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(
-                  alpha: 0.7,
-                ),
-                letterSpacing: 0.4,
+            _Group(
+              title: l10n.dataGroup,
+              icon: Icons.shield_moon_outlined,
+              child: Column(
+                children: [
+                  _LinkTile(
+                    icon: Icons.insights_outlined,
+                    title: l10n.statsTitle,
+                    subtitle: l10n.statsSubtitle,
+                    onTap: () => context.push(Routes.stats),
+                  ),
+                  const Divider(height: 1, indent: 52),
+                  _LinkTile(
+                    icon: Icons.settings_backup_restore,
+                    title: l10n.backupTitle,
+                    subtitle: l10n.backupShort,
+                    onTap: () => context.push(Routes.backup),
+                  ),
+                  const Divider(height: 1, indent: 52),
+                  _LinkTile(
+                    icon: Icons.sync_rounded,
+                    title: l10n.syncTitle,
+                    subtitle: l10n.syncShort,
+                    onTap: () => context.push(Routes.sync),
+                  ),
+                ],
               ),
             ),
-          ),
-        ],
+            _Group(
+              title: l10n.extensionsTitle,
+              icon: Icons.extension_outlined,
+              child: Column(
+                children: [
+                  _LinkTile(
+                    icon: Icons.inventory_2_outlined,
+                    title: l10n.directoryTitle,
+                    subtitle: l10n.extensionsHint,
+                    onTap: () => context.push(Routes.sources),
+                  ),
+                  const Divider(height: 1, indent: 52),
+                  SwitchListTile(
+                    title: Text(l10n.directoryAutoUpdates),
+                    subtitle: Text(l10n.directoryAutoUpdatesBody),
+                    value: ref.watch(extensionAutoUpdatesProvider),
+                    onChanged: ref
+                        .read(extensionAutoUpdatesProvider.notifier)
+                        .setEnabled,
+                  ),
+                  const Divider(height: 1, indent: 52),
+                  _LinkTile(
+                    icon: Icons.system_update_alt_rounded,
+                    title: ref.watch(extensionUpdatesProvider).isLoading
+                        ? l10n.directoryUpdating
+                        : l10n.extensionsUpdate,
+                    onTap: ref.watch(extensionUpdatesProvider).isLoading
+                        ? null
+                        : () => _updateExtensions(context, ref),
+                  ),
+                  if (extensions.problems.isNotEmpty) ...[
+                    const Divider(height: 1, indent: 52),
+                    _LinkTile(
+                      icon: Icons.warning_amber_rounded,
+                      title: l10n.extensionsFailed(extensions.problems.length),
+                      subtitle: extensions.problems.first.message,
+                      onTap: () => _showProblems(context, extensions),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            _Group(
+              title: l10n.suwayomiTitle,
+              icon: Icons.dns_outlined,
+              child: Column(
+                children: [
+                  _LinkTile(
+                    icon: Icons.link_rounded,
+                    title: settings.suwayomiUrl ?? l10n.suwayomiNone,
+                    subtitle: l10n.suwayomiShort,
+                    onTap: () => _openServer(context, ref),
+                  ),
+                  if (settings.suwayomiUrl != null) ...[
+                    const Divider(height: 1, indent: 52),
+                    _LinkTile(
+                      icon: Icons.link_off_rounded,
+                      title: l10n.suwayomiDisconnect,
+                      onTap: () {
+                        ref
+                            .read(settingsProvider.notifier)
+                            .setSuwayomiUrl(null);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(l10n.suwayomiRemoved)),
+                        );
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            _Group(
+              title: l10n.sourcePacks,
+              icon: Icons.extension_outlined,
+              child: Column(
+                children: [
+                  const _PackTile(
+                    icon: Icons.auto_stories_outlined,
+                    label: 'MangaDex',
+                    builtIn: true,
+                  ),
+                  const _PackTile(
+                    icon: Icons.menu_book_outlined,
+                    label: 'Best Guide',
+                    builtIn: true,
+                  ),
+                  for (final pack in packs)
+                    _PackTile(
+                      icon: Icons.extension_outlined,
+                      label: pack.name,
+                      detail: pack.language,
+                      onRemove: () {
+                        ref.read(sourcePacksProvider.notifier).remove(pack.id);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(l10n.sourcePackRemoved)),
+                        );
+                      },
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: TextButton.icon(
+                        onPressed: () => _openAddPack(context, ref),
+                        icon: const Icon(Icons.add_link_rounded, size: 19),
+                        label: Text(l10n.addSourcePack),
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          backgroundColor: theme.colorScheme.primary.withValues(
+                            alpha: 0.08,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(BestRadius.md),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _Group(
+              title: l10n.about,
+              icon: Icons.info_outline_rounded,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const BestMark(size: 44),
+                        const SizedBox(width: BestSpace.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n.appName,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              Text(
+                                l10n.tagline,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.verified_outlined,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      l10n.aboutBody,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        height: 1.65,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Center(
+              child: Text(
+                '${l10n.appName} · ${l10n.tagline}',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.7,
+                  ),
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

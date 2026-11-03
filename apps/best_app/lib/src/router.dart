@@ -4,16 +4,21 @@ import 'package:go_router/go_router.dart';
 import 'navigation.dart';
 import 'screens/backup_screen.dart';
 import 'screens/browse_screen.dart';
+import 'screens/contributors_screen.dart';
+import 'screens/discover_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
+import 'screens/manga_screen.dart';
+import 'screens/news_screen.dart';
 import 'screens/reader_screen.dart';
 import 'screens/series_screen.dart';
 import 'screens/settings_screen.dart';
-import 'screens/source_directory_screen.dart';
 import 'screens/shell_screen.dart';
+import 'screens/source_directory_screen.dart';
 import 'screens/stats_screen.dart';
 import 'screens/sync_screen.dart';
+import 'screens/top_rated_screen.dart';
 import 'screens/watch_screen.dart';
 
 /// A router belongs to one app instance. `BestApp` builds it once and keeps it
@@ -38,16 +43,24 @@ GoRouter buildRouter() => GoRouter(
             StatefulShellBranch(
               routes: [
                 GoRoute(
-                  path: Routes.library,
-                  builder: (context, state) => const LibraryScreen(),
+                  path: Routes.manga,
+                  builder: (context, state) => const MangaScreen(),
                 ),
               ],
             ),
             StatefulShellBranch(
               routes: [
                 GoRoute(
-                  path: Routes.browse,
-                  builder: (context, state) => const BrowseScreen(),
+                  path: Routes.discover,
+                  builder: (context, state) => const DiscoverScreen(),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: Routes.library,
+                  builder: (context, state) => const LibraryScreen(),
                 ),
               ],
             ),
@@ -59,15 +72,33 @@ GoRouter buildRouter() => GoRouter(
                 ),
               ],
             ),
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                  path: Routes.settings,
-                  builder: (context, state) => const SettingsScreen(),
-                ),
-              ],
-            ),
           ],
+        ),
+        GoRoute(
+          path: Routes.browse,
+          builder: (context, state) {
+            final query = state.uri.queryParameters;
+            return BrowseScreen(
+              initialSourceId: query['source'],
+              initialQuery: query['q'] ?? '',
+            );
+          },
+        ),
+        GoRoute(
+          path: Routes.settings,
+          builder: (context, state) => const SettingsScreen(),
+        ),
+        GoRoute(
+          path: Routes.topRated,
+          builder: (context, state) => const TopRatedScreen(),
+        ),
+        GoRoute(
+          path: Routes.news,
+          builder: (context, state) => const NewsScreen(),
+        ),
+        GoRoute(
+          path: Routes.contributors,
+          builder: (context, state) => const ContributorsScreen(),
         ),
         GoRoute(
           path: Routes.sources,

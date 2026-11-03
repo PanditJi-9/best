@@ -15,7 +15,14 @@ import '../providers.dart';
 import 'source_settings_sheet.dart';
 
 class BrowseScreen extends ConsumerStatefulWidget {
-  const BrowseScreen({super.key});
+  const BrowseScreen({
+    super.key,
+    this.initialSourceId,
+    this.initialQuery = '',
+  });
+
+  final String? initialSourceId;
+  final String initialQuery;
 
   @override
   ConsumerState<BrowseScreen> createState() => _BrowseScreenState();
@@ -27,6 +34,17 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
   String _query = '';
   String _searchTerm = '';
   String? _sourceId;
+
+  @override
+  void initState() {
+    super.initState();
+    _sourceId = widget.initialSourceId;
+    if (widget.initialQuery.isNotEmpty) {
+      _search.text = widget.initialQuery;
+      _query = widget.initialQuery;
+      _searchTerm = widget.initialQuery.trim();
+    }
+  }
 
   @override
   void dispose() {
@@ -123,157 +141,160 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
       if (changed) await reload();
     }
 
-    return SafeArea(
-      bottom: false,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-            child: PageMasthead(
-              index: "03",
-              title: l10n.browseTitle,
-              subtitle: l10n.browseSubtitle(sources.length),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (extension != null)
-                    Semantics(
-                      label: l10n.sourceSettings,
-                      button: true,
-                      child: IconButton(
-                          tooltip: l10n.sourceSettings,
-                          onPressed: openSettings,
-                          icon: const Icon(Icons.tune_rounded)),
-                    ),
-                  IconButton(
-                      tooltip: l10n.directoryTitle,
-                      onPressed: () => context.push(Routes.sources),
-                      icon: const Icon(Icons.extension_outlined)),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: OutlinedButton.icon(
-                  onPressed: () => context.push(Routes.sources),
-                  icon: const Icon(Icons.add_rounded),
-                  label: Text(l10n.directoryTitle))),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 44,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: sources.length + 1,
-              separatorBuilder: (context, index) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return _SourcePill(
-                    label: l10n.allSources,
-                    selected: source == null,
-                    onTap: () => setState(() => _sourceId = null),
-                  );
-                }
-                final candidate = sources[index - 1];
-                return _SourcePill(
-                  label: candidate.name,
-                  selected: candidate.id == source?.id,
-                  onTap: () => setState(() => _sourceId = candidate.id),
-                );
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-            child: TextField(
-              controller: _search,
-              textInputAction: TextInputAction.search,
-              onChanged: _onSearch,
-              onSubmitted: (value) {
-                _debounce?.cancel();
-                setState(() => _searchTerm = value.trim());
-              },
-              decoration: InputDecoration(
-                hintText: source == null
-                    ? l10n.searchAll
-                    : l10n.searchSource(source.name),
-                prefixIcon: const Icon(Icons.search, size: 20),
-                suffixIcon: _query.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: _clear,
-                      ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: results.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => EmptyState(
-                icon: Icons.cloud_off_outlined,
-                title: l10n.sourceError,
-                body: extension == null
-                    ? '$error'
-                    : '${l10n.sourceSettingsHint}\n\n$error',
-                action: Column(
+    return Scaffold(
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+              child: PageMasthead(
+                index: "02",
+                title: l10n.browseTitle,
+                subtitle: l10n.browseSubtitle(sources.length),
+                trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    FilledButton.icon(
-                      onPressed: reload,
-                      icon: const Icon(Icons.refresh, size: 18),
-                      label: Text(l10n.retry),
-                    ),
-                    if (extension != null) ...[
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: openSettings,
-                        icon: const Icon(Icons.tune_rounded, size: 18),
-                        label: Text(l10n.sourceSettings),
+                    const BackButton(),
+                    if (extension != null)
+                      Semantics(
+                        label: l10n.sourceSettings,
+                        button: true,
+                        child: IconButton(
+                            tooltip: l10n.sourceSettings,
+                            onPressed: openSettings,
+                            icon: const Icon(Icons.tune_rounded)),
                       ),
-                    ],
+                    IconButton(
+                        tooltip: l10n.directoryTitle,
+                        onPressed: () => context.push(Routes.sources),
+                        icon: const Icon(Icons.extension_outlined)),
                   ],
                 ),
               ),
-              data: (works) {
-                if (works.isEmpty) {
-                  return EmptyState(
-                    icon: Icons.travel_explore_outlined,
-                    eyebrow: (source?.name ?? l10n.sources).toUpperCase(),
-                    title: l10n.nothingHere,
-                    body: l10n.nothingHereBody,
+            ),
+            const SizedBox(height: 16),
+            Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: OutlinedButton.icon(
+                    onPressed: () => context.push(Routes.sources),
+                    icon: const Icon(Icons.add_rounded),
+                    label: Text(l10n.directoryTitle))),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 44,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: sources.length + 1,
+                separatorBuilder: (context, index) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return _SourcePill(
+                      label: l10n.allSources,
+                      selected: source == null,
+                      onTap: () => setState(() => _sourceId = null),
+                    );
+                  }
+                  final candidate = sources[index - 1];
+                  return _SourcePill(
+                    label: candidate.name,
+                    selected: candidate.id == source?.id,
+                    onTap: () => setState(() => _sourceId = candidate.id),
                   );
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(22, 4, 22, 2),
-                      child: Text(
-                        l10n.resultCount(works.length),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          letterSpacing: 0.3,
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              child: TextField(
+                controller: _search,
+                textInputAction: TextInputAction.search,
+                onChanged: _onSearch,
+                onSubmitted: (value) {
+                  _debounce?.cancel();
+                  setState(() => _searchTerm = value.trim());
+                },
+                decoration: InputDecoration(
+                  hintText: source == null
+                      ? l10n.searchAll
+                      : l10n.searchSource(source.name),
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: _clear,
+                        ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: results.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, stack) => EmptyState(
+                  icon: Icons.cloud_off_outlined,
+                  title: l10n.sourceError,
+                  body: extension == null
+                      ? '$error'
+                      : '${l10n.sourceSettingsHint}\n\n$error',
+                  action: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: reload,
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: Text(l10n.retry),
+                      ),
+                      if (extension != null) ...[
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: openSettings,
+                          icon: const Icon(Icons.tune_rounded, size: 18),
+                          label: Text(l10n.sourceSettings),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                data: (works) {
+                  if (works.isEmpty) {
+                    return EmptyState(
+                      icon: Icons.travel_explore_outlined,
+                      eyebrow: (source?.name ?? l10n.sources).toUpperCase(),
+                      title: l10n.nothingHere,
+                      body: l10n.nothingHereBody,
+                    );
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(22, 4, 22, 2),
+                        child: Text(
+                          l10n.resultCount(works.length),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            letterSpacing: 0.3,
+                          ),
                         ),
                       ),
-                    ),
-                    Expanded(
-                      child: _BrowseGrid(
-                        works: works,
-                        onOpen: (media) => openSeries(context, ref, media),
-                        onRefresh: reload,
+                      Expanded(
+                        child: _BrowseGrid(
+                          works: works,
+                          onOpen: (media) => openSeries(context, ref, media),
+                          onRefresh: reload,
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              },
+                    ],
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

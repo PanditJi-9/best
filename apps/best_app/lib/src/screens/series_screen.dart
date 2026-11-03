@@ -126,6 +126,8 @@ class _SeriesBody extends ConsumerWidget {
                           _MetaDot(label: kindLabel(l10n, media.kind)),
                           if (media.year != null)
                             _MetaDot(label: '${media.year}'),
+                          if (media.rating != null)
+                            RatingBadge(score: media.rating!),
                           _MetaDot(label: statusLabel(l10n, media.status)),
                           if (offlineCount > 0)
                             _MetaDot(

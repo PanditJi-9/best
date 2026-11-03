@@ -37,7 +37,7 @@ class DownloadsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
             child: PageMasthead(
-              index: "04",
+              index: "05",
               title: l10n.downloadsTitle,
               subtitle: totalBytes > 0
                   ? l10n.downloadsStorage(formatBytes(totalBytes))
@@ -71,7 +71,7 @@ class DownloadsScreen extends ConsumerWidget {
                         title: l10n.downloadsEmptyTitle,
                         body: l10n.downloadsEmptyBody,
                         action: FilledButton.icon(
-                          onPressed: () => context.go(Routes.browse),
+                          onPressed: () => context.go(Routes.manga),
                           icon: const Icon(Icons.explore_outlined, size: 18),
                           label: Text(l10n.browseTitle),
                         ),

@@ -18,7 +18,7 @@ class MangaDexException implements Exception {
 /// MangaDex is used because it is an actual public API with a documented
 /// contract, not a scraped page. The adapter maps its model onto Best's own
 /// types; nothing above this file knows the API exists.
-class MangaDexSource implements SourceAdapter {
+class MangaDexSource implements SourceAdapter, LatestSource {
   MangaDexSource({
     required http.Client client,
     String language = 'en',
@@ -53,7 +53,20 @@ class MangaDexSource implements SourceAdapter {
   Future<List<Media>> search(String query, {int page = 1}) =>
       _list(query: query, page: page);
 
-  Future<List<Media>> _list({String? query, int page = 1}) async {
+  /// The best-scored works the API knows about, with their real scores.
+  Future<List<Media>> topRated({int page = 1}) async =>
+      _withRatings(await _list(page: page, order: 'rating'));
+
+  /// What gained a chapter most recently.
+  @override
+  Future<List<Media>> latest({int page = 1}) async =>
+      _withRatings(await _list(page: page, order: 'latestUploadedChapter'));
+
+  Future<List<Media>> _list({
+    String? query,
+    int page = 1,
+    String order = 'followedCount',
+  }) async {
     final params = <String, dynamic>{
       'limit': '24',
       'offset': '${(page - 1) * 24}',
@@ -62,7 +75,7 @@ class MangaDexSource implements SourceAdapter {
       // Only works that actually have a chapter in the reader's language: a
       // beautiful cover with no readable chapter is a dead end.
       'availableTranslatedLanguage[]': [_language],
-      'order[followedCount]': 'desc',
+      'order[$order]': 'desc',
     };
     final trimmed = query?.trim();
     if (trimmed != null && trimmed.isNotEmpty) {
@@ -180,6 +193,36 @@ class MangaDexSource implements SourceAdapter {
         .whereType<String>()
         .map((file) => ImageResource('$baseUrl/data/$hash/$file'))
         .toList(growable: false);
+  }
+
+  /// One batched statistics call fills the scores for a whole page.
+  ///
+  /// A failed lookup is not a failed catalogue: a page of works without scores
+  /// is still a usable page, so this never throws.
+  Future<List<Media>> _withRatings(List<Media> works) async {
+    if (works.isEmpty) return works;
+    final ids = works.map((work) => work.ref.url).take(100).toList();
+    try {
+      final json = await _getJson(
+        Uri.https(_host, '/statistics/manga', {'manga[]': ids}),
+      );
+      final statistics = _asMap(json['statistics']);
+      return [
+        for (final work in works)
+          work.copyWith(rating: _average(statistics[work.ref.url])),
+      ];
+    } catch (_) {
+      return works;
+    }
+  }
+
+  double? _average(Object? raw) {
+    final rating = _asMap(_asMap(raw)['rating']);
+    final average = rating['average'];
+    if (average is num && average > 0) {
+      return double.parse(average.toStringAsFixed(2));
+    }
+    return null;
   }
 
   Future<Map<String, dynamic>> _getJson(Uri uri) async {

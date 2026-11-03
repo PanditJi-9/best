@@ -81,6 +81,7 @@ class MemoryLibraryRepository implements LibraryRepository {
         year: media.year ?? existing.year,
         status: media.status,
         genres: media.genres.isEmpty ? existing.genres : media.genres,
+        rating: media.rating ?? existing.rating,
         memo: media.memo.isEmpty ? existing.memo : media.memo,
         inLibrary: existing.inLibrary || media.inLibrary,
         favorite: existing.favorite || media.favorite,

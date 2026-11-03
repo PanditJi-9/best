@@ -86,12 +86,15 @@ void main() {
       onRequest?.call(request.url);
       if (status != 200) return http.Response('nope', status);
       final path = request.url.path;
-      if (path == '/manga')
+      if (path == '/manga') {
         return http.Response(jsonEncode(manga), 200, headers: _jsonHeaders);
-      if (path == '/manga/abc/feed')
+      }
+      if (path == '/manga/abc/feed') {
         return http.Response(jsonEncode(feed), 200, headers: _jsonHeaders);
-      if (path == '/at-home/server/ch1')
+      }
+      if (path == '/at-home/server/ch1') {
         return http.Response(jsonEncode(atHome), 200, headers: _jsonHeaders);
+      }
       return http.Response('not found', 404);
     });
     return MangaDexSource(client: client, language: 'en');
@@ -178,5 +181,69 @@ void main() {
       () => source(status: 500).popular(),
       throwsA(isA<MangaDexException>()),
     );
+  });
+
+  test('top rated asks for the rating order and attaches real scores',
+      () async {
+    final asked = <Uri>[];
+    final client = MockClient((request) async {
+      asked.add(request.url);
+      if (request.url.path == '/manga') {
+        return http.Response(jsonEncode(manga), 200, headers: _jsonHeaders);
+      }
+      if (request.url.path == '/statistics/manga') {
+        return http.Response(
+          jsonEncode({
+            'statistics': {
+              'abc': {
+                'rating': {'average': 8.756, 'bayesian': 8.1},
+              },
+            },
+          }),
+          200,
+          headers: _jsonHeaders,
+        );
+      }
+      return http.Response('not found', 404);
+    });
+
+    final works =
+        await MangaDexSource(client: client, language: 'en').topRated();
+
+    expect(asked.first.queryParameters['order[rating]'], 'desc');
+    expect(asked.any((uri) => uri.path == '/statistics/manga'), isTrue);
+    expect(works.single.rating, 8.76);
+  });
+
+  test('a failed statistics call keeps the catalogue rows unrated', () async {
+    final client = MockClient((request) async {
+      if (request.url.path == '/manga') {
+        return http.Response(jsonEncode(manga), 200, headers: _jsonHeaders);
+      }
+      return http.Response('nope', 500);
+    });
+
+    final works =
+        await MangaDexSource(client: client, language: 'en').topRated();
+
+    expect(works, hasLength(1));
+    expect(works.single.rating, isNull);
+  });
+
+  test('latest asks for the newest uploaded chapter', () async {
+    Uri? listing;
+    final client = MockClient((request) async {
+      if (request.url.path == '/manga') {
+        listing = request.url;
+        return http.Response(jsonEncode(manga), 200, headers: _jsonHeaders);
+      }
+      return http.Response('nope', 500);
+    });
+
+    final works =
+        await MangaDexSource(client: client, language: 'en').latest();
+
+    expect(listing!.queryParameters['order[latestUploadedChapter]'], 'desc');
+    expect(works, hasLength(1));
   });
 }

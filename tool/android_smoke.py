@@ -175,13 +175,30 @@ def dismiss_anr() -> None:
         tap(node, wait=1.5)
 
 
+def tap_tab(index: int, count: int = 5) -> None:
+    """Tap a bottom destination by position.
+
+    The tab labels are not unique on screen ("Manga" is also a card badge), and
+    Flutter appends "Tab N of M" differently across versions, so the fixed
+    geometry of the bar is the stable contract here.
+    """
+    match = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
+    width, height = (320, 640) if not match else map(int, match.groups())
+    x = width * (2 * index + 1) // (2 * count)
+    adb("shell", "input", "tap", str(x), str(height - 32))
+    time.sleep(3)
+
+
 def select_source(wanted: str) -> None:
-    """Find a source even when several viewports of pills precede it."""
+    """Find a source in the Manga tab's vertical list, scrolling if needed."""
     def source_in(root):
         node = find(root, wanted)
         if node is None:
             # Extensions can append a qualifier, e.g. AnimeKai (Unoriginal).
             node = find_prefix(root, wanted + " (")
+        if node is None:
+            # A source tile merges its name and language into one node.
+            node = find_prefix(root, wanted)
         return node
 
     root = dump()
@@ -189,22 +206,13 @@ def select_source(wanted: str) -> None:
     if row is not None:
         tap(row, wait=4)
         return
-    row = find_any(root, "All sources")
-    if row is None:
-        row = find_any(root, "MangaDex")
-    if row is None:
-        raise SystemExit("the source chip row did not render")
-    _, y = center(row)
-    match = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
-    width = 320 if not match else int(match.group(1))
-    for _ in range(14):
-        node = source_in(root)
-        if node is not None:
-            tap(node, wait=4)
-            return
-        adb("shell", "input", "swipe", str(width - 25), str(y), "20", str(y), "300")
-        time.sleep(1.2)
+    for _ in range(12):
+        swipe_up()
         root = dump()
+        row = source_in(root)
+        if row is not None:
+            tap(row, wait=4)
+            return
     debug_texts(root)
     raise SystemExit(f"could not reach source {wanted!r}")
 
@@ -255,25 +263,13 @@ def _run() -> int:
 
     # The workflow also screenshots the home screen, but it can catch an
     # emulator dialog. Take it again once the app is actually on screen.
-    wait_for("Search all sources", timeout=40)
+    wait_for("THE DAILY EDITION", timeout=40)
     dismiss_anr()
     screenshot("screenshot.png")
 
-    size = adb("shell", "wm", "size")
-    match = re.search(r"(\d+)x(\d+)", size)
-    width, height = (320, 640) if not match else map(int, match.groups())
-
-    # The bottom bar's accessibility label is not stable across Flutter
-    # versions, so fall back to its fixed position on this emulator.
-    browse = find_prefix(dump(), "Browse")
-    if browse is not None:
-        tap(browse, wait=3)
-    else:
-        adb("shell", "input", "tap", str(width // 2), str(height * 19 // 20))
-        time.sleep(3)
-
-    select_guide()
-    tap(wait_for("Neon Seoul", timeout=30, scrolls=3), wait=5)
+    # A fresh install leads with the offline guide's spotlight and samples, so
+    # the player is reachable without opening the extension directory.
+    tap(wait_for("Neon Seoul", timeout=40, scrolls=16), wait=5)
 
     # A rerun against an emulator with saved data offers "Continue watching".
     root = dump()

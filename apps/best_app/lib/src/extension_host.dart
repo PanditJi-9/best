@@ -628,7 +628,7 @@ class SourceSetting {
 }
 
 /// A [SourceAdapter] over one extension source.
-class ExtensionSourceAdapter implements SourceAdapter {
+class ExtensionSourceAdapter implements SourceAdapter, LatestSource {
   ExtensionSourceAdapter({required this.host, required this.info});
 
   final ExtensionHost host;
@@ -650,6 +650,10 @@ class ExtensionSourceAdapter implements SourceAdapter {
   @override
   Future<List<Media>> search(String query, {int page = 1}) =>
       host.search(info.sourceId, query, page: page, anime: info.isAnime);
+
+  @override
+  Future<List<Media>> latest({int page = 1}) =>
+      host.latest(info.sourceId, page: page, anime: info.isAnime);
 
   @override
   Future<Media> details(Media media) =>

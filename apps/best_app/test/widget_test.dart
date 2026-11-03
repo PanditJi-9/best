@@ -73,7 +73,8 @@ void main() {
     // on screen before the shelf is.
     expect(find.text('Best'), findsWidgets);
     expect(find.text('Home'), findsOneWidget);
-    expect(find.text('Search all sources'), findsOneWidget);
+    expect(find.text('THE DAILY EDITION'), findsOneWidget);
+    expect(find.byIcon(Icons.search), findsOneWidget);
 
     // The shelf is one tab away, with its resume rail and real progress.
     await tester.tap(find.text('Library').last);
@@ -110,10 +111,10 @@ void main() {
 
     for (final label in [
       'Home',
+      'Manga',
+      'Discover',
       'Library',
-      'Browse',
       'Downloads',
-      'Settings',
     ]) {
       expect(find.text(label), findsWidgets, reason: '$label tab is missing');
     }
@@ -122,7 +123,7 @@ void main() {
     // Every destination has to survive the narrow phone, not just Home: the
     // library header, the source pills and the settings segments are all rows
     // that can overflow.
-    for (final label in ['Library', 'Browse', 'Downloads', 'Settings']) {
+    for (final label in ['Manga', 'Discover', 'Library', 'Downloads']) {
       await tester.tap(find.text(label).last);
       await tester.pumpAndSettle();
       expect(
@@ -182,21 +183,21 @@ void main() {
   testWidgets('the guide opens a series and a readable page', (tester) async {
     await _pumpApp(tester);
 
-    // The empty-shelf card sits under the spotlight and the rails, so reach it
-    // the way a reader would instead of assuming it is above the fold.
+    // The offline guide is the spotlight on a fresh install: opening it is
+    // one tap, exactly like a real catalogue entry. The hero is a tall poster,
+    // so a desktop-height test viewport has to bring its button into view.
+    await tester.pumpAndSettle();
+    expect(find.text('Start reading'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('Open the guide'),
+      find.text('Start reading'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
-
-    expect(find.text('Your shelf is waiting'), findsOneWidget);
-    await tester.tap(find.text('Open the guide'));
+    await tester.tap(find.text('Start reading'));
     await tester.pumpAndSettle();
 
     expect(find.text('ظل الغابة'), findsWidgets);
-    expect(find.text('Start reading'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.text('Chapter 1'),
@@ -217,7 +218,15 @@ void main() {
     await tester.tap(find.byTooltip('Back to series'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Settings').last);
+    // Home keeps the scroll offset from the hero tap, which leaves the header
+    // above the build cache; scroll back up to reach its Settings control.
+    await tester.dragUntilVisible(
+      find.byTooltip('Settings'),
+      find.byType(Scrollable).first,
+      const Offset(0, 300),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
     expect(find.text('Appearance'), findsOneWidget);
     expect(find.text('Language'), findsOneWidget);
@@ -228,19 +237,15 @@ void main() {
   ) async {
     await _pumpApp(tester);
 
-    await tester.tap(find.text('Browse').last);
-    await tester.pumpAndSettle();
-
+    // The drama sits in a rail below the hero; slivers outside the viewport
+    // cache are not built, so the finder must be allowed to start empty.
     await tester.scrollUntilVisible(
       find.text('Neon Seoul'),
-      250,
-      scrollable: find.descendant(
-        of: find.byType(GridView),
-        matching: find.byType(Scrollable),
-      ),
+      300,
+      scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Neon Seoul'));
+    await tester.tap(find.text('Neon Seoul').first);
     await tester.pumpAndSettle();
 
     expect(find.text('Neon Seoul'), findsWidgets);
@@ -266,7 +271,7 @@ void main() {
   ) async {
     final container = await _pumpApp(tester);
 
-    await tester.tap(find.text('Settings').last);
+    await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
@@ -318,7 +323,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final container = await _pumpApp(tester);
-    await tester.tap(find.text('Settings').last);
+    await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('Add a source pack'),

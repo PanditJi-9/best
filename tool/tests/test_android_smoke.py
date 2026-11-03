@@ -45,6 +45,9 @@ class SmokeToolsTest(unittest.TestCase):
     @patch.object(smoke, "adb", return_value="Physical size: 320x640")
     @patch.object(smoke, "tap")
     def test_source_selection_walks_more_than_one_viewport(self, tap, adb, _sleep):
+        # The Manga tab lists sources vertically, so walking to a source that
+        # is off screen means swiping up on the same x, not sideways along a
+        # chip row.
         pages = [hierarchy("All sources"), hierarchy("MangaFire"),
                  hierarchy("AnimePahe"), hierarchy("Best Guide")]
         with patch.object(smoke, "dump", side_effect=pages):
@@ -53,7 +56,8 @@ class SmokeToolsTest(unittest.TestCase):
         self.assertIs(tap.call_args.args[0], pages[-1][0])
         swipes = [call for call in adb.call_args_list if "swipe" in call.args]
         self.assertEqual(len(swipes), 3)
-        self.assertTrue(all(call.args[4] == "152" for call in swipes))
+        self.assertTrue(all(call.args[3] == call.args[5] for call in swipes))
+        self.assertTrue(all(call.args[4] == "460" for call in swipes))
 
     @patch.object(smoke, "adb")
     @patch.object(smoke, "tap")

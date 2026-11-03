@@ -109,6 +109,7 @@ class AnimePlaybackTest(unittest.TestCase):
         report = {"source": "AniZone", "catalogue": False, "episodes": False, "playback": False}
         with patch.object(anime, "dismiss_anr"), \
                 patch.object(anime, "wait_for", return_value=player("Browse")[0]), \
+                patch.object(anime, "tap_tab"), \
                 patch.object(anime, "select_source"), \
                 patch.object(anime, "dump", side_effect=[catalogue, player("Watch now")]), \
                 patch.object(anime, "verify_playback", side_effect=RuntimeError("video stalled")):

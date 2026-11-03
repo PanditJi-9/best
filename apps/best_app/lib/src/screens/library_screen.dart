@@ -79,7 +79,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
             child: PageMasthead(
-              index: "02",
+              index: "04",
               title: l10n.navLibrary,
               subtitle: shelfCount == null
                   ? l10n.tagline

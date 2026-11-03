@@ -509,9 +509,16 @@ final browseProvider = FutureProvider.family<List<Media>, BrowseKey>((
 /// This walks the real sources instead, one failure at a time, and only falls
 /// back to the guide when nothing answered — offline, or every source down.
 class DiscoverFeed {
-  const DiscoverFeed({required this.works, required this.live});
+  const DiscoverFeed({
+    required this.works,
+    required this.live,
+    this.latest = const [],
+  });
 
   final List<Media> works;
+
+  /// What gained a chapter most recently, from sources that support it.
+  final List<Media> latest;
 
   /// False when the guide stood in for the live catalogue.
   final bool live;
@@ -521,26 +528,58 @@ final FutureProvider<DiscoverFeed> discoverProvider =
     FutureProvider<DiscoverFeed>((ref) async {
   final registry = ref.watch(sourceRegistryProvider);
   final works = <Media>[];
+  final latest = <Media>[];
   final seen = <String>{};
+  final seenLatest = <String>{};
 
-  for (final source in registry.all.take(3)) {
-    if (source.id == DemoSource.sourceId) continue;
-    // A server can host hundreds of sources; asking all of them on every home
-    // refresh would hammer it. Server sources are one tap away in Browse.
-    if (source.id.startsWith('suwayomi:')) continue;
-    // The front door probes at most three chosen sources, not the full index.
-    try {
-      final page = await source.popular().timeout(
-            const Duration(seconds: 15),
-            onTimeout: () => const <Media>[],
-          );
-      for (final media in page) {
-        final key = '${media.title.toLowerCase().trim()}|${media.kind.name}';
-        if (seen.add(key)) works.add(media);
-      }
-    } catch (_) {
-      // One dead source must not empty the front door.
+  // The front door probes a handful of chosen sources, not the full index.
+  // Asking hundreds would hammer a server and turn one slow site into a slow
+  // app; the Manga tab is where the complete list lives.
+  final sources = registry.all
+      .where((source) =>
+          source.id != DemoSource.sourceId &&
+          !source.id.startsWith('suwayomi:'))
+      .take(4)
+      .toList();
+
+  List<Media> merge(List<Media> page, List<Media> into, Set<String> seen) {
+    for (final media in page) {
+      final key = '${media.title.toLowerCase().trim()}|${media.kind.name}';
+      if (seen.add(key)) into.add(media);
     }
+    return into;
+  }
+
+  // Latest is a capability, not a promise: only sources that declare it are
+  // asked, and a source without a latest page is not an error. Both phases
+  // start together, so a slow latest page never delays the catalogue.
+  final latestSources = sources.whereType<LatestSource>().toList();
+  final popularRequest = Future.wait<List<Media>>([
+    for (final source in sources)
+      source
+          .popular()
+          .timeout(
+            const Duration(seconds: 12),
+            onTimeout: () => const <Media>[],
+          )
+          .catchError((Object _) => const <Media>[]),
+  ]);
+  final latestRequest = Future.wait<List<Media>>([
+    for (final source in latestSources)
+      source
+          .latest()
+          .timeout(
+            const Duration(seconds: 12),
+            onTimeout: () => const <Media>[],
+          )
+          .catchError((Object _) => const <Media>[]),
+  ]);
+
+  for (final page in await popularRequest) {
+    merge(page, works, seen);
+  }
+  for (final page in await latestRequest) {
+    merge(page, latest, seenLatest);
   }
 
   if (works.isEmpty) {
@@ -549,7 +588,279 @@ final FutureProvider<DiscoverFeed> discoverProvider =
       live: false,
     );
   }
-  return DiscoverFeed(works: List.unmodifiable(works.take(40)), live: true);
+  return DiscoverFeed(
+    works: List.unmodifiable(works.take(40)),
+    latest: List.unmodifiable(latest.take(30)),
+    live: true,
+  );
+});
+
+/// The real community ranking.
+///
+/// MangaDex is the only catalogue in the app that publishes a score, so this
+/// list never mixes rated and unrated works: a rank with no number behind it
+/// would be an invented statistic. When the API is down the screen says so
+/// instead of falling back to a made-up order.
+class Rankings {
+  const Rankings({
+    this.works = const [],
+    this.live = false,
+    this.error,
+  });
+
+  final List<Media> works;
+  final bool live;
+  final String? error;
+
+  bool get isEmpty => works.isEmpty;
+}
+
+final FutureProvider<Rankings> rankingsProvider =
+    FutureProvider<Rankings>((ref) async {
+  final registry = ref.watch(sourceRegistryProvider);
+  final source = registry.byId(MangaDexSource.sourceId);
+  if (source is! MangaDexSource) {
+    return const Rankings(error: 'MangaDex is not available.');
+  }
+  try {
+    final works = await source.topRated();
+    final rated = works.where((work) => work.rating != null).toList()
+      ..sort((a, b) {
+        final byScore = b.rating!.compareTo(a.rating!);
+        return byScore != 0
+            ? byScore
+            : a.displayTitle.compareTo(b.displayTitle);
+      });
+    return Rankings(works: List.unmodifiable(rated), live: true);
+  } catch (error) {
+    return Rankings(error: '$error');
+  }
+});
+
+/// A publisher in the extension directory.
+///
+/// The directory is community-maintained: a publisher is the GitHub account
+/// (or host) that signs the APK, not a Best employee. Aggregating the index is
+/// the only honest "top contributors" list the app can show, because it is the
+/// same data the installer already trusts.
+class Publisher {
+  const Publisher({
+    required this.name,
+    required this.url,
+    required this.extensions,
+    required this.sources,
+    required this.languages,
+    required this.kinds,
+  });
+
+  final String name;
+  final String url;
+  final int extensions;
+  final int sources;
+  final List<String> languages;
+  final Set<String> kinds;
+
+  bool get hasAnime => kinds.contains('anime');
+  bool get hasManga => kinds.contains('manga') || kinds.isEmpty;
+}
+
+class Publishers {
+  const Publishers({
+    this.items = const [],
+    this.extensions = 0,
+    this.sources = 0,
+    this.cached = false,
+    this.errors = const [],
+  });
+
+  final List<Publisher> items;
+  final int extensions;
+  final int sources;
+  final bool cached;
+  final List<String> errors;
+}
+
+String _publisherName(String repositoryUrl) {
+  final uri = Uri.tryParse(repositoryUrl);
+  if (uri == null) return repositoryUrl;
+  final segments = uri.pathSegments.where((part) => part.isNotEmpty).toList();
+  if (segments.isEmpty) return uri.host;
+  if (uri.host == 'github.com' && segments.length >= 2) return segments.first;
+  if (uri.host.endsWith('githubusercontent.com') && segments.length >= 2) {
+    return segments.first;
+  }
+  return uri.host;
+}
+
+String _publisherUrl(String repositoryUrl) {
+  final uri = Uri.tryParse(repositoryUrl);
+  if (uri == null) return repositoryUrl;
+  final segments = uri.pathSegments.where((part) => part.isNotEmpty).toList();
+  final github =
+      uri.host == 'github.com' || uri.host.endsWith('githubusercontent.com');
+  if (github && segments.isNotEmpty) {
+    return 'https://github.com/${segments.first}';
+  }
+  return '${uri.scheme}://${uri.host}';
+}
+
+final FutureProvider<Publishers> publishersProvider =
+    FutureProvider<Publishers>((ref) async {
+  final directory = await ref.watch(extensionDirectoryProvider.future);
+  final groups = <String, List<ExtensionEntry>>{};
+  for (final entry in directory.entries) {
+    final name = _publisherName(entry.repositoryUrl);
+    groups.putIfAbsent(name, () => <ExtensionEntry>[]).add(entry);
+  }
+  final items = <Publisher>[];
+  var sourceCount = 0;
+  for (final group in groups.entries) {
+    final entries = group.value;
+    final languages = <String>{};
+    final kinds = <String>{};
+    var sources = 0;
+    for (final entry in entries) {
+      sources += entry.sources.isEmpty ? 1 : entry.sources.length;
+      languages.addAll(entry.languages.where((code) => code.isNotEmpty));
+      kinds.add(entry.kind);
+    }
+    sourceCount += sources;
+    final sortedLanguages = languages.toList()..sort();
+    items.add(
+      Publisher(
+        name: group.key,
+        url: _publisherUrl(entries.first.repositoryUrl),
+        extensions: entries.length,
+        sources: sources,
+        languages: List.unmodifiable(sortedLanguages),
+        kinds: Set.unmodifiable(kinds),
+      ),
+    );
+  }
+  items.sort((a, b) {
+    final bySources = b.sources.compareTo(a.sources);
+    return bySources != 0 ? bySources : a.name.compareTo(b.name);
+  });
+  return Publishers(
+    items: List.unmodifiable(items),
+    extensions: directory.entries.length,
+    sources: sourceCount,
+    cached: directory.cached,
+    errors: directory.errors,
+  );
+});
+
+/// Shelf-aware picks from a pool of real catalogue entries.
+///
+/// There is no recommendation model here: the genres the person actually keeps
+/// on their shelf are intersected with what the live sources returned. With an
+/// empty shelf it is simply the top-rated list, labelled as such.
+class Recommendations {
+  const Recommendations({
+    this.works = const [],
+    this.genres = const [],
+    this.personalised = false,
+  });
+
+  final List<Media> works;
+  final List<String> genres;
+  final bool personalised;
+}
+
+final FutureProvider<Recommendations> recommendationsProvider =
+    FutureProvider<Recommendations>((ref) async {
+  final entries = await ref.watch(libraryProvider.future);
+  final rankings = await ref.watch(rankingsProvider.future);
+  final feed = await ref.watch(discoverProvider.future);
+
+  final wanted = <String>{};
+  final owned = <String>{};
+  for (final entry in entries) {
+    owned.add(entry.media.id);
+    for (final genre in entry.media.genres) {
+      final clean = genre.trim().toLowerCase();
+      if (clean.isNotEmpty) wanted.add(clean);
+    }
+  }
+
+  final pool = <Media>[];
+  final seen = <String>{};
+  for (final media in [
+    ...rankings.works,
+    ...feed.works,
+    ...feed.latest,
+  ]) {
+    if (owned.contains(media.id)) continue;
+    if (seen.add(media.id)) pool.add(media);
+  }
+
+  if (wanted.isEmpty) {
+    return Recommendations(
+      works: List.unmodifiable(pool.take(12)),
+    );
+  }
+
+  final matches = pool.where((media) {
+    for (final genre in media.genres) {
+      if (wanted.contains(genre.trim().toLowerCase())) return true;
+    }
+    return false;
+  }).toList();
+
+  return Recommendations(
+    works: List.unmodifiable(matches.take(12)),
+    genres: List.unmodifiable(wanted.take(4)),
+    personalised: true,
+  );
+});
+
+/// A week of local activity, framed as a challenge rather than a store.
+///
+/// The goal and badges are thresholds over numbers the app already records
+/// (pages turned, consecutive days, finished chapters). Nothing is uploaded and
+/// no reward is a currency: the prize is a label on your own profile.
+enum RewardBadge { firstUnit, streak3, streak7, pages100, pages300, pages1000 }
+
+class WeeklyRewards {
+  const WeeklyRewards({
+    required this.goal,
+    required this.weekPages,
+    required this.streakDays,
+    required this.completedUnits,
+    required this.lifetimePages,
+    required this.works,
+  });
+
+  final int goal;
+  final int weekPages;
+  final int streakDays;
+  final int completedUnits;
+  final int lifetimePages;
+  final int works;
+
+  double get progress => (weekPages / goal).clamp(0.0, 1.0);
+
+  Set<RewardBadge> get earned => {
+        if (completedUnits > 0) RewardBadge.firstUnit,
+        if (streakDays >= 3) RewardBadge.streak3,
+        if (streakDays >= 7) RewardBadge.streak7,
+        if (lifetimePages >= 100) RewardBadge.pages100,
+        if (lifetimePages >= 300) RewardBadge.pages300,
+        if (lifetimePages >= 1000) RewardBadge.pages1000,
+      };
+}
+
+final FutureProvider<WeeklyRewards> weeklyRewardsProvider =
+    FutureProvider<WeeklyRewards>((ref) async {
+  final stats = await ref.watch(readingStatsProvider.future);
+  return WeeklyRewards(
+    goal: 300,
+    weekPages: stats.weekPages,
+    streakDays: stats.streakDays,
+    completedUnits: stats.completedUnits,
+    lifetimePages: stats.pages,
+    works: stats.works,
+  );
 });
 
 /// One search box over every installed source. Sources answer in parallel, so

@@ -5,9 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../providers.dart';
 
-/// The five destinations are the whole information architecture: where to
-/// start, what you own, what exists, what is offline, and how the app behaves.
-/// Anything deeper is a pushed route, never a sixth tab.
+/// The five destinations are the whole information architecture: the daily
+/// edition, the source-first manga shelf, discovery, what you own, and what is
+/// offline. Settings is a pushed route from Home, and rankings, news and
+/// contributors are pushed screens, never a sixth tab.
 class ShellScreen extends ConsumerWidget {
   const ShellScreen({super.key, required this.navigationShell});
 
@@ -29,24 +30,24 @@ class ShellScreen extends ConsumerWidget {
         selectedIcon: Icons.home_rounded,
       ),
       _Destination(
-        label: l10n.navLibrary,
-        icon: Icons.auto_stories_outlined,
-        selectedIcon: Icons.auto_stories,
+        label: l10n.navManga,
+        icon: Icons.menu_book_outlined,
+        selectedIcon: Icons.menu_book_rounded,
       ),
       _Destination(
-        label: l10n.navBrowse,
+        label: l10n.navDiscover,
         icon: Icons.explore_outlined,
         selectedIcon: Icons.explore,
+      ),
+      _Destination(
+        label: l10n.navLibrary,
+        icon: Icons.bookmarks_outlined,
+        selectedIcon: Icons.bookmarks_rounded,
       ),
       _Destination(
         label: l10n.navDownloads,
         icon: Icons.download_outlined,
         selectedIcon: Icons.download,
-      ),
-      _Destination(
-        label: l10n.navSettings,
-        icon: Icons.tune_outlined,
-        selectedIcon: Icons.tune_rounded,
       ),
     ];
 

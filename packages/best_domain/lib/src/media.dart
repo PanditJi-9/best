@@ -69,6 +69,7 @@ class Media {
     this.year,
     this.status = MediaStatus.unknown,
     this.genres = const [],
+    this.rating,
     this.memo = '',
     this.inLibrary = false,
     this.favorite = false,
@@ -88,6 +89,12 @@ class Media {
   final int? year;
   final MediaStatus status;
   final List<String> genres;
+
+  /// The source's own score for this work, on a 0–10 scale.
+  ///
+  /// Only sources that publish a score fill it (MangaDex does). It is never
+  /// invented: `null` means "this source does not rate works".
+  final double? rating;
 
   /// Opaque JSON the source attached to this work (extensions-lib `memo`).
   ///
@@ -124,6 +131,7 @@ class Media {
     int? year,
     MediaStatus? status,
     List<String>? genres,
+    double? rating,
     String? memo,
     bool? inLibrary,
     bool? favorite,
@@ -143,6 +151,7 @@ class Media {
       year: year ?? this.year,
       status: status ?? this.status,
       genres: genres ?? this.genres,
+      rating: rating ?? this.rating,
       memo: memo ?? this.memo,
       inLibrary: inLibrary ?? this.inLibrary,
       favorite: favorite ?? this.favorite,

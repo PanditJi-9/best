@@ -74,6 +74,15 @@ abstract interface class SourceAdapter {
   Future<List<MediaResource>> resources(MediaUnit unit);
 }
 
+/// A source that can answer "what changed lately".
+///
+/// A capability, not a method on [SourceAdapter]: most sites have a latest page
+/// and some do not, and adding it to the main contract would force every
+/// adapter to fake one. The news feed asks only sources that opt in.
+abstract interface class LatestSource {
+  Future<List<Media>> latest({int page = 1});
+}
+
 /// Resolves a source by id and lists what is installed.
 ///
 /// The list is supplied through a callback, not captured once: installing or

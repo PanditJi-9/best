@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'cover.dart';
+import 'rating.dart';
 import 'tokens.dart';
 
 /// The shelf card: a poster, a printed kind label, and a title set in the
@@ -15,6 +16,7 @@ class MediaCard extends StatelessWidget {
     this.badge,
     this.progress = 0,
     this.rank,
+    this.rating,
     this.onTap,
   });
 
@@ -29,6 +31,9 @@ class MediaCard extends StatelessWidget {
   /// 1-based position in a ranked rail. Drawn as an outlined brass numeral so
   /// the artwork stays the loudest thing on the card.
   final int? rank;
+
+  /// The source's own score, when it publishes one. Omitted for unrated works.
+  final double? rating;
   final VoidCallback? onTap;
 
   @override
@@ -91,6 +96,12 @@ class MediaCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                  if (rating != null)
+                    PositionedDirectional(
+                      bottom: 6,
+                      start: 6,
+                      child: RatingBadge(score: rating!, compact: true),
+                    ),
                   if (rank != null)
                     PositionedDirectional(
                       bottom: -8,
@@ -120,15 +131,20 @@ class MediaCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: BestSpace.sm + 2),
-            Text(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontFamily: BestFonts.display,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                height: 1.25,
+            // A caller can pin the card to a rail height; let the title take
+            // the space that is left instead of overflowing the column by a
+            // pixel or two at a narrow phone width.
+            Flexible(
+              child: Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontFamily: BestFonts.display,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  height: 1.25,
+                ),
               ),
             ),
             const SizedBox(height: 2),
