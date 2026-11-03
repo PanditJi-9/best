@@ -446,8 +446,8 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
         _SyntheticPageView(
           page: pageIndex,
           label: label,
-          position: index,
-          total: total,
+          position: widget.index,
+          total: widget.total,
         ),
       VideoResource() => Center(
           child: Padding(
