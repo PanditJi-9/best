@@ -97,6 +97,12 @@ dependencies {
     // Current MangaDex/AnimeXin bundles call the Kotlin Duration overloads in
     // OkHttp 5 (e.g. CacheControl.Builder.maxStale-LRDsOJo), absent in 4.x.
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
+    // Current Keiyoushi sources build a CompressionInterceptor over Gzip,
+    // Deflate, Brotli and Zstd. These modules ship the codec classes the
+    // extension links against; without them every catalogue request fails with
+    // NoClassDefFoundError: okhttp3/brotli/Brotli.
+    implementation("com.squareup.okhttp3:okhttp-brotli:5.3.2")
+    implementation("com.squareup.okhttp3:okhttp-zstd:5.3.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json-okio:1.9.0")
     implementation("org.jsoup:jsoup:1.18.3")

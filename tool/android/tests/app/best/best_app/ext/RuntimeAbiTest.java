@@ -144,6 +144,19 @@ public class RuntimeAbiTest {
         assertEquals(1, source.chapterCalls);
     }
 
+    @Test public void compressionModulesRequiredByCurrentKeiyoushiSourcesArePackaged() throws Exception {
+        // KeiSource builds CompressionInterceptor(Gzip, Deflate, Brotli, Zstd)
+        // and rejects a default client that already contains BrotliInterceptor.
+        Class.forName("okhttp3.brotli.Brotli");
+        Class<?> brotli = Class.forName("okhttp3.brotli.BrotliInterceptor");
+        Class.forName("okhttp3.zstd.Zstd");
+        Class.forName("okhttp3.CompressionInterceptor");
+        Class.forName("okhttp3.Gzip");
+        assertTrue(Interceptor.class.isAssignableFrom(brotli));
+        assertTrue(extensionClient().interceptors().stream()
+            .noneMatch(i -> i.getClass().getSimpleName().equals("BrotliInterceptor")));
+    }
+
     @Test public void jsonOkioExportsTheClassAnimeKaiLinksAgainst() throws Exception {
         Class<?> streams = Class.forName("kotlinx.serialization.json.okio.OkioStreamsKt");
         assertTrue(java.util.Arrays.stream(streams.getMethods())
