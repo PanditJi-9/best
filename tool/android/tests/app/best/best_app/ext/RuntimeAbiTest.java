@@ -5,6 +5,7 @@ import eu.kanade.tachiyomi.animesource.model.SEpisode;
 import eu.kanade.tachiyomi.animesource.model.FetchType;
 import eu.kanade.tachiyomi.animesource.model.Video;
 import eu.kanade.tachiyomi.animesource.model.Hoster;
+import eu.kanade.tachiyomi.animesource.model.AnimeFilter;
 import eu.kanade.tachiyomi.animesource.model.ChapterType;
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource;
 import eu.kanade.tachiyomi.source.online.HttpSource;
@@ -155,6 +156,40 @@ public class RuntimeAbiTest {
         assertTrue(Interceptor.class.isAssignableFrom(brotli));
         assertTrue(extensionClient().interceptors().stream()
             .noneMatch(i -> i.getClass().getSimpleName().equals("BrotliInterceptor")));
+    }
+
+    @Test public void httpExceptionKeepsTheMihonConstructorAndParent() throws Exception {
+        Class<?> type = Class.forName("eu.kanade.tachiyomi.network.HttpException");
+        assertTrue(IllegalStateException.class.isAssignableFrom(type));
+        Throwable error = (Throwable) type.getConstructor(int.class).newInstance(404);
+        assertEquals(404, type.getMethod("getCode").invoke(error));
+        assertEquals("HTTP error 404", error.getMessage());
+    }
+
+    @Test public void animeSortAndTriStateFiltersMatchTheAniyomiContract() throws Exception {
+        Class<?> sort = Class.forName("eu.kanade.tachiyomi.animesource.model.AnimeFilter$Sort");
+        Class<?> selection = Class.forName("eu.kanade.tachiyomi.animesource.model.AnimeFilter$Sort$Selection");
+        Object chosen = selection.getConstructor(int.class, boolean.class).newInstance(2, true);
+        assertEquals(2, selection.getMethod("getIndex").invoke(chosen));
+        assertEquals(true, selection.getMethod("getAscending").invoke(chosen));
+        assertTrue(sort.isAssignableFrom(AnimeSortFixture.class));
+        assertNotNull(sort.getMethod("getValues"));
+
+        Class<?> triState = Class.forName("eu.kanade.tachiyomi.animesource.model.AnimeFilter$TriState");
+        assertEquals(0, triState.getField("STATE_IGNORE").get(null));
+        assertEquals(1, triState.getField("STATE_INCLUDE").get(null));
+        assertEquals(2, triState.getField("STATE_EXCLUDE").get(null));
+        assertNotNull(triState.getMethod("isIgnored"));
+    }
+
+    @Test public void protobufWebkitAndQuickJsArePackagedForExtensionsThatLinkThem() throws Exception {
+        ClassLoader loader = RuntimeAbiTest.class.getClassLoader();
+        Class.forName("kotlinx.serialization.protobuf.ProtoBuf");
+        Class.forName("androidx.webkit.WebViewClientCompat");
+        Class.forName("org.chromium.support_lib_boundary.WebViewProviderFactoryBoundaryInterface");
+        // QuickJs loads its native library in a static initializer, so only the
+        // class's presence is asserted here; the device smoke run exercises it.
+        Class.forName("app.cash.quickjs.QuickJs", false, loader);
     }
 
     @Test public void jsonOkioExportsTheClassAnimeKaiLinksAgainst() throws Exception {
@@ -343,6 +378,12 @@ public class RuntimeAbiTest {
         @Override protected List<SChapter> chapterListParse(Response response) { throw new UnsupportedOperationException(); }
         @Override protected List<Page> pageListParse(Response response) { throw new UnsupportedOperationException(); }
         @Override protected String imageUrlParse(Response response) { throw new UnsupportedOperationException(); }
+    }
+
+    private static final class AnimeSortFixture extends AnimeFilter.Sort {
+        AnimeSortFixture() {
+            super("Sort", new String[] {"Popular", "Latest"}, (AnimeFilter.Sort.Selection) null);
+        }
     }
 
     private static final class LegacyMangaFixture extends MangaUrlFixture {

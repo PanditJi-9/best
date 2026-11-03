@@ -1,11 +1,22 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:best_domain/best_domain.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// The extension source id inside a `mihon:` source reference, if any.
+///
+/// A source reference is either a built-in name (`mangadex`) or
+/// `mihon:<extension long id>`. Only the second kind can be asked for page
+/// images through the extension host.
+int? extensionSourceIdOf(String sourceId) {
+  if (!sourceId.startsWith('mihon:')) return null;
+  return int.tryParse(sourceId.substring('mihon:'.length));
+}
 
 /// One source an installed extension APK exposes.
 ///
@@ -341,6 +352,28 @@ class ExtensionHost {
       resources.add(ImageResource(url, headers: headers));
     }
     return resources;
+  }
+
+  /// One page image, downloaded by the extension's own HTTP client.
+  ///
+  /// Flutter's client has neither the extension's cookies nor its signing
+  /// interceptors, so a CDN can answer 403 to an image that works inside the
+  /// extension (MangaFire's did). When the host is not there — tests, desktop —
+  /// this answers null and the caller keeps the plain network image path.
+  Future<Uint8List?> imageBytes(
+    int sourceId,
+    String url, {
+    Map<String, String> headers = const {},
+  }) async {
+    try {
+      return await _channel.invokeMethod<Uint8List>('imageBytes', <String, dynamic>{
+        'sourceId': sourceId,
+        'url': url,
+        'headers': headers,
+      });
+    } on MissingPluginException {
+      return null;
+    }
   }
 
   /// Streams for one episode of an anime extension.

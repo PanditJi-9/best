@@ -104,6 +104,13 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp-brotli:5.3.2")
     implementation("com.squareup.okhttp3:okhttp-zstd:5.3.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+    // AniZone/AnimePahe/AnimeXin serialize protobuf payloads; MangaFire links
+    // against androidx.webkit's WebView compat boundary; Anime4Up and other
+    // extractor-based anime sources run JavaScript through QuickJS. All three
+    // are part of the Aniyomi host surface an extension may reference.
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-protobuf:1.9.0")
+    implementation("androidx.webkit:webkit:1.12.1")
+    implementation("app.cash.quickjs:quickjs-android:0.9.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json-okio:1.9.0")
     implementation("org.jsoup:jsoup:1.18.3")
     implementation("io.reactivex:rxjava:1.3.8")

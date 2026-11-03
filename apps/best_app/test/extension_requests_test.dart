@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:best_app/src/extension_host.dart';
 import 'package:best_domain/best_domain.dart';
@@ -89,5 +90,40 @@ void main() {
       host.search(42, 'two', anime: true),
     ]);
     expect(calls, 7);
+  });
+
+  test('only mihon source references expose an extension id', () {
+    expect(extensionSourceIdOf('mihon:1234'), 1234);
+    expect(extensionSourceIdOf('mangadex'), isNull);
+    expect(extensionSourceIdOf('mihon:not-a-number'), isNull);
+    expect(extensionSourceIdOf(''), isNull);
+  });
+
+  test('page images are fetched through the extension host with their headers',
+      () async {
+    final bytes = Uint8List.fromList([1, 2, 3, 4]);
+    MethodCall? seen;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      seen = call;
+      return bytes;
+    });
+
+    final result = await host.imageBytes(
+      42,
+      'https://cdn.test/1.jpg',
+      headers: const {'Referer': 'https://site.test'},
+    );
+
+    expect(result, bytes);
+    expect(seen?.method, 'imageBytes');
+    expect(seen?.arguments, {
+      'sourceId': 42,
+      'url': 'https://cdn.test/1.jpg',
+      'headers': {'Referer': 'https://site.test'},
+    });
+  });
+
+  test('a reader without a host falls back instead of failing', () async {
+    expect(await host.imageBytes(42, 'https://cdn.test/1.jpg'), isNull);
   });
 }

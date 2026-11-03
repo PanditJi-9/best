@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:best_domain/best_domain.dart';
@@ -7,6 +8,7 @@ import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../extension_host.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../providers.dart';
 
@@ -218,6 +220,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                   itemCount: total,
                   itemBuilder: (context, index) => _ResourcePage(
                     resource: _resources[index],
+                    sourceId: widget.data.media.ref.sourceId,
                     index: index,
                     total: total,
                   ),
@@ -309,41 +312,117 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 }
 
-class _ResourcePage extends StatelessWidget {
+Widget _networkImage(String url, Map<String, String> headers) {
+  return Image.network(
+    url,
+    headers: headers.isEmpty ? null : headers,
+    fit: BoxFit.contain,
+    loadingBuilder: (context, child, progress) {
+      if (progress == null) return child;
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white54),
+      );
+    },
+    errorBuilder: (context, error, stack) => _PageError(message: '$error'),
+  );
+}
+
+class _PageError extends StatelessWidget {
+  const _PageError({this.message});
+
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = message;
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.broken_image_outlined,
+            color: Colors.white38,
+            size: 40,
+          ),
+          if (text != null && text.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ResourcePage extends ConsumerStatefulWidget {
   const _ResourcePage({
     required this.resource,
+    required this.sourceId,
     required this.index,
     required this.total,
   });
 
   final MediaResource resource;
+  final String sourceId;
   final int index;
   final int total;
 
   @override
+  ConsumerState<_ResourcePage> createState() => _ResourcePageState();
+}
+
+class _ResourcePageState extends ConsumerState<_ResourcePage> {
+  /// Non-null only for an extension page: the host fetches it with the
+  /// extension's own client, cookies and signing interceptors included.
+  Future<Uint8List?>? _bytes;
+
+  @override
+  void initState() {
+    super.initState();
+    final resource = widget.resource;
+    final source = extensionSourceIdOf(widget.sourceId);
+    if (resource is ImageResource && source != null) {
+      _bytes = ref
+          .read(extensionHostProvider)
+          .imageBytes(source, resource.url, headers: resource.headers);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final resource = widget.resource;
     return switch (resource) {
-      ImageResource(:final url) => InteractiveViewer(
+      ImageResource(:final url, :final headers) => InteractiveViewer(
           minScale: 1,
           maxScale: 4,
           child: Center(
-            child: Image.network(
-              url,
-              fit: BoxFit.contain,
-              loadingBuilder: (context, child, progress) {
-                if (progress == null) return child;
-                return const Center(
-                  child: CircularProgressIndicator(color: Colors.white54),
-                );
-              },
-              errorBuilder: (context, error, stack) => const Center(
-                child: Icon(
-                  Icons.broken_image_outlined,
-                  color: Colors.white38,
-                  size: 40,
-                ),
-              ),
-            ),
+            child: _bytes == null
+                ? _networkImage(url, headers)
+                : FutureBuilder<Uint8List?>(
+                    future: _bytes,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return _PageError(message: '${snapshot.error}');
+                      }
+                      final bytes = snapshot.data;
+                      if (bytes == null || bytes.isEmpty) {
+                        // The host is absent (tests, desktop) or declined.
+                        return _networkImage(url, headers);
+                      }
+                      return Image.memory(
+                        bytes,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                        errorBuilder: (context, error, stack) =>
+                            const _PageError(),
+                      );
+                    },
+                  ),
           ),
         ),
       FileResource(:final path) => InteractiveViewer(

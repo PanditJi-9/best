@@ -36,7 +36,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import okhttp3.Request
 import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.api.addSingleton
 import uy.kohesive.injekt.api.addSingletonFactory
 import java.io.File
@@ -79,6 +81,9 @@ class ExtensionHost(private val context: Context) {
          * a build log.
          */
         private const val TAG = "BestExtensions"
+
+        /** A page image is bounded like any other download, never streamed into memory unbounded. */
+        private const val MAX_IMAGE_BYTES = 32L * 1024 * 1024
     }
 
     private val app: Application = context.applicationContext as Application
@@ -385,6 +390,12 @@ class ExtensionHost(private val context: Context) {
                 val id = call.argument<Number>("sourceId")?.toLong()
                 respond(result) { headersFor(id) }
             }
+            "imageBytes" -> {
+                val id = call.argument<Number>("sourceId")?.toLong()
+                val url = call.argument<String>("url").orEmpty()
+                val headers = call.argument<Map<String, String>>("headers") ?: emptyMap()
+                respond(result) { imageBytes(id, url, headers) }
+            }
             else -> result.notImplemented()
         }
     }
@@ -614,6 +625,41 @@ class ExtensionHost(private val context: Context) {
     }
 
     // ------------------------------------------------------------------- anime
+
+    /**
+     * One page image, fetched by the extension's own client.
+     *
+     * Flutter's HTTP stack has neither the extension's cookies nor its signing
+     * interceptors, so a CDN that accepts Mihon's request answers 403 to the
+     * reader (MangaFire did exactly that). Downloading through the host keeps
+     * the request identical to what the extension expects, and gives the reader
+     * a real error instead of a silent broken-image icon.
+     */
+    private suspend fun imageBytes(id: Long?, url: String, headers: Map<String, String>): ByteArray {
+        require(url.startsWith("https://") || url.startsWith("http://")) {
+            "Only http(s) page images can be loaded."
+        }
+        val source = id?.let { sourceFor(it) }
+        val client = (source as? eu.kanade.tachiyomi.source.online.HttpSource)?.client
+            ?: Injekt.get<NetworkHelper>().client
+        val request = Request.Builder().url(url).apply {
+            headers.forEach { (key, value) ->
+                if (key.isNotBlank() && value.isNotBlank() && !key.equals("Host", true)) {
+                    header(key, value)
+                }
+            }
+        }.build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw java.io.IOException("The site answered HTTP ${response.code} for this page image.")
+            }
+            val body = response.body ?: throw java.io.IOException("The site returned an empty page image.")
+            require(body.contentLength() <= MAX_IMAGE_BYTES) { "This page image is too large to open." }
+            val bytes = body.bytes()
+            require(bytes.size <= MAX_IMAGE_BYTES) { "This page image is too large to open." }
+            return bytes
+        }
+    }
 
     private suspend fun episodes(id: Long?, url: String): List<Map<String, Any?>> {
         val source = animeFor(id ?: 0L) ?: throw IllegalStateException("Unknown anime source.")

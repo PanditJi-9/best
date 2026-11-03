@@ -246,6 +246,24 @@ open class AnimeFilter<T>(val name: String, var state: T) {
 
     open class Text(name: String, state: String = "") : AnimeFilter<String>(name, state)
 
+    open class TriState(name: String, state: Int = STATE_IGNORE) : AnimeFilter<Int>(name, state) {
+        fun isIgnored() = state == STATE_IGNORE
+        fun isIncluded() = state == STATE_INCLUDE
+        fun isExcluded() = state == STATE_EXCLUDE
+
+        companion object {
+            const val STATE_IGNORE = 0
+            const val STATE_INCLUDE = 1
+            const val STATE_EXCLUDE = 2
+        }
+    }
+
+    /** Current Aniyomi sort control; AniList declares one in its filter list. */
+    open class Sort(name: String, val values: Array<String>, state: Selection? = null) :
+        AnimeFilter<Sort.Selection?>(name, state) {
+        data class Selection(val index: Int, val ascending: Boolean)
+    }
+
     open class Group(name: String, state: List<AnimeFilter<*>> = emptyList()) :
         AnimeFilter<List<AnimeFilter<*>>>(name, state)
 }
