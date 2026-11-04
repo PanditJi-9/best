@@ -910,6 +910,10 @@
   "menuExtensionsBody": "Install and manage extensions",
   "menuDirectoryBody": "Every available site",
   "menuSourcesBody": "Every source you added, with its own catalogue.",
+  "menuGuideBody": "A sample shelf that ships inside Best, so you can see how it works before adding a source.",
+  "@menuGuideBody": {
+    "description": "Menu tile that opens the built-in guide"
+  },
   "@menuSourcesBody": {
     "description": "Menu tile body for the list of added sources."
   },

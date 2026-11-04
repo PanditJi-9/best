@@ -67,10 +67,15 @@ Future<void> openWatch(
 /// The guide is fetched, saved and opened exactly like a real source, so the
 /// first-run path exercises the same code as every later one.
 Future<void> openGuide(BuildContext context, WidgetRef ref) async {
-  final source = const DemoSource();
-  final works = await source.popular();
-  if (works.isEmpty) return;
-  final media = works.first;
+  const source = DemoSource();
+  // The showcase is the guide's playable drama, so the first thing a new
+  // reader opens is the video the guide actually ships.
+  var media = source.showcase;
+  if (media == null) {
+    final works = await source.popular();
+    if (works.isEmpty) return;
+    media = works.first;
+  }
   await ref.read(repositoryProvider).saveMedia(media);
   if (!context.mounted) return;
   context.push(Routes.seriesOf(media));

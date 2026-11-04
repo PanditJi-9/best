@@ -231,10 +231,6 @@ def select_source(wanted: str) -> None:
     raise SystemExit(f"could not reach source {wanted!r}")
 
 
-def select_guide() -> None:
-    select_source("Best Guide")
-
-
 def fail_if_playback_error() -> None:
     log = adb("logcat", "-d", "-v", "brief", check=False)
     fatal = [
@@ -284,10 +280,10 @@ def _run() -> int:
     screenshot("screenshot.png")
 
     # A fresh install can still play something: the bundled guide ships with
-    # the app, so open its shelf and its sample drama.
-    open_sources()
-    select_guide()
-    tap(wait_for("Neon Seoul", timeout=40, scrolls=16), wait=5)
+    # the app. Its shelf hides the guide, so Menu lists it directly, and it
+    # opens the guide's playable drama.
+    tap_tab(4)
+    tap(wait_for("Open the guide", timeout=30, scrolls=8), wait=6)
 
     # A rerun against an emulator with saved data offers "Continue watching".
     root = dump()

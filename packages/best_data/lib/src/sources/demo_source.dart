@@ -158,6 +158,16 @@ class DemoSource implements SourceAdapter {
     return _works.map(_toMedia).toList(growable: false);
   }
 
+  /// The work that demonstrates playback: the only guide entry carrying a
+  /// sample stream and subtitles. "Open the guide" lands here, so a new reader
+  /// sees a video that really plays instead of a page reader.
+  Media? get showcase {
+    for (final work in _works) {
+      if (work.video != null) return _toMedia(work);
+    }
+    return null;
+  }
+
   @override
   Future<List<Media>> search(String query, {int page = 1}) async {
     if (page > 1) return const [];

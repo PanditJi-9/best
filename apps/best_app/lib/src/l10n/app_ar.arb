@@ -768,6 +768,7 @@
   "menuExtensionsBody": "تثبيت وإدارة الإضافات",
   "menuDirectoryBody": "كل المواقع المتاحة",
   "menuSourcesBody": "كل مصدر أضفته، مع كتالوجه الخاص.",
+  "menuGuideBody": "رفّ تجريبي داخل بست، لترى كيف يعمل قبل أن تضيف مصدرًا.",
   "menuSettingsBody": "المظهر والقراءة والتحميل",
   "menuBackupBody": "نسخة احتياطية محلية",
   "menuSyncBody": "مزامنة مشفّرة عبر WebDAV",

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../actions.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../navigation.dart';
 import '../providers.dart';
@@ -130,6 +131,12 @@ class MenuScreen extends ConsumerWidget {
                 title: l10n.mangaSourcesTitle,
                 body: l10n.menuSourcesBody,
                 onTap: () => context.push(Routes.manga),
+              ),
+              _MenuTile(
+                icon: Icons.menu_book_outlined,
+                title: l10n.openGuide,
+                body: l10n.menuGuideBody,
+                onTap: () => openGuide(context, ref),
               ),
               _MenuTile(
                 icon: Icons.groups_rounded,
