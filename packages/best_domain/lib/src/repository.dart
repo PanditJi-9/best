@@ -66,6 +66,8 @@ abstract interface class LibraryRepository {
   /// Merges with the stored progress; see [UnitProgress.merge].
   Future<void> saveProgress(UnitProgress progress);
 
+  /// The newest started unit per saved work, newest work first. The limit
+  /// counts works, so many chapters from one work cannot crowd out another.
   Future<List<ContinueEntry>> continueReading({int limit = 6});
 
   Future<void> removeFromLibrary(String mediaId);

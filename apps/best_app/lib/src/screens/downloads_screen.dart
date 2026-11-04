@@ -10,11 +10,20 @@ import '../navigation.dart';
 import '../network.dart';
 import '../providers.dart';
 
-class DownloadsScreen extends ConsumerWidget {
+class DownloadsScreen extends ConsumerStatefulWidget {
   const DownloadsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DownloadsScreen> createState() => _DownloadsScreenState();
+}
+
+enum _DownloadFilter { all, ready, queue }
+
+class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
+  _DownloadFilter _filter = _DownloadFilter.all;
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final downloads = ref.watch(downloadsProvider);
     final current = downloads.value ?? const <DownloadTask>[];
@@ -36,21 +45,59 @@ class DownloadsScreen extends ConsumerWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-            child: PageMasthead(
-              index: "05",
-              title: l10n.downloadsTitle,
-              subtitle: totalBytes > 0
-                  ? l10n.downloadsStorage(formatBytes(totalBytes))
-                  : l10n.downloadsNote,
-              trailing: finished.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: l10n.downloadClearFinished,
-                      onPressed: () => _clearFinished(context, ref, current),
-                      icon: const Icon(Icons.delete_sweep_outlined),
-                    ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(l10n.downloadsTitle,
+                          style: BestType.pageTitle(context)),
+                      const SizedBox(height: 6),
+                      Text(
+                        totalBytes > 0
+                            ? l10n.downloadsStorage(formatBytes(totalBytes))
+                            : l10n.downloadsNote,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                if (finished.isNotEmpty)
+                  IconButton(
+                    tooltip: l10n.downloadClearFinished,
+                    onPressed: () => _clearFinished(context, ref, current),
+                    icon: const Icon(Icons.delete_sweep_outlined),
+                  ),
+              ],
             ),
           ),
+          if (current.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final filter in _DownloadFilter.values)
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(end: 8),
+                        child: ChoiceChip(
+                          selected: _filter == filter,
+                          onSelected: (_) => setState(() => _filter = filter),
+                          label: Text(switch (filter) {
+                            _DownloadFilter.all => l10n.filterAll,
+                            _DownloadFilter.ready =>
+                              '${l10n.offlineLabel} · ${finished.length}',
+                            _DownloadFilter.queue =>
+                              '${l10n.downloadsInProgress} · ${active.length}',
+                          }),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
           Expanded(
             child: downloads.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -80,28 +127,27 @@ class DownloadsScreen extends ConsumerWidget {
                   );
                 }
                 return ListView(
-                  // Clear the floating tab bar: the last card must not sit under it.
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 104),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
                   children: [
-                    StatStrip(
-                      stats: [
-                        StatItem(
-                          value: '${finished.length}',
-                          label: l10n.offlineLabel,
+                    if ((_filter == _DownloadFilter.ready &&
+                            finished.isEmpty) ||
+                        (_filter == _DownloadFilter.queue && active.isEmpty))
+                      EmptyState(
+                        icon: Icons.filter_list_rounded,
+                        title: l10n.downloadFilterEmpty,
+                        body: l10n.downloadFilterEmptyBody,
+                        action: TextButton(
+                          onPressed: () =>
+                              setState(() => _filter = _DownloadFilter.all),
+                          child: Text(l10n.filterAll),
                         ),
-                        StatItem(
-                          value: '${active.length}',
-                          label: l10n.downloadsInProgress,
-                        ),
-                        StatItem(
-                          value: formatBytes(totalBytes),
-                          label: l10n.storageLabel,
-                        ),
-                      ],
-                    ),
-                    if (active.isNotEmpty && waitingForWifi)
+                      ),
+                    if (_filter != _DownloadFilter.ready &&
+                        active.isNotEmpty &&
+                        waitingForWifi)
                       _WifiBanner(text: l10n.wifiWaiting),
-                    if (active.isNotEmpty) ...[
+                    if (_filter != _DownloadFilter.ready &&
+                        active.isNotEmpty) ...[
                       SectionHeader(title: l10n.downloadsInProgress),
                       for (final task in active)
                         Padding(
@@ -122,7 +168,8 @@ class DownloadsScreen extends ConsumerWidget {
                           ),
                         ),
                     ],
-                    if (finished.isNotEmpty) ...[
+                    if (_filter != _DownloadFilter.queue &&
+                        finished.isNotEmpty) ...[
                       SectionHeader(title: l10n.downloadsFinished),
                       for (final group in groups.values) ...[
                         _WorkHeader(
@@ -528,34 +575,29 @@ class _Actions extends StatelessWidget {
         if (task.isFinished)
           IconButton(
             tooltip: l10n.downloadOpen,
-            visualDensity: VisualDensity.compact,
             onPressed: () => _open(context),
             icon: const Icon(Icons.menu_book_outlined, size: 20),
           )
         else if (task.isFailed)
           IconButton(
             tooltip: l10n.downloadRetry,
-            visualDensity: VisualDensity.compact,
             onPressed: onRetry,
             icon: const Icon(Icons.refresh_rounded, size: 20),
           )
         else if (task.isPaused)
           IconButton(
             tooltip: l10n.downloadResume,
-            visualDensity: VisualDensity.compact,
             onPressed: onResume,
             icon: const Icon(Icons.play_arrow_rounded, size: 22),
           )
         else
           IconButton(
             tooltip: l10n.downloadPause,
-            visualDensity: VisualDensity.compact,
             onPressed: onPause,
             icon: const Icon(Icons.pause_rounded, size: 20),
           ),
         IconButton(
           tooltip: l10n.downloadDelete,
-          visualDensity: VisualDensity.compact,
           onPressed: onDelete,
           icon: Icon(
             Icons.delete_outline,
@@ -629,7 +671,6 @@ class _WorkHeader extends StatelessWidget {
             tooltip: AppLocalizations.of(context).downloadDeleteWork,
             onPressed: onDelete,
             icon: const Icon(Icons.delete_sweep_outlined, size: 19),
-            visualDensity: VisualDensity.compact,
           ),
         ],
       ),

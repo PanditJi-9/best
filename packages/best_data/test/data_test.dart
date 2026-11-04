@@ -103,6 +103,74 @@ void main() {
     expect(LibraryPolicy.pickContinue(rows)?.media.title, 'b');
   });
 
+  test('continue limit counts works, with deterministic latest chapter ties',
+      () async {
+    final memory = MemoryLibraryRepository();
+    addTearDown(memory.close);
+    for (final store in <LibraryRepository>[repository, memory]) {
+      await store.saveMedia(work('a'));
+      await store.saveMedia(work('b'));
+      await store.saveUnits([
+        for (var n = 1; n <= 30; n++) unit('a', n),
+        unit('b', 1),
+      ]);
+      for (var n = 1; n <= 30; n++) {
+        await store.saveProgress(UnitProgress(
+          unitId: unit('a', n).id,
+          position: 4,
+          total: 20,
+          updatedAt: n + 100,
+        ));
+      }
+      await store.saveProgress(UnitProgress(
+        unitId: unit('b', 1).id,
+        position: 2,
+        total: 20,
+        updatedAt: 1,
+      ));
+      final entries = await store.continueReading(limit: 2);
+      expect(entries.map((e) => e.media.title), ['a', 'b']);
+      expect(entries.first.unit.id, unit('a', 30).id);
+      await store.saveProgress(UnitProgress(
+        unitId: unit('a', 2).id,
+        position: 6,
+        total: 20,
+        updatedAt: 130,
+      ));
+      expect((await store.continueReading(limit: 1)).single.unit.id,
+          unit('a', 30).id);
+    }
+  });
+
+  test('completed page zero is latest, untouched page zero is not', () async {
+    final memory = MemoryLibraryRepository();
+    addTearDown(memory.close);
+    for (final store in <LibraryRepository>[repository, memory]) {
+      await store.saveMedia(work('a'));
+      await store.saveUnits([unit('a', 1), unit('a', 2), unit('a', 3)]);
+      await store.saveProgress(UnitProgress(
+        unitId: unit('a', 1).id,
+        position: 4,
+        total: 20,
+        updatedAt: 10,
+      ));
+      await store.saveProgress(UnitProgress(
+        unitId: unit('a', 2).id,
+        position: 0,
+        total: 1,
+        completed: true,
+        updatedAt: 20,
+      ));
+      await store.saveProgress(UnitProgress(
+        unitId: unit('a', 3).id,
+        position: 0,
+        total: 20,
+        updatedAt: 30,
+      ));
+      expect((await store.continueReading()).single.unit.id, unit('a', 2).id);
+    }
+  });
+
   test('a refresh keeps the favorite flag and history', () async {
     await repository.saveMedia(work('a', favorite: true));
     await repository.setInLibrary('test::a', true);
@@ -139,7 +207,8 @@ void main() {
     expect(await repository.progressFor(unit('a', 1).id), isNotNull);
   });
 
-  test('a work-level memo survives the round trip and is never cleared', () async {
+  test('a work-level memo survives the round trip and is never cleared',
+      () async {
     const memo = '{"path":"/manga/otherworldly-evil-monarch/"}';
     final media = Media(
       ref: const SourceRef('test', '775'),

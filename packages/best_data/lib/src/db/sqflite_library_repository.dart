@@ -345,8 +345,16 @@ class SqfliteLibraryRepository implements LibraryRepository {
       FROM progress p
       JOIN unit u ON u.id = p.unit_id
       JOIN media m ON m.id = u.media_id
-      WHERE p.position > 0 AND m.in_library = 1
-      ORDER BY p.updated_at DESC
+      WHERE (p.position > 0 OR p.completed = 1) AND m.in_library = 1
+        AND NOT EXISTS (
+          SELECT 1 FROM progress newer
+          JOIN unit other ON other.id = newer.unit_id
+          WHERE other.media_id = m.id
+            AND (newer.position > 0 OR newer.completed = 1)
+            AND (newer.updated_at > p.updated_at
+              OR (newer.updated_at = p.updated_at AND newer.unit_id > p.unit_id))
+        )
+      ORDER BY p.updated_at DESC, p.unit_id DESC
       LIMIT ?
     ''', [limit]);
 

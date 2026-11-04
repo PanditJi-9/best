@@ -233,6 +233,27 @@
   "profileReader": "Reader",
   "sampleFilmBadge": "Sample film",
   "searchAll": "Search all sources",
+  "searchEverything": "Search everything",
+  "@searchEverything": {
+    "description": "Title of the one search screen that reads the shelf, the database and installed sources"
+  },
+  "searchEverythingBody": "Your shelf, the database, and your sources — one field.",
+  "@searchEverythingBody": {
+    "description": "Subtitle under the search screen title"
+  },
+  "searchOnShelf": "On your shelf",
+  "@searchOnShelf": {
+    "description": "Result section that lists matching works already in the library"
+  },
+  "searchInSources": "Search your sources for “{query}”",
+  "@searchInSources": {
+    "description": "Button that forwards the query to the installed sources",
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
   "allSources": "All sources",
   "guideFallback": "No source answered — showing the offline guide.",
   "picksTitle": "Best picks",
@@ -950,5 +971,36 @@
   "metaThemes": "Themes",
   "metaAnimeResults": "Anime",
   "metaManhwaResults": "Manhwa & manga",
-  "metaSearchResults": "Results"
+  "metaSearchResults": "Results",
+  "searchTitle": "Search",
+  "searchInLibrary": "In your library",
+  "searchFromSources": "From your sources",
+  "searchInCatalogues": "In the catalogues",
+  "searchStartTitle": "One search for everything",
+  "searchStartBody": "Search your shelf and the public catalogues, then send the same words to your sources with one tap.",
+  "searchNoMatch": "Nothing matched “{query}”",
+  "@searchNoMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "searchNoMatchBody": "Try a shorter word, or the original title.",
+  "searchPartial": "Some catalogues did not answer. Results from the others are shown below.",
+  "nextUp": "Next up",
+  "guideBadge": "Built-in guide",
+  "homeCaughtUpTitle": "Your next story starts here",
+  "homeCaughtUpBody": "Open a work from your library or try the guide. Your place will be waiting here.",
+  "homeDiscoveryBody": "Browse the database for ideas, or explore what your sources have available.",
+  "libraryListView": "Show as a list",
+  "libraryGridView": "Show as a grid",
+  "downloadFilterEmpty": "Nothing in this view",
+  "downloadFilterEmptyBody": "Show all downloads to see your saved chapters and queue.",
+  "openLibrary": "Open the library",
+  "libraryFilterEmpty": "Nothing in this filter",
+  "libraryFilterEmptyBody": "Try another filter, or show everything.",
+  "refineTitle": "Filter and sort",
+  "menuDeviceGroup": "On this device",
+  "searchRecentEmpty": "Nothing opened yet. Your recent works appear here."
 }

@@ -240,16 +240,21 @@ class MemoryLibraryRepository implements LibraryRepository {
   Future<List<ContinueEntry>> continueReading({int limit = 6}) async {
     final entries = <ContinueEntry>[];
     for (final progress in _progress.values) {
-      if (progress.position <= 0) continue;
+      if (progress.position <= 0 && !progress.completed) continue;
       final unit = _units[progress.unitId];
       if (unit == null) continue;
       final media = _media[unit.mediaId];
       if (media == null || !media.inLibrary) continue;
       entries.add(ContinueEntry(media: media, unit: unit, progress: progress));
     }
-    entries
-        .sort((a, b) => b.progress.updatedAt.compareTo(a.progress.updatedAt));
-    return List.unmodifiable(entries.take(limit));
+    entries.sort((a, b) {
+      final time = b.progress.updatedAt.compareTo(a.progress.updatedAt);
+      return time != 0 ? time : b.unit.id.compareTo(a.unit.id);
+    });
+    final seen = <String>{};
+    return List.unmodifiable(
+      entries.where((entry) => seen.add(entry.media.id)).take(limit),
+    );
   }
 
   @override

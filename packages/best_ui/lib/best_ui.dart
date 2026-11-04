@@ -7,3 +7,4 @@ export 'src/rating.dart';
 export 'src/sections.dart';
 export 'src/theme.dart';
 export 'src/tokens.dart';
+export 'src/work_card.dart';

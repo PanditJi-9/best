@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,9 +9,7 @@ import '../providers.dart';
 /// The five rooms of the app: what is new, what is out there, what you own,
 /// what is offline, and the controls.
 ///
-/// A floating bar instead of an edge-to-edge strip: it reads as one object over
-/// the page, leaves the corners of the screen free, and keeps the selected
-/// destination obvious without turning every tab into a coloured block.
+/// A stable, opaque dock keeps all five destinations legible in either language.
 class ShellScreen extends ConsumerWidget {
   const ShellScreen({super.key, required this.navigationShell});
 
@@ -79,7 +75,7 @@ class ShellScreen extends ConsumerWidget {
           child: navigationShell,
         ),
       ),
-      bottomNavigationBar: _FloatingBar(
+      bottomNavigationBar: _NavigationDock(
         destinations: destinations,
         currentIndex: navigationShell.currentIndex,
         onSelected: (index) => navigationShell.goBranch(
@@ -103,8 +99,8 @@ class _Destination {
   final IconData selectedIcon;
 }
 
-class _FloatingBar extends StatelessWidget {
-  const _FloatingBar({
+class _NavigationDock extends StatelessWidget {
+  const _NavigationDock({
     required this.destinations,
     required this.currentIndex,
     required this.onSelected,
@@ -117,29 +113,18 @@ class _FloatingBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return SafeArea(
-      top: false,
-      minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(26),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: Container(
-            height: 66,
-            decoration: BoxDecoration(
-              color: (isDark ? const Color(0xFF0B1220) : Colors.white)
-                  .withValues(alpha: isDark ? 0.92 : 0.96),
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: theme.colorScheme.outlineVariant),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border:
+              Border(top: BorderSide(color: theme.colorScheme.outlineVariant)),
+        ),
+        child: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: SizedBox(
+            height: 64,
             child: Row(
               children: [
                 for (var index = 0; index < destinations.length; index++)
@@ -206,15 +191,15 @@ class _NavItem extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   SizedBox(
-                    height: 11,
+                    height: 16,
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
                         destination.label,
                         maxLines: 1,
                         style: theme.textTheme.labelSmall?.copyWith(
-                          fontSize: 9.5,
-                          height: 1,
+                          fontSize: 11,
+                          height: 1.2,
                           letterSpacing: 0,
                           fontWeight:
                               selected ? FontWeight.w700 : FontWeight.w500,

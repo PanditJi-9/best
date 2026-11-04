@@ -8,8 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../actions.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../labels.dart';
-import '../progress_label.dart';
 import '../providers.dart';
+import '../reading_card.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -21,6 +21,14 @@ class LibraryScreen extends ConsumerStatefulWidget {
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   final TextEditingController _search = TextEditingController();
   Timer? _debounce;
+  late bool _grid;
+
+  @override
+  void initState() {
+    super.initState();
+    _grid = ref.read(preferencesProvider)?.getBool('library.grid') ?? true;
+    _search.text = ref.read(libraryQueryProvider).search;
+  }
 
   @override
   void dispose() {
@@ -45,6 +53,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     await controller.refreshAll();
     ref.invalidate(libraryProvider);
     ref.invalidate(continueProvider);
+    ref.invalidate(resumeProvider);
     try {
       await ref.read(libraryProvider.future);
     } catch (_) {
@@ -67,8 +76,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final l10n = AppLocalizations.of(context);
     final query = ref.watch(libraryQueryProvider);
     final shelf = ref.watch(libraryProvider);
-    final continuing = ref.watch(continueProvider);
-    final continueEntries = continuing.value ?? const <ContinueEntry>[];
+    final continuing = ref.watch(resumeProvider);
+    final continueEntries = continuing.value ?? const <ResumeSlot>[];
     final shelfCount = shelf.value?.length;
 
     return SafeArea(
@@ -78,18 +87,35 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-            child: PageMasthead(
-              index: "04",
-              title: l10n.navLibrary,
-              subtitle: shelfCount == null
-                  ? l10n.tagline
-                  : l10n.librarySummary(shelfCount),
-              trailing: IconButton(
+            child: Row(children: [
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(l10n.navLibrary, style: BestType.pageTitle(context)),
+                    const SizedBox(height: 6),
+                    Text(
+                        shelfCount == null
+                            ? l10n.tagline
+                            : l10n.librarySummary(shelfCount),
+                        style: BestType.body(context)),
+                  ])),
+              IconButton(
+                tooltip: _grid ? l10n.libraryListView : l10n.libraryGridView,
+                onPressed: () {
+                  setState(() => _grid = !_grid);
+                  ref.read(preferencesProvider)?.setBool('library.grid', _grid);
+                },
+                icon: Icon(_grid
+                    ? Icons.view_agenda_outlined
+                    : Icons.grid_view_rounded),
+              ),
+              IconButton(
                 tooltip: l10n.sort,
                 onPressed: () => _showSort(context, query),
                 icon: const Icon(Icons.swap_vert),
               ),
-            ),
+            ]),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
@@ -139,7 +165,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
-                  if (continueEntries.isNotEmpty)
+                  if (continueEntries.isNotEmpty &&
+                      query.search.isEmpty &&
+                      query.filter == LibraryFilter.all)
                     SliverToBoxAdapter(
                       child: _ContinueRail(
                         entries: continueEntries,
@@ -149,8 +177,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     ),
                   const SliverToBoxAdapter(child: SizedBox(height: 12)),
                   ..._shelfSlivers(context, l10n, shelf, query),
-                  // Clear the floating tab bar: the last row must not sit under it.
-                  const SliverToBoxAdapter(child: SizedBox(height: 104)),
+                  // Breathing room after the last work, above the navigation dock.
+                  const SliverToBoxAdapter(child: SizedBox(height: 28)),
                 ],
               ),
             ),
@@ -189,29 +217,61 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ],
       data: (entries) {
         if (entries.isEmpty) {
+          final filtered =
+              query.search.isNotEmpty || query.filter != LibraryFilter.all;
           return [
             SliverFillRemaining(
               hasScrollBody: false,
               child: EmptyState(
                 icon: Icons.auto_stories_outlined,
-                title: query.search.isEmpty
-                    ? l10n.shelfEmptyTitle
-                    : l10n.nothingHere,
-                body: query.search.isEmpty
-                    ? l10n.shelfEmptyBody
-                    : l10n.nothingHereBody,
-                action: query.search.isEmpty
+                title:
+                    filtered ? l10n.libraryFilterEmpty : l10n.shelfEmptyTitle,
+                body: filtered
+                    ? l10n.libraryFilterEmptyBody
+                    : l10n.shelfEmptyBody,
+                action: !filtered
                     ? FilledButton.icon(
                         onPressed: () => openGuide(context, ref),
                         icon: const Icon(Icons.menu_book_outlined, size: 18),
                         label: Text(l10n.openGuide),
                       )
-                    : null,
+                    : OutlinedButton(
+                        onPressed: () {
+                          _debounce?.cancel();
+                          _search.clear();
+                          ref.read(libraryQueryProvider.notifier)
+                            ..setSearch('')
+                            ..setFilter(LibraryFilter.all);
+                          setState(() {});
+                        },
+                        child: Text(l10n.filterAll),
+                      ),
               ),
             ),
           ];
         }
 
+        if (!_grid) {
+          return [
+            SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverList.builder(
+                    itemCount: entries.length,
+                    itemBuilder: (context, index) {
+                      final entry = entries[index];
+                      return Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: WorkCard(
+                              density: WorkCardDensity.row,
+                              title: entry.media.displayTitle,
+                              subtitle: _subtitle(l10n, entry),
+                              coverUrl: entry.media.coverUrl,
+                              progress: entry.fraction,
+                              onTap: () =>
+                                  openSeries(context, ref, entry.media)));
+                    }))
+          ];
+        }
         final width = MediaQuery.sizeOf(context).width;
         final columns = (width / 170).floor().clamp(2, 6);
         final tileWidth = (width - 40 - (columns - 1) * 14) / columns;
@@ -228,7 +288,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
               delegate: SliverChildBuilderDelegate((context, index) {
                 final entry = entries[index];
-                return MediaCard(
+                return WorkCard(
                   title: entry.media.displayTitle,
                   subtitle: _subtitle(l10n, entry),
                   coverUrl: entry.media.coverUrl,
@@ -294,8 +354,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 class _ContinueRail extends StatelessWidget {
   const _ContinueRail({required this.entries, required this.onOpen});
 
-  final List<ContinueEntry> entries;
-  final void Function(ContinueEntry entry) onOpen;
+  final List<ResumeSlot> entries;
+  final void Function(ResumeSlot entry) onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -307,28 +367,10 @@ class _ContinueRail extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: SectionHeader(title: l10n.continueTitle),
         ),
-        SizedBox(
-          height: 172,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: entries.length,
-            separatorBuilder: (context, index) =>
-                const SizedBox(width: BestSpace.md),
-            itemBuilder: (context, index) {
-              final entry = entries[index];
-              return ContinueCard(
-                title: entry.media.displayTitle,
-                subtitle: entry.unit.displayTitle,
-                coverUrl: entry.media.coverUrl,
-                progress: entry.progress.fraction,
-                progressLabel: continueProgressLabel(l10n, entry),
-                isVideo: entry.media.kind.isWatching,
-                onOpen: () => onOpen(entry),
-              );
-            },
-          ),
-        ),
+        for (final entry in entries)
+          Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+              child: ReadingCard(slot: entry, onOpen: () => onOpen(entry))),
       ],
     );
   }

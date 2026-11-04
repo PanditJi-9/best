@@ -193,21 +193,26 @@ void main() {
     expect(find.text('Downloaded'), findsOneWidget);
   });
 
-  testWidgets('the guide opens a series and a readable page', (tester) async {
-    await _pumpApp(tester);
-
-    // The offline guide is the spotlight on a fresh install: opening it is
-    // one tap, exactly like a real catalogue entry. The hero is a tall poster,
-    // so a desktop-height test viewport has to bring its button into view.
+  testWidgets('a saved guide opens a series and a readable page',
+      (tester) async {
+    final repository = MemoryLibraryRepository();
+    final guide = await const DemoSource().popular();
+    final manga = guide.firstWhere((work) => work.kind.isReading);
+    await repository.saveMedia(manga.copyWith(inLibrary: true));
+    await _pumpApp(tester, repository: repository);
+    await tester.tap(find.text('Library').last);
     await tester.pumpAndSettle();
-    expect(find.text('Start reading'), findsOneWidget);
+
+    // Saved reading material remains one tap from the Library. The fresh Home
+    // guide now opens the playable drama, covered separately below.
     await tester.scrollUntilVisible(
-      find.text('Start reading'),
+      find.text(manga.displayTitle),
       300,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: find.descendant(
+          of: find.byType(CustomScrollView), matching: find.byType(Scrollable)),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Start reading'));
+    await tester.tap(find.text(manga.displayTitle));
     await tester.pumpAndSettle();
 
     expect(find.text('ظل الغابة'), findsWidgets);
@@ -237,24 +242,13 @@ void main() {
     expect(find.text('Language'), findsOneWidget);
   });
 
-  testWidgets('a drama offers the player, not the page reader', (
+  testWidgets('the Home guide offers the player, not the page reader', (
     tester,
   ) async {
-    final repository = MemoryLibraryRepository();
-    final guide = await const DemoSource().popular();
-    final drama = guide.firstWhere((work) => work.title == 'Neon Seoul');
-    await repository.saveMedia(drama.copyWith(inLibrary: true));
-
-    await _pumpApp(tester, repository: repository);
-
-    await tester.tap(find.text('Library').last);
+    await _pumpApp(tester);
+    await tester.ensureVisible(find.text('Open the guide'));
     await tester.pumpAndSettle();
-    // The floating bar covers the bottom of the grid; lift the first card
-    // above it before tapping, the way a reader would.
-    await tester.drag(
-        find.byType(CustomScrollView).first, const Offset(0, -150));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Neon Seoul').first);
+    await tester.tap(find.text('Open the guide'));
     await tester.pumpAndSettle();
 
     expect(find.text('Neon Seoul'), findsWidgets);

@@ -505,10 +505,97 @@ final FutureProvider<List<LibraryEntry>> libraryProvider =
   return repository.library(ref.watch(libraryQueryProvider));
 });
 
+/// The shelf, filtered by the same text a reader types into search. It is a
+/// separate provider so a search never disturbs the Library tab's own query.
+final librarySearchProvider =
+    FutureProvider.family<List<LibraryEntry>, String>((ref, query) async {
+  final text = query.trim();
+  if (text.isEmpty) return const <LibraryEntry>[];
+  ref.watch(libraryChangesProvider);
+  return ref.watch(repositoryProvider).library(LibraryQuery(search: text));
+});
+
 final FutureProvider<List<ContinueEntry>> continueProvider =
     FutureProvider<List<ContinueEntry>>((ref) async {
   ref.watch(libraryChangesProvider);
   return ref.watch(repositoryProvider).continueReading();
+});
+
+/// Where "continue" actually lands, not just where it stopped.
+///
+/// A reader who finished chapter 12 does not want chapter 12 again: the smart
+/// answer is chapter 13. [continueProvider] can only report a unit that has
+/// progress, so this walks one step further when the last unit is finished and
+/// hands back the first unit that is still unread. `isNext` is what the card
+/// labels "next up"; the numbers themselves are never invented — a work with no
+/// stored units simply does not appear.
+class ResumeSlot {
+  const ResumeSlot({
+    required this.media,
+    required this.unit,
+    required this.isNext,
+    this.progress,
+  });
+
+  final Media media;
+  final MediaUnit unit;
+
+  /// True when [unit] is a chapter the reader has never opened, reached by
+  /// finishing the one before it.
+  final bool isNext;
+
+  /// Progress for [unit]. Null when it has never been opened.
+  final UnitProgress? progress;
+
+  double get fraction => progress?.fraction ?? 0;
+
+  /// The same label the continue rail uses, built from a real progress row.
+  ContinueEntry? get continueEntry => progress == null
+      ? null
+      : ContinueEntry(media: media, unit: unit, progress: progress!);
+}
+
+final FutureProvider<List<ResumeSlot>> resumeProvider =
+    FutureProvider<List<ResumeSlot>>((ref) async {
+  ref.watch(libraryChangesProvider);
+  final repository = ref.watch(repositoryProvider);
+  final entries = await repository.continueReading(limit: 24);
+  final slots = <ResumeSlot>[];
+  final seen = <String>{};
+
+  for (final entry in entries) {
+    if (slots.length == 6) break;
+    // One card per work: the newest unit with progress is the one that speaks.
+    if (!seen.add(entry.media.id)) continue;
+    if (!entry.progress.completed) {
+      slots.add(
+        ResumeSlot(
+          media: entry.media,
+          unit: entry.unit,
+          isNext: false,
+          progress: entry.progress,
+        ),
+      );
+      continue;
+    }
+    final units = await repository.unitsFor(entry.media.id);
+    final index = units.indexWhere((unit) => unit.id == entry.unit.id);
+    if (index < 0) continue;
+    for (var i = index + 1; i < units.length; i++) {
+      final saved = await repository.progressFor(units[i].id);
+      if (saved != null && saved.completed) continue;
+      slots.add(
+        ResumeSlot(
+          media: entry.media,
+          unit: units[i],
+          isNext: saved == null || saved.position == 0,
+          progress: saved,
+        ),
+      );
+      break;
+    }
+  }
+  return List.unmodifiable(slots);
 });
 
 /// Everything opened recently, whether or not it is on the shelf.
