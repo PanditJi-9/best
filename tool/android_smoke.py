@@ -287,6 +287,9 @@ def _run() -> int:
     # big play/pause button sits exactly there, so the second tap pauses the
     # video and the overlay stops hiding. That makes the dump deterministic
     # instead of racing a three-second timer.
+    match = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
+    width, height = (320, 640) if not match else map(int, match.groups())
+
     expected = ["Neon Seoul", "Episode 1", "Sample video"]
     missing = expected
     root = dump()

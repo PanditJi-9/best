@@ -15,8 +15,8 @@ import time
 from pathlib import Path
 
 from android_smoke import (
-    ACTIVITY, PACKAGE, adb, center, debug_texts, dismiss_anr, dump, find_any,
-    nodes, tap, wait_for,
+    ACTIVITY, PACKAGE, adb, debug_texts, dismiss_anr, dump, find_any, nodes,
+    swipe_up, tap, tap_tab, wait_for,
 )
 
 MANGA_PACKAGES = (
@@ -80,11 +80,13 @@ def main() -> int:
     adb("shell", "am", "start", "-W", "-n", ACTIVITY)
     time.sleep(8)
     dismiss_anr()
-    tap(wait_for("Browse", timeout=40), wait=4)
+    # The Manga tab is where a reader's own sources live; its header button
+    # opens the full directory.
+    tap_tab(1)
     before = loaded_packages(adb("logcat", "-d", "-v", "brief", check=False))
     if before:
         raise SystemExit(f"a fresh install activated extensions without a choice: {before}")
-    tap(wait_for("Source directory", timeout=40), wait=4)
+    tap(wait_for("Extension directory", timeout=40), wait=4)
     wait_for("extensions ·", timeout=70, contains=True)
     root = dump()
     counts = next((n for n in nodes(root) if "extensions ·" in
@@ -109,23 +111,17 @@ def main() -> int:
             break
         time.sleep(5)
 
+    # Back on the Manga tab, every activated source is a row in a vertical
+    # list; collect the visible labels for the artifact.
     root = dump()
-    row = find_any(root, "All sources")
-    if row is None:
-        debug_texts(root)
-        raise SystemExit("source picker did not render")
-    _, y = center(row)
-    match = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
-    width = int(match.group(1)) if match else 320
     seen: set[str] = set()
-    for _ in range(14):
+    for _ in range(10):
         for node in nodes(root):
             for field in ("text", "content-desc"):
                 value = (node.get(field) or "").strip()
                 if value:
                     seen.add(value)
-        adb("shell", "input", "swipe", str(width - 25), str(y), "20", str(y), "300")
-        time.sleep(0.8)
+        swipe_up()
         root = dump()
 
     with open("sources.txt", "w", encoding="utf-8") as handle:
