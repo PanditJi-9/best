@@ -70,6 +70,21 @@ class SmokeToolsTest(unittest.TestCase):
 
     @patch.object(smoke, "adb")
     @patch.object(smoke, "tap")
+    def test_source_tile_with_avatar_initial_is_matched_by_name(self, tap, adb):
+        # A Manga-tab tile merges its avatar initial, name and language into a
+        # single semantics node, so the label never starts with the name.
+        root = ET.Element("hierarchy")
+        ET.SubElement(root, "node", {
+            "content-desc": "م\nمانجا ليك\nManga · AR · Latest",
+            "clickable": "true",
+        })
+        with patch.object(smoke, "dump", return_value=root):
+            smoke.select_source("مانجا ليك")
+        self.assertIs(tap.call_args.args[0], root[0])
+        adb.assert_not_called()
+
+    @patch.object(smoke, "adb")
+    @patch.object(smoke, "tap")
     def test_source_qualifier_does_not_hide_the_chip(self, tap, adb):
         root = hierarchy("AnimeKai (Unoriginal)")
         with patch.object(smoke, "dump", return_value=root):

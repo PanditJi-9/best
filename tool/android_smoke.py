@@ -199,8 +199,10 @@ def select_source(wanted: str) -> None:
             # Extensions can append a qualifier, e.g. AnimeKai (Unoriginal).
             node = find_prefix(root, wanted + " (")
         if node is None:
-            # A source tile merges its name and language into one node.
-            node = find_prefix(root, wanted)
+            # A source tile merges its avatar initial, name and language into
+            # one node, so its label starts with "M\nMangaDex…" rather than
+            # the name. Match the name anywhere in that label.
+            node = find_contains(root, wanted)
         return node
 
     root = dump()
