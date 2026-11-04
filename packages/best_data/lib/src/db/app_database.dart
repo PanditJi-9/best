@@ -8,7 +8,7 @@ import 'package:sqflite_common/sqlite_api.dart';
 class AppDatabase {
   AppDatabase._(this.db);
 
-  static const int schemaVersion = 7;
+  static const int schemaVersion = 8;
   static const String fileName = 'best.db';
 
   final Database db;
@@ -46,6 +46,9 @@ class AppDatabase {
           }
           if (oldVersion < 7) {
             await _addMediaRating(db);
+          }
+          if (oldVersion < 8) {
+            await _createOcrCache(db);
           }
         },
       ),
@@ -107,6 +110,7 @@ class AppDatabase {
 
     await _createDownloads(db);
     await _createActivity(db);
+    await _createOcrCache(db);
 
     await db.execute('CREATE INDEX media_library ON media (in_library, title)');
     await db.execute('CREATE INDEX unit_media ON unit (media_id, number)');
@@ -221,6 +225,24 @@ class AppDatabase {
         'ALTER TABLE downloads ADD COLUMN bytes INTEGER NOT NULL DEFAULT 0',
       );
     }
+  }
+
+  static Future<void> _createOcrCache(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ocr_cache (
+        unit_id TEXT NOT NULL,
+        page_index INTEGER NOT NULL,
+        page_url TEXT,
+        image_width INTEGER NOT NULL DEFAULT 0,
+        image_height INTEGER NOT NULL DEFAULT 0,
+        bubbles_json TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (unit_id, page_index)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS ocr_cache_unit ON ocr_cache (unit_id, page_index)',
+    );
   }
 
   Future<void> close() => db.close();

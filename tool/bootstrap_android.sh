@@ -9,6 +9,7 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 APP="$ROOT/apps/best_app"
+FLUTTER_BIN=${FLUTTER:-flutter}
 
 # The extension runtime lives outside android/ because that folder is generated.
 # Syncing it before the early exit keeps a local checkout honest after an edit.
@@ -17,8 +18,16 @@ sync_runtime() {
   cp -R "$ROOT/tool/android/kotlin/." "$APP/android/app/src/main/kotlin/"
 }
 
+# The template's 8G Gradle and Kotlin heaps are too large for an 8 GB phone;
+# keep the generated project on the memory-safe profile instead.
+sync_gradle_properties() {
+  cp "$ROOT/tool/android/gradle.properties" \
+     "$APP/android/gradle.properties"
+}
+
 if [ -d "$APP/android" ]; then
   sync_runtime
+  sync_gradle_properties
   echo "android/ already exists."
   exit 0
 fi
@@ -26,7 +35,7 @@ fi
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
-flutter create \
+"$FLUTTER_BIN" create \
   --platforms=android \
   --org app.best \
   --project-name best_app \
@@ -38,6 +47,7 @@ cp "$ROOT/tool/android/AndroidManifest.xml" \
    "$APP/android/app/src/main/AndroidManifest.xml"
 cp "$ROOT/tool/android/app.build.gradle.kts" \
    "$APP/android/app/build.gradle.kts"
+sync_gradle_properties
 
 # MainActivity is replaced by the one that registers the extension channel.
 sync_runtime

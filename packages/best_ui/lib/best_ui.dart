@@ -1,10 +1,15 @@
+export 'src/ambient_surface.dart';
 export 'src/brand.dart';
 export 'src/cards.dart';
 export 'src/cover.dart';
+export 'src/hairline_rule.dart';
 export 'src/media_card.dart';
+export 'src/metric_readout.dart';
+export 'src/pill_badge.dart';
 export 'src/poster_tile.dart';
 export 'src/rating.dart';
 export 'src/sections.dart';
+export 'src/tab_strip.dart';
 export 'src/theme.dart';
 export 'src/tokens.dart';
 export 'src/work_card.dart';

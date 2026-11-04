@@ -283,6 +283,18 @@ class MemoryLibraryRepository implements LibraryRepository {
     _notify();
   }
 
+  final Map<String, PageOcrResult> _ocrCache = {};
+
+  @override
+  Future<PageOcrResult?> getPageOcr(String unitId, int pageIndex) async {
+    return _ocrCache['$unitId:$pageIndex'];
+  }
+
+  @override
+  Future<void> savePageOcr(String unitId, PageOcrResult result) async {
+    _ocrCache['$unitId:${result.pageIndex}'] = result;
+  }
+
   @override
   Future<void> close() async {
     await _changes.close();

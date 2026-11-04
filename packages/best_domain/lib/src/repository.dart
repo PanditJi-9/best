@@ -82,5 +82,10 @@ abstract interface class LibraryRepository {
 
   Future<void> deleteDownload(String unitId);
 
+  /// Cached OCR and translation results for a chapter page.
+  Future<PageOcrResult?> getPageOcr(String unitId, int pageIndex);
+
+  Future<void> savePageOcr(String unitId, PageOcrResult result);
+
   Future<void> close();
 }

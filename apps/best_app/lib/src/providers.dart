@@ -10,14 +10,29 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'download/background_download_client.dart';
 import 'extension_host.dart';
 import 'network.dart';
+import 'ocr/ocr_client.dart';
+import 'security/biometric_client.dart';
 
 /// Replaced in `main()` after the database is open. A provider that throws
 /// until it is overridden is better than a nullable global that fails later.
 final Provider<LibraryRepository> repositoryProvider =
     Provider<LibraryRepository>(
   (ref) => throw StateError('repositoryProvider must be overridden in main().'),
+);
+
+final Provider<BiometricClient> biometricClientProvider =
+    Provider<BiometricClient>((ref) => const BiometricClient());
+
+final Provider<OcrClient> ocrClientProvider = Provider<OcrClient>((ref) {
+  return OcrClient(repository: ref.watch(repositoryProvider));
+});
+
+final Provider<BackgroundDownloadClient> backgroundDownloadClientProvider =
+    Provider<BackgroundDownloadClient>(
+  (ref) => const BackgroundDownloadClient(),
 );
 
 /// `null` means the platform store is unavailable; settings then live for the
@@ -333,6 +348,8 @@ class AppSettings {
     this.storageCapGb = 0,
     this.suwayomiUrl,
     this.readerMode = ReaderMode.paged,
+    this.ocrTranslationEnabled = false,
+    this.biometricLockEnabled = false,
   });
 
   /// `null` follows the system locale.
@@ -354,6 +371,12 @@ class AppSettings {
   /// into one scroll, which is how manhwa and webtoons are drawn.
   final ReaderMode readerMode;
 
+  /// Real-time offline OCR and translation overlay on manga pages.
+  final bool ocrTranslationEnabled;
+
+  /// Protects the app with biometrics / device passcode.
+  final bool biometricLockEnabled;
+
   AppSettings copyWith({
     String? languageCode,
     bool clearLanguage = false,
@@ -363,6 +386,8 @@ class AppSettings {
     String? suwayomiUrl,
     bool clearSuwayomi = false,
     ReaderMode? readerMode,
+    bool? ocrTranslationEnabled,
+    bool? biometricLockEnabled,
   }) {
     return AppSettings(
       languageCode: clearLanguage ? null : (languageCode ?? this.languageCode),
@@ -371,6 +396,9 @@ class AppSettings {
       storageCapGb: storageCapGb ?? this.storageCapGb,
       suwayomiUrl: clearSuwayomi ? null : (suwayomiUrl ?? this.suwayomiUrl),
       readerMode: readerMode ?? this.readerMode,
+      ocrTranslationEnabled:
+          ocrTranslationEnabled ?? this.ocrTranslationEnabled,
+      biometricLockEnabled: biometricLockEnabled ?? this.biometricLockEnabled,
     );
   }
 }
@@ -395,6 +423,8 @@ class SettingsController extends Notifier<AppSettings> {
   static const String _storageCapKey = 'storage_cap_gb';
   static const String _suwayomiKey = 'suwayomi_url';
   static const String _readerModeKey = 'reader_mode';
+  static const String _ocrTranslationKey = 'ocr_translation_enabled';
+  static const String _biometricLockKey = 'biometric_lock_enabled';
 
   @override
   AppSettings build() {
@@ -408,6 +438,10 @@ class SettingsController extends Notifier<AppSettings> {
       readerMode: ReaderMode.fromName(
         preferences?.getString(_readerModeKey),
       ),
+      ocrTranslationEnabled:
+          preferences?.getBool(_ocrTranslationKey) ?? false,
+      biometricLockEnabled:
+          preferences?.getBool(_biometricLockKey) ?? false,
     );
   }
 
@@ -440,6 +474,18 @@ class SettingsController extends Notifier<AppSettings> {
     unawaited(
         ref.read(preferencesProvider)?.setString(_readerModeKey, mode.name));
     state = state.copyWith(readerMode: mode);
+  }
+
+  void setOcrTranslationEnabled(bool value) {
+    unawaited(
+        ref.read(preferencesProvider)?.setBool(_ocrTranslationKey, value));
+    state = state.copyWith(ocrTranslationEnabled: value);
+  }
+
+  void setBiometricLockEnabled(bool value) {
+    unawaited(
+        ref.read(preferencesProvider)?.setBool(_biometricLockKey, value));
+    state = state.copyWith(biometricLockEnabled: value);
   }
 
   /// `null` forgets the server. The address is stored as typed; the client

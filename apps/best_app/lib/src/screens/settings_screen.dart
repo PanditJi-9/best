@@ -149,6 +149,32 @@ class SettingsScreen extends ConsumerWidget {
                         height: 1.55,
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1),
+                    SwitchListTile.adaptive(
+                      value: settings.ocrTranslationEnabled,
+                      onChanged: (value) => ref
+                          .read(settingsProvider.notifier)
+                          .setOcrTranslationEnabled(value),
+                      secondary:
+                          const Icon(Icons.translate_rounded, size: 19),
+                      title: Text(
+                        'ترجمة المانجا التلقائية (OCR)',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'التعرف على فقاعات الحوار وترجمتها فورياً إلى العربية محلياً بدون إنترنت',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsetsDirectional.only(
+                        start: 2,
+                        end: 2,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -254,6 +280,48 @@ class SettingsScreen extends ConsumerWidget {
                     title: l10n.syncTitle,
                     subtitle: l10n.syncShort,
                     onTap: () => context.push(Routes.sync),
+                  ),
+                ],
+              ),
+            ),
+            _Group(
+              title: 'الأمان والخصوصية',
+              icon: Icons.security_rounded,
+              child: Column(
+                children: [
+                  SwitchListTile.adaptive(
+                    value: settings.biometricLockEnabled,
+                    onChanged: (value) async {
+                      if (value) {
+                        final client = ref.read(biometricClientProvider);
+                        final ok = await client.authenticate(
+                          title: 'تفعيل القفل بالبصمة',
+                          subtitle: 'أكّد هويتك لتفعيل القفل البيومتري',
+                        );
+                        if (!ok) return;
+                      }
+                      ref
+                          .read(settingsProvider.notifier)
+                          .setBiometricLockEnabled(value);
+                    },
+                    secondary:
+                        const Icon(Icons.fingerprint_rounded, size: 19),
+                    title: Text(
+                      'قفل التطبيق بالبصمة',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'طلب بصمة الإصبع أو رمز قفل الجهاز عند فتح التطبيق لحماية مكتبتك وسجل قراءتك',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    contentPadding: const EdgeInsetsDirectional.only(
+                      start: 14,
+                      end: 8,
+                    ),
                   ),
                 ],
               ),

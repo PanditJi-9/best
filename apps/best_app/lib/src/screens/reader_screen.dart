@@ -11,7 +11,11 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../extension_host.dart';
 import '../l10n/generated/app_localizations.dart';
+import '../ocr/bubble_overlay_widget.dart';
 import '../providers.dart';
+import '../widgets/chapter_list_sheet.dart';
+import '../widgets/reader_color_filter.dart';
+import '../widgets/reader_hud.dart';
 
 class ReaderScreen extends ConsumerWidget {
   const ReaderScreen({
@@ -87,6 +91,56 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   List<MediaResource> get _resources => widget.data.resources;
 
   ReaderMode get _mode => ref.read(settingsProvider).readerMode;
+
+  bool _showChrome = true;
+  ReaderColorFilter _colorFilter = const ReaderColorFilter();
+
+  void _toggleChrome() => setState(() => _showChrome = !_showChrome);
+
+  void _showColorFilterSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(BestRadius.sheet)),
+      ),
+      builder: (context) => ReaderColorFilterSheet(
+        filter: _colorFilter,
+        onChanged: (filter) => setState(() => _colorFilter = filter),
+      ),
+    );
+  }
+
+  void _showChaptersSheet() {
+    final units = widget.data.media.units;
+    if (units.isEmpty) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(BestRadius.sheet)),
+      ),
+      builder: (context) => ChapterListSheet(
+        units: units,
+        currentUnitId: widget.data.unit.id,
+        workTitle: widget.data.media.displayTitle,
+        onSelected: (unit) {
+          Navigator.of(context).pop();
+          // Replace current route with selected unit's reader
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => ReaderScreen(
+                sourceId: widget.data.media.ref.sourceId,
+                url: widget.data.media.ref.url,
+                unitUrl: unit.url,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -186,81 +240,146 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        flexibleSpace: ClipRect(
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.45),
-              ),
-            ),
-          ),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              unit.displayTitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-            ),
-            Text(
-              widget.data.media.displayTitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11, color: Colors.white70),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: mode == ReaderMode.paged
-                ? l10n.readerModeVertical
-                : l10n.readerModePaged,
-            onPressed: () => _setMode(
-              mode == ReaderMode.paged ? ReaderMode.vertical : ReaderMode.paged,
-            ),
-            icon: Icon(
-              mode == ReaderMode.paged
-                  ? Icons.view_stream_outlined
-                  : Icons.auto_stories_outlined,
-              size: 21,
-            ),
-          ),
-          if (widget.data.offline)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(end: 14),
-              child: Center(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: BestColors.jade.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(BestRadius.pill),
-                    border: Border.all(
-                      color: BestColors.jade.withValues(alpha: 0.35),
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 4,
-                    ),
-                    child: Text(
-                      l10n.offlineBadge,
-                      style: const TextStyle(
-                        color: BestColors.jade,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                      ),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(kToolbarHeight),
+        child: AnimatedOpacity(
+          opacity: _showChrome ? 1.0 : 0.0,
+          duration: BestMotion.normal,
+          child: IgnorePointer(
+            ignoring: !_showChrome,
+            child: AppBar(
+              backgroundColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              flexibleSpace: ClipRect(
+                child: BackdropFilter(
+                  filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.45),
                     ),
                   ),
                 ),
               ),
+              title: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: widget.data.media.units.isNotEmpty ? _showChaptersSheet : null,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            unit.displayTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        if (widget.data.media.units.isNotEmpty) ...[
+                          const SizedBox(width: 4),
+                          const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Colors.white70),
+                        ],
+                      ],
+                    ),
+                    Text(
+                      widget.data.media.displayTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                IconButton(
+                  tooltip: 'فلتر ألوان القراءة',
+                  onPressed: _showColorFilterSheet,
+                  icon: Icon(
+                    Icons.tune_rounded,
+                    color: _colorFilter.mode != ReaderColorFilterMode.none || _colorFilter.customBrightnessOffset < 0
+                        ? BestColors.jade
+                        : Colors.white70,
+                    size: 21,
+                  ),
+                ),
+                IconButton(
+                  tooltip: ref.watch(
+                    settingsProvider.select((s) => s.ocrTranslationEnabled),
+                  )
+                      ? 'إيقاف الترجمة الفورية'
+                      : 'ترجمة المانجا بالذكاء الاصطناعي (OCR)',
+                  onPressed: () {
+                    final ocrEnabled = ref.read(settingsProvider).ocrTranslationEnabled;
+                    final next = !ocrEnabled;
+                    ref.read(settingsProvider.notifier).setOcrTranslationEnabled(next);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(next
+                            ? 'تم تفعيل الترجمة الفورية بالذكاء الاصطناعي'
+                            : 'تم إيقاف الترجمة الفورية'),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  icon: Icon(
+                    Icons.translate_rounded,
+                    color: ref.watch(
+                      settingsProvider.select((s) => s.ocrTranslationEnabled),
+                    )
+                        ? BestColors.jade
+                        : Colors.white70,
+                    size: 21,
+                  ),
+                ),
+                IconButton(
+                  tooltip: mode == ReaderMode.paged
+                      ? l10n.readerModeVertical
+                      : l10n.readerModePaged,
+                  onPressed: () => _setMode(
+                    mode == ReaderMode.paged ? ReaderMode.vertical : ReaderMode.paged,
+                  ),
+                  icon: Icon(
+                    mode == ReaderMode.paged
+                        ? Icons.view_stream_outlined
+                        : Icons.auto_stories_outlined,
+                    size: 21,
+                  ),
+                ),
+                if (widget.data.offline)
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(end: 14),
+                    child: Center(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: BestColors.jade.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(BestRadius.pill),
+                          border: Border.all(
+                            color: BestColors.jade.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 4,
+                          ),
+                          child: Text(
+                            l10n.offlineBadge,
+                            style: const TextStyle(
+                              color: BestColors.jade,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-        ],
+          ),
+        ),
       ),
       body: total == 0
           ? Theme(
@@ -279,110 +398,148 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
             )
           : Stack(
               children: [
-                if (mode == ReaderMode.vertical)
-                  ScrollablePositionedList.builder(
-                    itemScrollController: _verticalController,
-                    itemPositionsListener: _verticalPositions,
-                    initialScrollIndex: _index,
-                    itemCount: total,
-                    itemBuilder: (context, index) => _ResourcePage(
-                      resource: _resources[index],
-                      sourceId: widget.data.media.ref.sourceId,
-                      index: index,
-                      total: total,
-                      continuous: true,
-                    ),
-                  )
-                else
-                  PageView.builder(
-                    controller: _pagedController ??=
-                        PageController(initialPage: _index),
-                    onPageChanged: _onPageChanged,
-                    itemCount: total,
-                    itemBuilder: (context, index) => _ResourcePage(
-                      resource: _resources[index],
-                      sourceId: widget.data.media.ref.sourceId,
-                      index: index,
-                      total: total,
-                    ),
+                GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: _toggleChrome,
+                  child: mode == ReaderMode.vertical
+                      ? ScrollablePositionedList.builder(
+                          itemScrollController: _verticalController,
+                          itemPositionsListener: _verticalPositions,
+                          initialScrollIndex: _index,
+                          itemCount: total,
+                          itemBuilder: (context, index) => _ResourcePage(
+                            unitId: widget.data.unit.id,
+                            resource: _resources[index],
+                            sourceId: widget.data.media.ref.sourceId,
+                            index: index,
+                            total: total,
+                            continuous: true,
+                            colorFilter: _colorFilter,
+                          ),
+                        )
+                      : PageView.builder(
+                          controller: _pagedController ??=
+                              PageController(initialPage: _index),
+                          onPageChanged: _onPageChanged,
+                          itemCount: total,
+                          itemBuilder: (context, index) => _ResourcePage(
+                            unitId: widget.data.unit.id,
+                            resource: _resources[index],
+                            sourceId: widget.data.media.ref.sourceId,
+                            index: index,
+                            total: total,
+                            colorFilter: _colorFilter,
+                          ),
+                        ),
+                ),
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: ReaderHud(
+                    chapterTitle: unit.displayTitle,
+                    page: _index + 1,
+                    total: total,
+                    isVerticalMode: mode == ReaderMode.vertical,
                   ),
+                ),
                 Positioned(
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  child: IgnorePointer(
-                    child: Container(
-                      padding: EdgeInsets.fromLTRB(
-                        20,
-                        34,
-                        20,
-                        12 + MediaQuery.paddingOf(context).bottom,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.82),
-                          ],
+                  child: AnimatedOpacity(
+                    opacity: _showChrome ? 1.0 : 0.0,
+                    duration: BestMotion.normal,
+                    child: IgnorePointer(
+                      ignoring: !_showChrome,
+                      child: Container(
+                        padding: EdgeInsets.fromLTRB(
+                          20,
+                          34,
+                          20,
+                          12 + MediaQuery.paddingOf(context).bottom,
                         ),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            children: [
-                              if (_index + 1 >= total) ...[
-                                const Icon(
-                                  Icons.check_circle_rounded,
-                                  size: 13,
-                                  color: BestColors.jade,
-                                ),
-                                const SizedBox(width: 6),
-                              ],
-                              Expanded(
-                                child: Text(
-                                  _index + 1 >= total
-                                      ? l10n.readerEnd
-                                      : l10n.pageOf(_index + 1, total),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.3,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: BestSpace.md),
-                              Flexible(
-                                child: Text(
-                                  widget.data.media.displayTitle,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.end,
-                                  style: const TextStyle(
-                                    color: Colors.white38,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.85),
                             ],
                           ),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius:
-                                BorderRadius.circular(BestRadius.pill),
-                            child: LinearProgressIndicator(
-                              value: (_index + 1) / total,
-                              minHeight: 3,
-                              backgroundColor: Colors.white24,
-                              color: BestColors.jade,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                if (_index + 1 >= total) ...[
+                                  const Icon(
+                                    Icons.check_circle_rounded,
+                                    size: 13,
+                                    color: BestColors.jade,
+                                  ),
+                                  const SizedBox(width: 6),
+                                ],
+                                Expanded(
+                                  child: Text(
+                                    _index + 1 >= total
+                                        ? l10n.readerEnd
+                                        : l10n.pageOf(_index + 1, total),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: BestSpace.md),
+                                Flexible(
+                                  child: Text(
+                                    widget.data.media.displayTitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.end,
+                                    style: const TextStyle(
+                                      color: Colors.white38,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 6),
+                            SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                trackHeight: 3,
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                                overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                              ),
+                              child: Slider(
+                                value: (_index + 1).toDouble().clamp(1.0, total.toDouble()),
+                                min: 1.0,
+                                max: total.toDouble(),
+                                divisions: total > 1 ? total - 1 : 1,
+                                activeColor: BestColors.jade,
+                                inactiveColor: Colors.white24,
+                                onChanged: (val) {
+                                  final target = (val.round() - 1).clamp(0, total - 1);
+                                  if (target != _index) {
+                                    if (mode == ReaderMode.vertical) {
+                                      _verticalController.jumpTo(index: target);
+                                    } else {
+                                      _pagedController?.jumpToPage(target);
+                                    }
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -482,24 +639,234 @@ class _PageError extends StatelessWidget {
   }
 }
 
+class _OcrPageOverlay extends ConsumerStatefulWidget {
+  const _OcrPageOverlay({
+    required this.unitId,
+    required this.index,
+    required this.getBytes,
+    required this.continuous,
+    required this.child,
+  });
+
+  final String unitId;
+  final int index;
+  final Future<Uint8List?> Function() getBytes;
+  final bool continuous;
+  final Widget child;
+
+  @override
+  ConsumerState<_OcrPageOverlay> createState() => _OcrPageOverlayState();
+}
+
+class _OcrPageOverlayState extends ConsumerState<_OcrPageOverlay> {
+  PageOcrResult? _ocrResult;
+  bool _loading = false;
+  String? _lastUnitId;
+  int? _lastIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkOcr());
+  }
+
+  @override
+  void didUpdateWidget(covariant _OcrPageOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.unitId != widget.unitId || oldWidget.index != widget.index) {
+      _checkOcr();
+    }
+  }
+
+  Future<void> _checkOcr() async {
+    if (!mounted) return;
+    final enabled = ref.read(settingsProvider).ocrTranslationEnabled;
+    if (!enabled) {
+      if (_ocrResult != null) setState(() => _ocrResult = null);
+      return;
+    }
+
+    if (_ocrResult != null &&
+        _lastUnitId == widget.unitId &&
+        _lastIndex == widget.index) {
+      return;
+    }
+
+    final repository = ref.read(repositoryProvider);
+    final cached = await repository.getPageOcr(widget.unitId, widget.index);
+    if (cached != null) {
+      if (mounted) {
+        setState(() {
+          _ocrResult = cached;
+          _lastUnitId = widget.unitId;
+          _lastIndex = widget.index;
+        });
+      }
+      return;
+    }
+
+    if (_loading) return;
+    setState(() => _loading = true);
+
+    try {
+      final bytes = await widget.getBytes();
+      if (bytes != null && bytes.isNotEmpty && mounted) {
+        final client = ref.read(ocrClientProvider);
+        final result = await client.processAndTranslatePage(
+          unitId: widget.unitId,
+          pageIndex: widget.index,
+          imageBytes: bytes,
+        );
+        if (mounted) {
+          setState(() {
+            _ocrResult = result;
+            _lastUnitId = widget.unitId;
+            _lastIndex = widget.index;
+          });
+        }
+      }
+    } catch (_) {
+      // Ignored
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(settingsProvider.select((s) => s.ocrTranslationEnabled),
+        (prev, next) {
+      if (next) {
+        _checkOcr();
+      } else {
+        setState(() => _ocrResult = null);
+      }
+    });
+
+    final ocr = _ocrResult;
+    final enabled =
+        ref.watch(settingsProvider.select((s) => s.ocrTranslationEnabled));
+
+    if (!enabled ||
+        ocr == null ||
+        ocr.bubbles.isEmpty ||
+        ocr.imageWidth <= 0 ||
+        ocr.imageHeight <= 0) {
+      if (_loading && enabled) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            widget.child,
+            Positioned(
+              top: 16,
+              right: 16,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(12),
+                  border:
+                      Border.all(color: BestColors.jade.withValues(alpha: 0.5)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: BestColors.jade,
+                      ),
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'جارِ الترجمة...',
+                      style: TextStyle(color: Colors.white, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      }
+      return widget.child;
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cw = constraints.maxWidth;
+        final ch =
+            constraints.maxHeight.isFinite ? constraints.maxHeight : cw * 1.4;
+
+        double displayW, displayH, offsetX, offsetY;
+        final imageAspect = ocr.imageWidth / ocr.imageHeight;
+
+        if (widget.continuous) {
+          displayW = cw;
+          displayH = cw / imageAspect;
+          offsetX = 0;
+          offsetY = 0;
+        } else {
+          final containerAspect = cw / ch;
+          if (containerAspect > imageAspect) {
+            displayH = ch;
+            displayW = ch * imageAspect;
+            offsetX = (cw - displayW) / 2;
+            offsetY = 0;
+          } else {
+            displayW = cw;
+            displayH = cw / imageAspect;
+            offsetX = 0;
+            offsetY = (ch - displayH) / 2;
+          }
+        }
+
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            widget.child,
+            Positioned(
+              left: offsetX,
+              top: offsetY,
+              width: displayW,
+              height: displayH,
+              child: BubbleOverlayWidget(
+                bubbles: ocr.bubbles,
+                imageWidth: ocr.imageWidth,
+                imageHeight: ocr.imageHeight,
+                displayWidth: displayW,
+                displayHeight: displayH,
+                visible: true,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _ResourcePage extends ConsumerStatefulWidget {
   const _ResourcePage({
+    required this.unitId,
     required this.resource,
     required this.sourceId,
     required this.index,
     required this.total,
     this.continuous = false,
+    this.colorFilter = const ReaderColorFilter(),
   });
 
+  final String unitId;
   final MediaResource resource;
   final String sourceId;
   final int index;
   final int total;
-
-  /// Continuous mode lays pages at the full width with their natural height,
-  /// so the chapter reads as one strip. Pinch-zoom is off there: a
-  /// two-finger gesture inside a scroll view fights the scroll itself.
   final bool continuous;
+  final ReaderColorFilter colorFilter;
 
   @override
   ConsumerState<_ResourcePage> createState() => _ResourcePageState();
@@ -522,11 +889,44 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
     }
   }
 
+  Future<Uint8List?> _getImageBytes() async {
+    final resource = widget.resource;
+    if (resource is ImageResource) {
+      if (_bytes != null) {
+        final b = await _bytes;
+        if (b != null && b.isNotEmpty) return b;
+      }
+      try {
+        final res = await ref.read(httpClientProvider).get(
+          Uri.parse(resource.url),
+          headers: resource.headers.isEmpty ? null : resource.headers,
+        );
+        if (res.statusCode == 200) return res.bodyBytes;
+      } catch (_) {}
+    } else if (resource is FileResource) {
+      try {
+        return await File(resource.path).readAsBytes();
+      } catch (_) {}
+    }
+    return null;
+  }
+
   /// Paged mode keeps pinch-zoom; continuous mode must leave the vertical
   /// drag to the list.
   Widget _pageBody(Widget child) {
-    if (widget.continuous) return child;
-    return InteractiveViewer(minScale: 1, maxScale: 4, child: child);
+    final withOcr = _OcrPageOverlay(
+      unitId: widget.unitId,
+      index: widget.index,
+      getBytes: _getImageBytes,
+      continuous: widget.continuous,
+      child: child,
+    );
+    final withFilter = ReaderColorFilterOverlay(
+      filter: widget.colorFilter,
+      child: withOcr,
+    );
+    if (widget.continuous) return withFilter;
+    return InteractiveViewer(minScale: 1, maxScale: 4, child: withFilter);
   }
 
   @override

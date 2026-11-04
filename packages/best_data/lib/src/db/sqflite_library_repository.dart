@@ -436,6 +436,45 @@ class SqfliteLibraryRepository implements LibraryRepository {
   }
 
   @override
+  Future<PageOcrResult?> getPageOcr(String unitId, int pageIndex) async {
+    final rows = await _db.query(
+      'ocr_cache',
+      where: 'unit_id = ? AND page_index = ?',
+      whereArgs: [unitId, pageIndex],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    final row = rows.first;
+    final rawJson = row['bubbles_json'] as String;
+    final decoded = jsonDecode(rawJson) as List<dynamic>;
+    return PageOcrResult(
+      pageIndex: pageIndex,
+      imageWidth: (row['image_width'] as int?) ?? 0,
+      imageHeight: (row['image_height'] as int?) ?? 0,
+      bubbles: decoded
+          .map((b) => Bubble.fromJson(b as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
+  @override
+  Future<void> savePageOcr(String unitId, PageOcrResult result) async {
+    final encoded = jsonEncode(result.bubbles.map((b) => b.toJson()).toList());
+    await _db.insert(
+      'ocr_cache',
+      {
+        'unit_id': unitId,
+        'page_index': result.pageIndex,
+        'image_width': result.imageWidth,
+        'image_height': result.imageHeight,
+        'bubbles_json': encoded,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  @override
   Future<void> close() async {
     await _changes.close();
     await _db.close();

@@ -195,3 +195,155 @@ abstract final class BestType {
     );
   }
 }
+
+/// Opacity vocabulary ported from the Yokai design language.
+///
+/// Borders stay hairline-quiet and tone containers stay low, so content is
+/// always the brightest thing on screen.
+abstract final class BestAlpha {
+  /// Hairline border: present but not dominant.
+  static const double border = 0.16;
+
+  /// A stronger border for active/focused states.
+  static const double borderStrong = 0.28;
+
+  /// An accent used only to wash a surface, never to mark an element.
+  static const double toneWash = 0.045;
+
+  /// Container behind a tone badge or pill.
+  static const double toneContainer = 0.10;
+
+  /// Stronger container for emphasis.
+  static const double toneContainerStrong = 0.18;
+
+  /// Disabled elements.
+  static const double disabled = 0.38;
+
+  /// Supporting / secondary text.
+  static const double supporting = 0.80;
+
+  /// Inner edge highlight along a panel's leading edge.
+  static const double edgeLight = 0.22;
+
+  /// Ambient glow behind an accented panel.
+  static const double haloGlow = 0.07;
+}
+
+/// Semantic tone — never the only carrier of meaning.
+///
+/// Every component that renders a tone also renders an icon and a text label,
+/// so state survives colour blindness, greyscale screenshots and high-contrast
+/// modes. Ported from the Yokai design language.
+enum BestTone {
+  /// Ordinary information.
+  neutral,
+
+  /// The screen's own accent — "this is the thing you came here for".
+  accent,
+
+  /// Confirmed good: downloaded, in sync, within limits.
+  positive,
+
+  /// Needs attention but still working.
+  caution,
+
+  /// Failed, blocked or unsafe.
+  critical,
+
+  /// Off, unsupported or not available.
+  inactive;
+
+  // Fixed hues contrast-checked against both light and dark surfaces.
+  // Only accent follows the user's theme.
+  static const Color _positiveOnLight = Color(0xFF0B6B4F);
+  static const Color _positiveOnDark = Color(0xFF5FD9AC);
+  static const Color _cautionOnLight = Color(0xFF8A5200);
+  static const Color _cautionOnDark = Color(0xFFFFB86B);
+  static const Color _criticalOnLight = Color(0xFF9A1B1B);
+  static const Color _criticalOnDark = Color(0xFFFF9A90);
+
+  /// Foreground colour (text, icon, stroke) for this tone.
+  Color content(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return switch (this) {
+      BestTone.neutral => scheme.onSurfaceVariant,
+      BestTone.accent => scheme.primary,
+      BestTone.positive => dark ? _positiveOnDark : _positiveOnLight,
+      BestTone.caution => dark ? _cautionOnDark : _cautionOnLight,
+      BestTone.critical => dark ? _criticalOnDark : _criticalOnLight,
+      BestTone.inactive => scheme.outline,
+    };
+  }
+
+  /// Low-emphasis container behind this tone's content.
+  Color container(BuildContext context, {bool strong = false}) =>
+      content(context).withValues(
+        alpha: strong ? BestAlpha.toneContainerStrong : BestAlpha.toneContainer,
+      );
+
+  /// Hairline border for this tone.
+  Color border(BuildContext context, {bool strong = false}) =>
+      content(context).withValues(
+        alpha: strong ? BestAlpha.borderStrong : BestAlpha.border,
+      );
+}
+
+/// The one card contract: every number lives here so cards cannot drift.
+///
+/// Ported from the Yokai YokaiCardSpec.
+abstract final class BestCardSpec {
+  static const double radius = BestRadius.lg;
+  static const double borderWidth = 1;
+  static const double padding = BestSpace.lg;
+  static const double iconContainer = 40;
+  static const double iconGlyph = 20;
+  static const double gap = BestSpace.sm;
+  static const double gapTight = BestSpace.xs;
+  static const double minHeight = 92;
+  static const double gridSpacing = BestSpace.md;
+  static const int titleLines = 2;
+  static const int descriptionLines = 2;
+  static const double minColumnWidth = 148;
+}
+
+/// The one section-header contract.
+abstract final class BestSectionSpec {
+  /// The accent rule above a section title: width and height.
+  static const double accentRuleWidth = 28;
+  static const double accentRuleHeight = 4;
+
+  /// Gap between the rule and the title.
+  static const double accentRuleGap = BestSpace.sm;
+
+  /// Gap between heading and its supporting line.
+  static const double titleGap = BestSpace.xs;
+
+  /// Space before a section heading.
+  static const double spaceBefore = BestSpace.xl;
+
+  /// Space after a section heading.
+  static const double spaceAfter = BestSpace.md;
+}
+
+/// Tabular figure sizes used by metric readouts so digits never reflow.
+abstract final class BestMetricType {
+  static const double valueLarge = 34;
+  static const double valueMedium = 22;
+  static const double valueSmall = 16;
+}
+
+/// Placeholder rendered instead of a value when there is nothing real to show.
+/// Deliberately not "0", not "--%": a zero would be read as a measurement.
+const String bestValueUnavailable = '—';
+
+/// Font families for the enhanced three-family typography system.
+///
+/// - [heading]: Cairo — Arabic-optimized geometric face for titles and tabs.
+/// - [reading]: Tajawal — warm, highly legible face for body text and synopses.
+/// - [mono]: JetBrains Mono — tabular digits for live values that never reflow.
+abstract final class BestFontFamily {
+  static const String heading = 'packages/best_ui/BestHeading';
+  static const String reading = 'packages/best_ui/BestReading';
+  static const String mono = 'packages/best_ui/BestMono';
+}

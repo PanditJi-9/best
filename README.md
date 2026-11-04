@@ -117,6 +117,12 @@ flutter test
 flutter build apk --release
 ```
 
+The `Build Android APK` workflow runs these steps on every change under
+`mobile/` and uploads `app-release.apk` as a downloadable artifact. It uses the
+memory-safe Gradle profile from `tool/android/gradle.properties` (3G Gradle,
+2G Kotlin), so the runner does not spend its budget on an 8G heap it never
+needs.
+
 Tagged builds are signed with a release key stored in Actions secrets
 (`tool/configure_signing.sh`); a local build without that secret stays
 debug-signed. The Android manifest opts out of Impeller because its Vulkan path

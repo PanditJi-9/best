@@ -117,5 +117,16 @@ dependencies {
     implementation("io.reactivex:rxandroid:1.2.1")
     implementation("uy.kohesive.injekt:injekt-core:1.16.1")
     implementation("androidx.preference:preference:1.2.1")
+
+    // Google ML Kit for OCR & On-Device Translation (HikariManga pipeline)
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:translate:17.0.3")
+
+    // Android WorkManager for background downloads
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
+    // Biometric authentication for library lock
+    implementation("androidx.biometric:biometric:1.1.0")
+
     testImplementation("junit:junit:4.13.2")
 }

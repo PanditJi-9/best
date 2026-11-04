@@ -1,6 +1,9 @@
 package app.best.best_app
 
+import app.best.best_app.download.DownloadHost
 import app.best.best_app.ext.ExtensionHost
+import app.best.best_app.ocr.OcrHost
+import app.best.best_app.security.BiometricHost
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 
@@ -20,5 +23,8 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         host(this).attach(flutterEngine.dartExecutor.binaryMessenger)
+        OcrHost(applicationContext).attach(flutterEngine.dartExecutor.binaryMessenger)
+        DownloadHost(applicationContext).attach(flutterEngine.dartExecutor.binaryMessenger)
+        BiometricHost(this).attach(flutterEngine.dartExecutor.binaryMessenger)
     }
 }

@@ -1,5 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
 
     <!-- Android 11 hides other apps unless an intent is declared. The update
          check opens the signed APK in the browser, so the https VIEW intent
@@ -42,5 +46,22 @@
         <meta-data
             android:name="io.flutter.embedding.android.EnableImpeller"
             android:value="false" />
+
+        <!-- WorkManager foreground service declaration for dataSync -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+
+        <!-- Background download notification action receiver -->
+        <receiver
+            android:name="app.best.best_app.download.DownloadNotificationReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="app.best.download.PAUSE"/>
+                <action android:name="app.best.download.RESUME"/>
+                <action android:name="app.best.download.CANCEL"/>
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
