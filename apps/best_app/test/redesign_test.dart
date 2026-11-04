@@ -7,6 +7,7 @@ import 'package:best_app/src/l10n/generated/app_localizations.dart';
 import 'package:best_app/src/meta/meta_models.dart';
 import 'package:best_app/src/meta/meta_providers.dart';
 import 'package:best_app/src/navigation.dart';
+import 'package:best_app/src/network.dart';
 import 'package:best_app/src/providers.dart';
 import 'package:best_app/src/screens/meta_search_screen.dart';
 import 'package:best_data/best_data.dart';
@@ -231,6 +232,7 @@ void main() {
       await tester.pumpWidget(ProviderScope(overrides: [
         repositoryProvider.overrideWithValue(repository),
         preferencesProvider.overrideWithValue(preferences),
+        networkProvider.overrideWith((ref) => Stream.value(NetworkKind.none)),
         sourceRegistryProvider
             .overrideWithValue(SourceRegistry.fixed([_Source()])),
         discoverProvider.overrideWith((ref) async =>
@@ -283,8 +285,13 @@ void main() {
       expect(find.byTooltip(l10n.libraryGridView), findsOneWidget);
       await tester.tap(find.text(l10n.navHome).last);
       await tester.pumpAndSettle();
-      await tester
-          .ensureVisible(find.byKey(const ValueKey('home-unified-search')));
+      // Home remembers its discovery scroll position. Scroll the lazy list
+      // back until the search entry is built, just as a reader would.
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('home-unified-search')),
+        -240,
+        scrollable: find.byType(Scrollable).first,
+      );
       await tester.tap(find.byKey(const ValueKey('home-unified-search')));
       await tester.pumpAndSettle();
       expect(find.text(l10n.searchEverything), findsOneWidget);
