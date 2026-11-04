@@ -185,7 +185,9 @@ def tap_tab(index: int, count: int = 5) -> None:
     match = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
     width, height = (320, 640) if not match else map(int, match.groups())
     x = width * (2 * index + 1) // (2 * count)
-    adb("shell", "input", "tap", str(x), str(height - 32))
+    # 95% down lands inside the bar on both a 320x640 emulator and a 1080x2400
+    # phone; height - 32 would fall into the gesture inset on the latter.
+    adb("shell", "input", "tap", str(x), str(height * 19 // 20))
     time.sleep(3)
 
 
