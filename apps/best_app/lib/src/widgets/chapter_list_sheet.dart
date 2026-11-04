@@ -24,7 +24,6 @@ class ChapterListSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final currentIndex = units.indexWhere((u) => u.id == currentUnitId);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.55,

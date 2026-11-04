@@ -18,7 +18,8 @@ class MangaTranslationPipeline {
   final RawTranslator rawTranslator;
 
   static final RegExp _urlRegex = RegExp(
-    r'(?i)\b(?:https?://|ftp://|www\.)\S+|(?:discord\.(?:gg|com/invite)|t\.me|patreon\.com)/[^\s<>]+',
+    r'\b(?:https?://|ftp://|www\.)\S+|(?:discord\.(?:gg|com/invite)|t\.me|patreon\.com)/[^\s<>]+',
+    caseSensitive: false,
   );
 
   bool isWatermarkOrUrl(String text) {

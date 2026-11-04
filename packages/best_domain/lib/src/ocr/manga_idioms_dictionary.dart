@@ -1,5 +1,6 @@
 /// Dictionary of Manga idioms, combat dialogue, common reactions, and gaming/manhwa status terms.
 /// Ported from HikariManga 1.4.2.
+library;
 
 class MangaIdiomsDictionary {
   MangaIdiomsDictionary._();
@@ -169,27 +170,27 @@ class MangaIdiomsDictionary {
   };
 
   static final List<MapEntry<RegExp, String>> machineTranslateReplacements = [
-    MapEntry(RegExp(r'(?i)\bprivate\s+(park|kim|lee|choi|jung|kang|cho|yoon|jang|lim|han|oh|seo|shin|kwon|hwang|ahn|song|ryu|hong|bae|baek|nam|sim|ha|kwak|sung|cha|woo|jin|min)\b'), 'Soldier \$1'),
-    MapEntry(RegExp(r'(?i)\bprivate,\s+'), 'Soldier, '),
-    MapEntry(RegExp(r'(?i)\bprivate\s+first\s+class\b'), 'Soldier First Class'),
+    MapEntry(RegExp(r'\bprivate\s+(park|kim|lee|choi|jung|kang|cho|yoon|jang|lim|han|oh|seo|shin|kwon|hwang|ahn|song|ryu|hong|bae|baek|nam|sim|ha|kwak|sung|cha|woo|jin|min)\b', caseSensitive: false), 'Soldier \$1'),
+    MapEntry(RegExp(r'\bprivate,\s+', caseSensitive: false), 'Soldier, '),
+    MapEntry(RegExp(r'\bprivate\s+first\s+class\b', caseSensitive: false), 'Soldier First Class'),
     MapEntry(RegExp(r'\bPrivate\s+([A-Z][a-zA-Z]+)\b'), 'Soldier \$1'),
-    MapEntry(RegExp(r'(?i)\ba\s+vip\b'), 'a very important person'),
-    MapEntry(RegExp(r'(?i)\bthe\s+vip\b'), 'the very important person'),
-    MapEntry(RegExp(r'(?i)\bvips\b'), 'very important persons'),
-    MapEntry(RegExp(r'(?i)\bvip\b'), 'very important person'),
-    MapEntry(RegExp(r'(?i)\bget\s+off\s+my\s+ass\b'), 'leave me alone'),
-    MapEntry(RegExp(r'(?i)\bsave\s+my\s+ass\b'), 'save my life'),
-    MapEntry(RegExp(r'(?i)\bsave\s+(your|his|her|their)\s+ass\b'), 'save \$1 life'),
-    MapEntry(RegExp(r'(?i)\bmy\s+ass\b'), 'my butt'),
-    MapEntry(RegExp(r'(?i)\bis\s+an\s+understatement\b'), 'is far less than the truth'),
-    MapEntry(RegExp(r'(?i)\b(come\s+on[!,]?\s*)?let\s*[''’]?s\s+dig\s+in\b'), 'let us start eating'),
-    MapEntry(RegExp(r'(?i)\btime\s+to\s+dig\s+in\b'), 'time to start eating'),
-    MapEntry(RegExp(r'(?i)\bcourting\s+death\b'), 'seeking death'),
-    MapEntry(RegExp(r'(?i)\bstatus\s+window\b'), 'character status window'),
-    MapEntry(RegExp(r'(?i)\blevel\s+up\b'), 'level increase'),
-    MapEntry(RegExp(r'(?i)\bdungeon\s+break\b'), 'dungeon invasion'),
-    MapEntry(RegExp(r'(?i)\bgate\s+break\b'), 'gate collapse'),
-    MapEntry(RegExp(r'(?i)\bkilling\s+intent\b'), 'murderous aura'),
+    MapEntry(RegExp(r'\ba\s+vip\b', caseSensitive: false), 'a very important person'),
+    MapEntry(RegExp(r'\bthe\s+vip\b', caseSensitive: false), 'the very important person'),
+    MapEntry(RegExp(r'\bvips\b', caseSensitive: false), 'very important persons'),
+    MapEntry(RegExp(r'\bvip\b', caseSensitive: false), 'very important person'),
+    MapEntry(RegExp(r'\bget\s+off\s+my\s+ass\b', caseSensitive: false), 'leave me alone'),
+    MapEntry(RegExp(r'\bsave\s+my\s+ass\b', caseSensitive: false), 'save my life'),
+    MapEntry(RegExp(r'\bsave\s+(your|his|her|their)\s+ass\b', caseSensitive: false), 'save \$1 life'),
+    MapEntry(RegExp(r'\bmy\s+ass\b', caseSensitive: false), 'my butt'),
+    MapEntry(RegExp(r'\bis\s+an\s+understatement\b', caseSensitive: false), 'is far less than the truth'),
+    MapEntry(RegExp(r'\b(come\s+on[!,]?\s*)?let\s*[\x27\u2019]?s\s+dig\s+in\b', caseSensitive: false), 'let us start eating'),
+    MapEntry(RegExp(r'\btime\s+to\s+dig\s+in\b', caseSensitive: false), 'time to start eating'),
+    MapEntry(RegExp(r'\bcourting\s+death\b', caseSensitive: false), 'seeking death'),
+    MapEntry(RegExp(r'\bstatus\s+window\b', caseSensitive: false), 'character status window'),
+    MapEntry(RegExp(r'\blevel\s+up\b', caseSensitive: false), 'level increase'),
+    MapEntry(RegExp(r'\bdungeon\s+break\b', caseSensitive: false), 'dungeon invasion'),
+    MapEntry(RegExp(r'\bgate\s+break\b', caseSensitive: false), 'gate collapse'),
+    MapEntry(RegExp(r'\bkilling\s+intent\b', caseSensitive: false), 'murderous aura'),
   ];
 
   static String normalizeIdiomKey(String key) {

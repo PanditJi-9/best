@@ -1,6 +1,7 @@
 /// Arabic translation polisher that cleans machine translation blunders,
 /// enforces comic-appropriate phrasing, and formats punctuation for RTL Arabic.
 /// Ported from HikariManga 1.4.2.
+library;
 
 class ArabicTranslationPolisher {
   ArabicTranslationPolisher._();

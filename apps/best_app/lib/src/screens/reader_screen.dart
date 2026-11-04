@@ -112,7 +112,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 
   void _showChaptersSheet() {
-    final units = widget.data.media.units;
+    final units = widget.data.units;
     if (units.isEmpty) return;
     showModalBottomSheet<void>(
       context: context,
@@ -262,7 +262,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
               ),
               title: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: widget.data.media.units.isNotEmpty ? _showChaptersSheet : null,
+                onTap: widget.data.units.isNotEmpty ? _showChaptersSheet : null,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -277,7 +277,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                           ),
                         ),
-                        if (widget.data.media.units.isNotEmpty) ...[
+                        if (widget.data.units.isNotEmpty) ...[
                           const SizedBox(width: 4),
                           const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Colors.white70),
                         ],

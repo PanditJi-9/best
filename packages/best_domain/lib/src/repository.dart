@@ -1,6 +1,7 @@
 import 'downloads.dart';
 import 'library.dart';
 import 'media.dart';
+import 'ocr/ocr_models.dart';
 import 'progress.dart';
 import 'stats.dart';
 import 'units.dart';

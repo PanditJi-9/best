@@ -1,5 +1,6 @@
 /// Comprehensive name transliteration engine for Manga, Manhwa, and Manhua names.
 /// Ported from HikariManga 1.4.2.
+library;
 
 class TransliterationResult {
   const TransliterationResult({
@@ -21,7 +22,8 @@ class ArabicNameTransliteration {
   static final ArabicNameTransliteration instance = ArabicNameTransliteration._();
 
   static final RegExp _urlAndEmailRegex = RegExp(
-    r'(?i)\b(?:https?://|ftp://|www\.)[^\s<>"'\''{}|\\^`]+|(?:[a-zA-Z0-9-]+\.)+(?:com|org|net|io|me|to|co|app|gg|tv|site|xyz|online|club|top|cc|ru|fr|de|jp|kr|cn|us|info|mobi|dev|link|live|pro|space|vip|zone|art|press)(?:/[^\s<>"'\''{}|\\^`]*)?|(?:discord\.(?:gg|com/invite)|t\.me|bit\.ly|linktr\.ee|patreon\.com|ko-fi\.com)/[^\s<>"'\''{}|\\^`]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b',
+    r'\b(?:https?://|ftp://|www\.)[^\s<>"{}|\\^`]+|(?:[a-zA-Z0-9-]+\.)+(?:com|org|net|io|me|to|co|app|gg|tv|site|xyz|online|club|top|cc|ru|fr|de|jp|kr|cn|us|info|mobi|dev|link|live|pro|space|vip|zone|art|press)(?:/[^\s<>"{}|\\^`]*)?|(?:discord\.(?:gg|com/invite)|t\.me|bit\.ly|linktr\.ee|patreon\.com|ko-fi\.com)/[^\s<>"{}|\\^`]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b',
+    caseSensitive: false,
   );
 
   static final Map<String, String> knownNames = {
@@ -495,7 +497,7 @@ class ArabicNameTransliteration {
     "cake", "candy", "food", "coffee", "tea", "water", "milk", "drink",
     "drinks", "shift", "night", "overnight", "pack", "package", "plan",
     "booth", "seat", "id", "card", "age", "check", "customer", "regular",
-    "young", "boy", "girl", "kid", "man", "woman", "person", "people",
+    "young", "boy", "girl", "kid", "man", "woman", "person",
     "anime", "manga", "comic", "voice", "sound", "sounds", "music", "song",
     "video", "screen", "phone", "pc", "tv"
   };
@@ -553,7 +555,7 @@ class ArabicNameTransliteration {
   }
 
   String _applyPhoneticFallback(String word, String? origin) {
-    List<String> order = ["chinese", "korean", "japanese", "western"];
+    final order = <String>["chinese", "korean", "japanese", "western"];
     if (origin != null && order.contains(origin)) {
       order.remove(origin);
       order.insert(0, origin);

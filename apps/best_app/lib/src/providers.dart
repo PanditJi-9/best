@@ -1220,11 +1220,13 @@ class ResolvedUnit {
     required this.media,
     required this.unit,
     required this.source,
+    this.units = const [],
   });
 
   final Media media;
   final MediaUnit unit;
   final SourceAdapter source;
+  final List<MediaUnit> units;
 }
 
 Future<ResolvedUnit> _resolveUnit(
@@ -1248,7 +1250,12 @@ Future<ResolvedUnit> _resolveUnit(
     orElse: () => throw StateError('This unit is not in the local catalogue.'),
   );
 
-  return ResolvedUnit(media: media, unit: unit, source: source);
+  return ResolvedUnit(
+    media: media,
+    unit: unit,
+    source: source,
+    units: units,
+  );
 }
 
 class ReaderData {
@@ -1257,6 +1264,7 @@ class ReaderData {
     required this.unit,
     required this.resources,
     required this.progress,
+    this.units = const [],
     this.offline = false,
   });
 
@@ -1264,6 +1272,7 @@ class ReaderData {
   final MediaUnit unit;
   final List<MediaResource> resources;
   final UnitProgress? progress;
+  final List<MediaUnit> units;
 
   /// True when the pages came from a finished download, not a source.
   final bool offline;
@@ -1292,6 +1301,7 @@ final readerProvider = FutureProvider.family<ReaderData, ReaderKey>((
         unit: unit,
         resources: local,
         progress: await repository.progressFor(unit.id),
+        units: resolved.units,
         offline: true,
       );
     }
@@ -1311,6 +1321,7 @@ final readerProvider = FutureProvider.family<ReaderData, ReaderKey>((
       unit: unit,
       resources: local,
       progress: await repository.progressFor(unit.id),
+      units: resolved.units,
       offline: true,
     );
   }
@@ -1320,6 +1331,7 @@ final readerProvider = FutureProvider.family<ReaderData, ReaderKey>((
     unit: unit,
     resources: resources,
     progress: await repository.progressFor(unit.id),
+    units: resolved.units,
   );
 });
 

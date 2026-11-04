@@ -4,10 +4,10 @@ import app.best.best_app.download.DownloadHost
 import app.best.best_app.ext.ExtensionHost
 import app.best.best_app.ocr.OcrHost
 import app.best.best_app.security.BiometricHost
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
 
     companion object {
         /**
