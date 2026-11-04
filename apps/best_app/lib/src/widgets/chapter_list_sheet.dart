@@ -30,7 +30,7 @@ class ChapterListSheet extends StatelessWidget {
       minChildSize: 0.3,
       maxChildSize: 0.85,
       expand: false,
-      builder: (context, scrollController) {
+      builder: (BuildContext context, ScrollController scrollController) {
         return Column(
           children: [
             // Drag handle
@@ -93,7 +93,7 @@ class ChapterListSheet extends StatelessWidget {
                 controller: scrollController,
                 padding: const EdgeInsets.only(bottom: BestSpace.xl),
                 itemCount: units.length,
-                itemBuilder: (context, index) {
+                itemBuilder: (BuildContext context, int index) {
                   final unit = units[index];
                   final isCurrent = unit.id == currentUnitId;
 

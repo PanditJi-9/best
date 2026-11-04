@@ -34,19 +34,19 @@ class BackgroundDownloadClient {
 
   Future<void> cancel(String chapterId) async {
     try {
-      await _channel.invokeMethod('cancelDownload', {'chapterId': chapterId});
+      await _channel.invokeMethod<void>('cancelDownload', {'chapterId': chapterId});
     } catch (_) {}
   }
 
   Future<void> pause(String chapterId) async {
     try {
-      await _channel.invokeMethod('pauseDownload', {'chapterId': chapterId});
+      await _channel.invokeMethod<void>('pauseDownload', {'chapterId': chapterId});
     } catch (_) {}
   }
 
   Future<void> resume(String chapterId) async {
     try {
-      await _channel.invokeMethod('resumeDownload', {'chapterId': chapterId});
+      await _channel.invokeMethod<void>('resumeDownload', {'chapterId': chapterId});
     } catch (_) {}
   }
 }

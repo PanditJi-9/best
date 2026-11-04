@@ -132,7 +132,7 @@ class _BestAppState extends ConsumerState<BestApp> with WidgetsBindingObserver {
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       routerConfig: _router,
-      builder: (context, child) {
+      builder: (BuildContext context, Widget? child) {
         if (!locked) return child ?? const SizedBox.shrink();
         return _BiometricLockScreen(onUnlock: _checkBiometrics);
       },

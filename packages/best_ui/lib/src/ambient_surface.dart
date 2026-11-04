@@ -117,7 +117,7 @@ class _AmbientPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_AmbientPainter old) =>
+  bool shouldRepaint(covariant _AmbientPainter old) =>
       old.phase != phase ||
       old.primary != primary ||
       old.tertiary != tertiary ||

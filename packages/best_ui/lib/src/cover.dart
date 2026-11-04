@@ -28,11 +28,20 @@ class BestCover extends StatelessWidget {
             url!,
             fit: BoxFit.cover,
             filterQuality: FilterQuality.medium,
-            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+            frameBuilder: (
+              BuildContext context,
+              Widget child,
+              int? frame,
+              bool wasSynchronouslyLoaded,
+            ) {
               if (wasSynchronouslyLoaded || frame != null) return child;
               return fallback;
             },
-            errorBuilder: (context, error, stack) => fallback,
+            errorBuilder: (
+              BuildContext context,
+              Object error,
+              StackTrace? stack,
+            ) => fallback,
           );
 
     return ClipRRect(

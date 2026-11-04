@@ -28,8 +28,9 @@ class BestTabStrip extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: padding ?? const EdgeInsets.symmetric(horizontal: BestSpace.lg),
         itemCount: tabs.length,
-        separatorBuilder: (_, __) => const SizedBox(width: BestSpace.sm),
-        itemBuilder: (context, index) {
+        separatorBuilder: (BuildContext context, int index) =>
+            const SizedBox(width: BestSpace.sm),
+        itemBuilder: (BuildContext context, int index) {
           final selected = index == selectedIndex;
           return _BestTab(
             label: tabs[index],

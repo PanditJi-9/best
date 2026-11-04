@@ -57,9 +57,9 @@ class OcrClient {
     }
 
     // 2. Call native ML Kit OCR
-    Map<dynamic, dynamic>? ocrData;
+    Map<Object?, Object?>? ocrData;
     try {
-      ocrData = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      ocrData = await _channel.invokeMethod<Map<Object?, Object?>>(
         'recognizeBubbles',
         {'bytes': imageBytes},
       );
@@ -78,10 +78,12 @@ class OcrClient {
 
     final width = (ocrData['width'] as num?)?.toInt() ?? 0;
     final height = (ocrData['height'] as num?)?.toInt() ?? 0;
-    final rawBubblesList = (ocrData['bubbles'] as List<dynamic>? ?? []);
+    final rawBubblesList =
+        (ocrData['bubbles'] as List<Object?>? ?? const <Object?>[]);
 
-    final rawBubbles = rawBubblesList.map((map) {
-      final m = Map<String, dynamic>.from(map as Map);
+    final rawBubbles =
+        rawBubblesList.whereType<Map<Object?, Object?>>().map((Map<Object?, Object?> map) {
+      final m = Map<String, dynamic>.from(map);
       return Bubble.fromJson(m);
     }).toList();
 
@@ -125,14 +127,16 @@ class OcrClient {
     required String pageId,
   }) async {
     try {
-      final res = await _channel.invokeListMethod<Map<dynamic, dynamic>>(
+      final res = await _channel.invokeListMethod<Map<Object?, Object?>>(
         'sliceWebtoon',
         {'bytes': bytes, 'pageId': pageId},
       );
-      if (res == null) return [];
-      return res.map((m) => Map<String, dynamic>.from(m)).toList();
+      if (res == null) return const <Map<String, dynamic>>[];
+      return res
+          .map((Map<Object?, Object?> m) => Map<String, dynamic>.from(m))
+          .toList();
     } catch (_) {
-      return [];
+      return const <Map<String, dynamic>>[];
     }
   }
 }

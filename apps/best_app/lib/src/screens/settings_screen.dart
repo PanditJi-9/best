@@ -153,7 +153,7 @@ class SettingsScreen extends ConsumerWidget {
                     const Divider(height: 1),
                     SwitchListTile.adaptive(
                       value: settings.ocrTranslationEnabled,
-                      onChanged: (value) => ref
+                      onChanged: (bool value) => ref
                           .read(settingsProvider.notifier)
                           .setOcrTranslationEnabled(value),
                       secondary:
@@ -291,7 +291,7 @@ class SettingsScreen extends ConsumerWidget {
                 children: [
                   SwitchListTile.adaptive(
                     value: settings.biometricLockEnabled,
-                    onChanged: (value) async {
+                    onChanged: (bool value) async {
                       if (value) {
                         final client = ref.read(biometricClientProvider);
                         final ok = await client.authenticate(

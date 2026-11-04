@@ -225,7 +225,7 @@ class _ReaderColorFilterSheetState extends State<ReaderColorFilterSheet> {
                     min: -75,
                     max: 0,
                     divisions: 75,
-                    onChanged: (v) => _update(
+                    onChanged: (double v) => _update(
                       _filter.copyWith(customBrightnessOffset: v.round()),
                     ),
                   ),
@@ -261,7 +261,7 @@ class _ReaderColorFilterSheetState extends State<ReaderColorFilterSheet> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(BestRadius.pill),
       ),
-      onSelected: (_) => _update(_filter.copyWith(mode: mode)),
+      onSelected: (bool _) => _update(_filter.copyWith(mode: mode)),
     );
   }
 }

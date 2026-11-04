@@ -407,7 +407,8 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                           itemPositionsListener: _verticalPositions,
                           initialScrollIndex: _index,
                           itemCount: total,
-                          itemBuilder: (context, index) => _ResourcePage(
+                          itemBuilder: (BuildContext context, int index) =>
+                              _ResourcePage(
                             unitId: widget.data.unit.id,
                             resource: _resources[index],
                             sourceId: widget.data.media.ref.sourceId,
@@ -422,7 +423,8 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                               PageController(initialPage: _index),
                           onPageChanged: _onPageChanged,
                           itemCount: total,
-                          itemBuilder: (context, index) => _ResourcePage(
+                          itemBuilder: (BuildContext context, int index) =>
+                              _ResourcePage(
                             unitId: widget.data.unit.id,
                             resource: _resources[index],
                             sourceId: widget.data.media.ref.sourceId,
@@ -581,7 +583,11 @@ Widget _networkImage(
     width: fitWidth ? double.infinity : null,
     fit: fitWidth ? BoxFit.fitWidth : BoxFit.contain,
     frameBuilder: _pageFrame,
-    loadingBuilder: (context, child, progress) {
+    loadingBuilder: (
+      BuildContext context,
+      Widget child,
+      ImageChunkEvent? progress,
+    ) {
       if (progress == null) return child;
       if (fitWidth) {
         // A page that has not decoded yet has no intrinsic height. Reserving
@@ -599,7 +605,11 @@ Widget _networkImage(
         child: CircularProgressIndicator(color: Colors.white54),
       );
     },
-    errorBuilder: (context, error, stack) => _PageError(message: '$error'),
+    errorBuilder: (
+      BuildContext context,
+      Object error,
+      StackTrace? stack,
+    ) => _PageError(message: '$error'),
   );
 }
 
@@ -960,8 +970,11 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                             : BoxFit.contain,
                         gaplessPlayback: true,
                         frameBuilder: _pageFrame,
-                        errorBuilder: (context, error, stack) =>
-                            const _PageError(),
+                        errorBuilder: (
+                          BuildContext context,
+                          Object error,
+                          StackTrace? stack,
+                        ) => const _PageError(),
                       );
                     },
                   ),
@@ -973,7 +986,11 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
               File(path),
               width: widget.continuous ? double.infinity : null,
               fit: widget.continuous ? BoxFit.fitWidth : BoxFit.contain,
-              errorBuilder: (context, error, stack) => const Center(
+              errorBuilder: (
+                BuildContext context,
+                Object error,
+                StackTrace? stack,
+              ) => const Center(
                 child: Icon(
                   Icons.broken_image_outlined,
                   color: Colors.white38,

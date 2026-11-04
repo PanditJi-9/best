@@ -155,22 +155,26 @@ ThemeData bestTheme(Brightness brightness) {
       height: 68,
       elevation: 0,
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-      labelTextStyle: WidgetStateProperty.resolveWith((states) {
-        final selected = states.contains(WidgetState.selected);
-        return text.labelSmall?.copyWith(
-          fontSize: 10,
-          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-          color: selected ? scheme.primary : scheme.onSurfaceVariant,
-          letterSpacing: 0,
-        );
-      }),
-      iconTheme: WidgetStateProperty.resolveWith((states) {
-        final selected = states.contains(WidgetState.selected);
-        return IconThemeData(
-          size: 23,
-          color: selected ? scheme.primary : scheme.onSurfaceVariant,
-        );
-      }),
+      labelTextStyle: WidgetStateProperty.resolveWith<TextStyle?>(
+        (Set<WidgetState> states) {
+          final selected = states.contains(WidgetState.selected);
+          return text.labelSmall?.copyWith(
+            fontSize: 10,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected ? scheme.primary : scheme.onSurfaceVariant,
+            letterSpacing: 0,
+          );
+        },
+      ),
+      iconTheme: WidgetStateProperty.resolveWith<IconThemeData?>(
+        (Set<WidgetState> states) {
+          final selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            size: 23,
+            color: selected ? scheme.primary : scheme.onSurfaceVariant,
+          );
+        },
+      ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
