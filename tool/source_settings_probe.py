@@ -24,7 +24,7 @@ from pathlib import Path
 
 from android_smoke import (
     ACTIVITY, PACKAGE, adb, debug_texts, dismiss_anr, dump, find_any, nodes,
-    screenshot, select_source, tap, tap_tab, wait_for,
+    open_sources, screenshot, select_source, tap, wait_for,
 )
 
 SOURCE = os.environ.get("SOURCE_SETTINGS_SOURCE", "").strip()
@@ -150,7 +150,7 @@ def main() -> int:
     adb("shell", "am", "start", "-W", "-n", ACTIVITY)
     time.sleep(8)
     dismiss_anr()
-    tap_tab(1)
+    open_sources()
     select_source(SOURCE)
     time.sleep(2)
 

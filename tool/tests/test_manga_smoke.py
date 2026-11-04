@@ -63,6 +63,7 @@ class MangaSmokeTest(unittest.TestCase):
                 with patch.object(manga, "adb"), patch.object(manga.time, "sleep"), \
                         patch.object(manga, "dismiss_anr"), patch.object(manga, "wait_for"), \
                         patch.object(manga, "tap_tab"), \
+                        patch.object(manga, "open_sources"), \
                         patch.object(manga, "select_source") as select, \
                         patch.object(manga, "dump", side_effect=fake_dump), \
                         patch.object(manga, "tap") as tap, \

@@ -126,6 +126,12 @@ class MenuScreen extends ConsumerWidget {
                 onTap: () => context.push(Routes.sources),
               ),
               _MenuTile(
+                icon: Icons.collections_bookmark_rounded,
+                title: l10n.mangaSourcesTitle,
+                body: l10n.menuSourcesBody,
+                onTap: () => context.push(Routes.manga),
+              ),
+              _MenuTile(
                 icon: Icons.groups_rounded,
                 title: l10n.contributorsTitle,
                 body: l10n.menuContributorsBody,

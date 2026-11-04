@@ -17,7 +17,7 @@ import xml.etree.ElementTree as ET
 
 from android_smoke import (
     ACTIVITY, PACKAGE, adb, debug_texts, dismiss_anr, dump, find, find_any, nodes,
-    screenshot, select_source, swipe_up, tap, tap_tab, wait_for,
+    open_sources, screenshot, select_source, swipe_up, tap, wait_for,
 )
 
 SOURCES = ("AniZone", "AnimePahe", "AnimeKai", "AnimeXin")
@@ -117,7 +117,7 @@ def check_source(name: str, *, play: bool, report: dict | None = None) -> dict:
     adb("shell", "am", "start", "-W", "-n", ACTIVITY)
     time.sleep(6)
     dismiss_anr()
-    tap_tab(1)
+    open_sources()
     select_source(name)
 
     deadline = time.monotonic() + 55

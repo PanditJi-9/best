@@ -909,6 +909,10 @@
   "menuContributorsBody": "Extension publishers",
   "menuExtensionsBody": "Install and manage extensions",
   "menuDirectoryBody": "Every available site",
+  "menuSourcesBody": "Every source you added, with its own catalogue.",
+  "@menuSourcesBody": {
+    "description": "Menu tile body for the list of added sources."
+  },
   "menuSettingsBody": "Theme, reading and downloads",
   "menuBackupBody": "Local backup",
   "menuSyncBody": "Encrypted WebDAV sync",

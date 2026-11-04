@@ -191,6 +191,16 @@ def tap_tab(index: int, count: int = 5) -> None:
     time.sleep(3)
 
 
+def open_sources() -> None:
+    """Open the source-first shelf from the menu.
+
+    1.0.0 replaced the old Browse tab with the Database, so the shelf is now a
+    pushed route: Menu -> Your sources. Geometry taps stay out of it.
+    """
+    tap_tab(4)
+    tap(wait_for("Your sources", timeout=30, scrolls=8), wait=4)
+
+
 def select_source(wanted: str) -> None:
     """Find a source in the Manga tab's vertical list, scrolling if needed."""
     def source_in(root):
@@ -266,13 +276,17 @@ def _run() -> int:
     dismiss_anr()
 
     # The workflow also screenshots the home screen, but it can catch an
-    # emulator dialog. Take it again once the app is actually on screen.
-    wait_for("THE DAILY EDITION", timeout=40)
+    # emulator dialog. Take it again once the app is actually on screen. The
+    # masthead subtitle is the stable marker: the headline itself is the app
+    # name and also appears in the tab bar.
+    wait_for("Your smart reading room", timeout=40)
     dismiss_anr()
     screenshot("screenshot.png")
 
-    # A fresh install leads with the offline guide's spotlight and samples, so
-    # the player is reachable without opening the extension directory.
+    # A fresh install can still play something: the bundled guide ships with
+    # the app, so open its shelf and its sample drama.
+    open_sources()
+    select_guide()
     tap(wait_for("Neon Seoul", timeout=40, scrolls=16), wait=5)
 
     # A rerun against an emulator with saved data offers "Continue watching".

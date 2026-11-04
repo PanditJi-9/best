@@ -16,7 +16,7 @@ from pathlib import Path
 
 from android_smoke import (
     ACTIVITY, PACKAGE, adb, debug_texts, dismiss_anr, dump, find_any, nodes,
-    swipe_up, tap, tap_tab, wait_for,
+    open_sources, swipe_up, tap, wait_for,
 )
 
 MANGA_PACKAGES = (
@@ -80,9 +80,9 @@ def main() -> int:
     adb("shell", "am", "start", "-W", "-n", ACTIVITY)
     time.sleep(8)
     dismiss_anr()
-    # The Manga tab is where a reader's own sources live; its header button
+    # Your sources is where a reader's own sources live; its header button
     # opens the full directory.
-    tap_tab(1)
+    open_sources()
     before = loaded_packages(adb("logcat", "-d", "-v", "brief", check=False))
     if before:
         raise SystemExit(f"a fresh install activated extensions without a choice: {before}")

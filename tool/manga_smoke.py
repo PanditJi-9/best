@@ -72,12 +72,23 @@ def runtime_contract_errors(log: str) -> list[str]:
                 "AbstractMethodError", "NoClassDefFoundError", "ClassNotFoundException"))]
 
 
+def open_sources() -> None:
+    """Reach the source-first shelf: Menu -> Your sources.
+
+    1.0.0 gave the tab bar's second slot to the Database, so the shelf is a
+    pushed route now. Keeping the hop here means the rest of the check still
+    starts from one place.
+    """
+    tap_tab(4)
+    tap(wait_for("Your sources", timeout=30, scrolls=8), wait=4)
+
+
 def check_source(name: str, report: dict) -> None:
     adb("shell", "am", "force-stop", PACKAGE, check=False)
     adb("shell", "am", "start", "-W", "-n", ACTIVITY)
     time.sleep(6)
     dismiss_anr()
-    tap_tab(1)
+    open_sources()
     select_source(name)
     deadline = time.monotonic() + 60
     card = None

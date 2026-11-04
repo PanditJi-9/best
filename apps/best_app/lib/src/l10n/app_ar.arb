@@ -767,6 +767,7 @@
   "menuContributorsBody": "ناشرو الإضافات",
   "menuExtensionsBody": "تثبيت وإدارة الإضافات",
   "menuDirectoryBody": "كل المواقع المتاحة",
+  "menuSourcesBody": "كل مصدر أضفته، مع كتالوجه الخاص.",
   "menuSettingsBody": "المظهر والقراءة والتحميل",
   "menuBackupBody": "نسخة احتياطية محلية",
   "menuSyncBody": "مزامنة مشفّرة عبر WebDAV",
