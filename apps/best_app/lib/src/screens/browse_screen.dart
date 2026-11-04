@@ -81,8 +81,13 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
       return Scaffold(
         body: EmptyState(
           icon: Icons.extension_off_outlined,
-          title: l10n.sourceError,
-          body: l10n.nothingHereBody,
+          title: l10n.nothingHere,
+          body: l10n.menuDirectoryBody,
+          action: FilledButton.icon(
+            onPressed: () => context.push(Routes.sources),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: Text(l10n.directoryTitle),
+          ),
         ),
       );
     }
@@ -166,28 +171,17 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                             onPressed: openSettings,
                             icon: const Icon(Icons.tune_rounded)),
                       ),
-                    IconButton(
-                        tooltip: l10n.directoryTitle,
-                        onPressed: () => context.push(Routes.sources),
-                        icon: const Icon(Icons.extension_outlined)),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 16),
-            Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: OutlinedButton.icon(
-                    onPressed: () => context.push(Routes.sources),
-                    icon: const Icon(Icons.add_rounded),
-                    label: Text(l10n.directoryTitle))),
-            const SizedBox(height: 8),
             SizedBox(
               height: 44,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: sources.length + 1,
+                itemCount: sources.length + 2,
                 separatorBuilder: (context, index) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   if (index == 0) {
@@ -195,6 +189,13 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                       label: l10n.allSources,
                       selected: source == null,
                       onTap: () => setState(() => _sourceId = null),
+                    );
+                  }
+                  if (index == sources.length + 1) {
+                    return ActionChip(
+                      avatar: const Icon(Icons.add_rounded, size: 17),
+                      label: Text(l10n.directoryTitle),
+                      onPressed: () => context.push(Routes.sources),
                     );
                   }
                   final candidate = sources[index - 1];
@@ -264,8 +265,19 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                     return EmptyState(
                       icon: Icons.travel_explore_outlined,
                       eyebrow: (source?.name ?? l10n.sources).toUpperCase(),
-                      title: l10n.nothingHere,
-                      body: l10n.nothingHereBody,
+                      title: _searchTerm.isNotEmpty
+                          ? l10n.searchNoMatch(_searchTerm)
+                          : l10n.nothingHere,
+                      body: _searchTerm.isNotEmpty
+                          ? l10n.searchNoMatchBody
+                          : l10n.nothingHereBody,
+                      action: _searchTerm.isEmpty
+                          ? null
+                          : OutlinedButton.icon(
+                              onPressed: _clear,
+                              icon: const Icon(Icons.close_rounded, size: 18),
+                              label: Text(l10n.cancel),
+                            ),
                     );
                   }
                   return Column(
@@ -314,47 +326,61 @@ class _SourcePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Material(
-      color: selected
-          ? theme.colorScheme.primaryContainer
-          : theme.colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(BestRadius.sm),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(BestRadius.sm),
-            border: Border.all(
-              color: selected
-                  ? theme.colorScheme.primary.withValues(alpha: 0.55)
-                  : theme.colorScheme.outlineVariant,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                selected ? Icons.check_circle_rounded : Icons.public_rounded,
-                size: 15,
-                color: selected
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 7),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: Tooltip(
+        message: label,
+        child: Material(
+          color: selected
+              ? theme.colorScheme.primaryContainer
+              : theme.colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(BestRadius.sm),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(BestRadius.sm),
+                border: Border.all(
                   color: selected
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurfaceVariant,
+                      ? theme.colorScheme.primary.withValues(alpha: 0.55)
+                      : theme.colorScheme.outlineVariant,
                 ),
               ),
-            ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    selected
+                        ? Icons.check_circle_rounded
+                        : Icons.public_rounded,
+                    size: 15,
+                    color: selected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 7),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 164),
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight:
+                            selected ? FontWeight.w800 : FontWeight.w600,
+                        color: selected
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -376,35 +402,39 @@ class _BrowseGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final width = MediaQuery.sizeOf(context).width;
-    final columns = (width / 170).floor().clamp(2, 6);
-    final tileWidth = (width - 40 - (columns - 1) * 14) / columns;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final columns = (width / 170).floor().clamp(2, 6).toInt();
+        final tileWidth = (width - 40 - (columns - 1) * 14) / columns;
 
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: GridView.builder(
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
-        physics: const AlwaysScrollableScrollPhysics(),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: columns,
-          mainAxisSpacing: 22,
-          crossAxisSpacing: 14,
-          mainAxisExtent: tileWidth * 1.5 + 82,
-        ),
-        itemCount: works.length,
-        itemBuilder: (context, index) {
-          final media = works[index];
-          return MediaCard(
-            title: media.displayTitle,
-            subtitle: media.author?.trim().isNotEmpty == true
-                ? media.author!
-                : kindLabel(l10n, media.kind),
-            coverUrl: media.coverUrl,
-            badge: kindLabel(l10n, media.kind),
-            onTap: () => onOpen(media),
-          );
-        },
-      ),
+        return RefreshIndicator(
+          onRefresh: onRefresh,
+          child: GridView.builder(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+            physics: const AlwaysScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              mainAxisSpacing: 22,
+              crossAxisSpacing: 14,
+              mainAxisExtent: tileWidth * 1.5 + 82,
+            ),
+            itemCount: works.length,
+            itemBuilder: (context, index) {
+              final media = works[index];
+              return MediaCard(
+                title: media.displayTitle,
+                subtitle: media.author?.trim().isNotEmpty == true
+                    ? media.author!
+                    : kindLabel(l10n, media.kind),
+                coverUrl: media.coverUrl,
+                badge: kindLabel(l10n, media.kind),
+                onTap: () => onOpen(media),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

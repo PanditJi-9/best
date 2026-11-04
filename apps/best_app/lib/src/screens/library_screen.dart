@@ -272,32 +272,35 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     }))
           ];
         }
-        final width = MediaQuery.sizeOf(context).width;
-        final columns = (width / 170).floor().clamp(2, 6);
-        final tileWidth = (width - 40 - (columns - 1) * 14) / columns;
-
         return [
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            sliver: SliverGrid(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: columns,
-                mainAxisSpacing: 22,
-                crossAxisSpacing: 14,
-                mainAxisExtent: tileWidth * 1.5 + 82,
-              ),
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final entry = entries[index];
-                return WorkCard(
-                  title: entry.media.displayTitle,
-                  subtitle: _subtitle(l10n, entry),
-                  coverUrl: entry.media.coverUrl,
-                  badge: kindLabel(l10n, entry.media.kind),
-                  progress: entry.fraction,
-                  onTap: () => openSeries(context, ref, entry.media),
-                );
-              }, childCount: entries.length),
-            ),
+          SliverLayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.crossAxisExtent;
+              final columns = (width / 170).floor().clamp(2, 6).toInt();
+              final tileWidth = (width - 40 - (columns - 1) * 14) / columns;
+              return SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: SliverGrid(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    mainAxisSpacing: 22,
+                    crossAxisSpacing: 14,
+                    mainAxisExtent: tileWidth * 1.5 + 82,
+                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final entry = entries[index];
+                    return WorkCard(
+                      title: entry.media.displayTitle,
+                      subtitle: _subtitle(l10n, entry),
+                      coverUrl: entry.media.coverUrl,
+                      badge: kindLabel(l10n, entry.media.kind),
+                      progress: entry.fraction,
+                      onTap: () => openSeries(context, ref, entry.media),
+                    );
+                  }, childCount: entries.length),
+                ),
+              );
+            },
           ),
         ];
       },

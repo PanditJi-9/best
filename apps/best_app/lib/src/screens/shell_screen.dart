@@ -9,7 +9,7 @@ import '../providers.dart';
 /// The five rooms of the app: what is new, what is out there, what you own,
 /// what is offline, and the controls.
 ///
-/// A stable, opaque dock keeps all five destinations legible in either language.
+/// A quiet, full-width dock keeps all five destinations legible in either language.
 class ShellScreen extends ConsumerWidget {
   const ShellScreen({super.key, required this.navigationShell});
 
@@ -70,9 +70,23 @@ class ShellScreen extends ConsumerWidget {
         // Tabs use InkWell for their cards and rows. Scaffold does not put a
         // Material above its body, so without this the ink lookups fail in
         // debug as soon as a tab with a tappable card is opened.
-        child: Material(
-          type: MaterialType.transparency,
-          child: navigationShell,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final contentWidth = constraints.maxWidth > 1120
+                ? 1120.0
+                : constraints.maxWidth;
+            return Align(
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                width: contentWidth,
+                height: constraints.maxHeight,
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: navigationShell,
+                ),
+              ),
+            );
+          },
         ),
       ),
       bottomNavigationBar: _NavigationDock(
@@ -171,45 +185,51 @@ class _NavItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         child: ExcludeSemantics(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-            child: AnimatedContainer(
-              duration: BestMotion.fast,
-              curve: BestMotion.curve,
-              decoration: BoxDecoration(
-                color: selected
-                    ? theme.colorScheme.primary.withValues(alpha: 0.13)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    selected ? destination.selectedIcon : destination.icon,
-                    size: 22,
-                    color: color,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  height: 3,
+                  child: AnimatedContainer(
+                    duration: BestMotion.normal,
+                    curve: BestMotion.curve,
+                    width: selected ? 30 : 0,
+                    height: 2,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? theme.colorScheme.primary
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(BestRadius.pill),
+                    ),
                   ),
-                  const SizedBox(height: 3),
-                  SizedBox(
-                    height: 16,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        destination.label,
-                        maxLines: 1,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          fontSize: 11,
-                          height: 1.2,
-                          letterSpacing: 0,
-                          fontWeight:
-                              selected ? FontWeight.w700 : FontWeight.w500,
-                          color: color,
-                        ),
+                ),
+                const SizedBox(height: 4),
+                Icon(
+                  selected ? destination.selectedIcon : destination.icon,
+                  size: 22,
+                  color: color,
+                ),
+                const SizedBox(height: 3),
+                SizedBox(
+                  height: 16,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      destination.label,
+                      maxLines: 1,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontSize: 11,
+                        height: 1.2,
+                        letterSpacing: 0,
+                        fontWeight:
+                            selected ? FontWeight.w700 : FontWeight.w500,
+                        color: color,
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

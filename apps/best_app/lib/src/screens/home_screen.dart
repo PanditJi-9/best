@@ -16,6 +16,7 @@ import '../update_banner.dart';
 /// A personal front door. Local actions precede every network-backed shelf.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
+
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
@@ -81,20 +82,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
           children: [
             Row(children: [
-              const BestMark(size: 42),
-              const SizedBox(width: 12),
               Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text(l10n.appName, style: BestType.pageTitle(context)),
-                    const SizedBox(height: 4),
-                    Text(l10n.homeSubtitle, style: BestType.meta(context)),
-                  ])),
-              IconButton(
-                  tooltip: l10n.newsTitle,
-                  onPressed: () => context.push(Routes.news),
-                  icon: const Icon(Icons.notifications_none_rounded)),
+                child: BestWordmark(
+                  markSize: 40,
+                  label: l10n.appName,
+                  tagline: l10n.homeSubtitle,
+                ),
+              ),
+              const SizedBox(width: BestSpace.sm),
+              IconButton.filledTonal(
+                tooltip: l10n.newsTitle,
+                onPressed: () => context.push(Routes.news),
+                icon: const Icon(Icons.notifications_none_rounded),
+              ),
             ]),
             const SizedBox(height: 22),
             Material(
@@ -160,23 +160,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   onTap: () => context.push(Routes.sources))
             else
               SizedBox(
-                  height: 52,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: sources.length + 1,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(width: 8),
-                    itemBuilder: (context, index) => index == sources.length
-                        ? OutlinedButton.icon(
-                            onPressed: () => context.push(Routes.sources),
-                            icon: const Icon(Icons.add_rounded, size: 18),
-                            label: Text(l10n.homeAddSources))
-                        : OutlinedButton.icon(
-                            onPressed: () => context
-                                .push(Routes.browseSource(sources[index].id)),
-                            icon: const Icon(Icons.public_rounded, size: 18),
-                            label: Text(sources[index].name)),
-                  )),
+                height: 48,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: sources.length + 1,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: BestSpace.xs),
+                  itemBuilder: (context, index) => index == sources.length
+                      ? ActionChip(
+                          avatar: const Icon(Icons.add_rounded, size: 17),
+                          label: Text(l10n.homeAddSources),
+                          onPressed: () => context.push(Routes.sources),
+                        )
+                      : ActionChip(
+                          avatar: const Icon(Icons.public_rounded, size: 17),
+                          label: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 160),
+                            child: Text(
+                              sources[index].name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          onPressed: () => context.push(
+                            Routes.browseSource(sources[index].id),
+                          ),
+                        ),
+                ),
+              ),
             _Heading(
                 title: l10n.discoverTitle,
                 action: l10n.navDatabase,
@@ -248,71 +259,99 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 }
 
 class _Heading extends StatelessWidget {
-  const _Heading(
-      {required this.title, required this.action, required this.onTap});
+  const _Heading({
+    required this.title,
+    required this.action,
+    required this.onTap,
+  });
+
   final String title;
   final String action;
   final VoidCallback onTap;
+
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 16, bottom: 6),
-        child: Row(children: [
-          Expanded(child: Text(title, style: BestType.sectionTitle(context))),
-          TextButton(onPressed: onTap, child: Text(action)),
-        ]),
+  Widget build(BuildContext context) => SectionHeader(
+        title: title,
+        actionLabel: action,
+        onAction: onTap,
       );
 }
 
 class _Prompt extends StatelessWidget {
-  const _Prompt(
-      {required this.title,
-      required this.body,
-      required this.label,
-      required this.icon,
-      required this.onTap});
+  const _Prompt({
+    required this.title,
+    required this.body,
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
   final String title;
   final String body;
   final String label;
   final IconData icon;
   final VoidCallback onTap;
+
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(BestRadius.lg),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(BestSpace.lg),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(BestRadius.xl),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(title, style: BestType.sectionTitle(context)),
-          const SizedBox(height: 8),
+          const SizedBox(height: BestSpace.sm),
           Text(body, style: BestType.body(context)),
-          const SizedBox(height: 12),
+          const SizedBox(height: BestSpace.md),
           OutlinedButton.icon(
-              onPressed: onTap, icon: Icon(icon, size: 18), label: Text(label)),
-        ]),
-      );
+            onPressed: onTap,
+            icon: Icon(icon, size: 18),
+            label: Text(label),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _Works extends StatelessWidget {
-  const _Works({required this.works, required this.onOpen});
+  const _Works({
+    required this.works,
+    required this.onOpen,
+  });
+
   final List<Media> works;
   final ValueChanged<Media> onOpen;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final cardWidth = (screenWidth * 0.36).clamp(132.0, 162.0).toDouble();
+
     return SizedBox(
-        height: 242,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: works.length,
-          separatorBuilder: (context, index) => const SizedBox(width: 14),
-          itemBuilder: (context, index) => SizedBox(
-              width: 118,
-              child: WorkCard(
-                  title: works[index].displayTitle,
-                  subtitle: kindLabel(l10n, works[index].kind),
-                  coverUrl: works[index].coverUrl,
-                  onTap: () => onOpen(works[index]))),
-        ));
+      height: cardWidth * 1.5 + 72,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: works.length,
+        separatorBuilder: (context, index) =>
+            const SizedBox(width: BestSpace.md),
+        itemBuilder: (context, index) => SizedBox(
+          width: cardWidth,
+          child: WorkCard(
+            title: works[index].displayTitle,
+            subtitle: kindLabel(l10n, works[index].kind),
+            coverUrl: works[index].coverUrl,
+            onTap: () => onOpen(works[index]),
+          ),
+        ),
+      ),
+    );
   }
 }

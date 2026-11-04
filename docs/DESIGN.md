@@ -1,6 +1,6 @@
 # Best — identity and structure
 
-Version 0.10.0 · "Ink & Ember"
+Version 1.1.0 · "Ink & Aurora"
 
 Best is one shelf for manga, manhwa, manhua, webtoons, anime and Asian drama.
 The design has to do something hard: feel premium next to Mihon and HikariManga,
@@ -13,26 +13,15 @@ wrong.
 
 ## 1. Design thesis
 
-**Ink, ember, and brass.**
+**Ink and aurora.**
 
-- **Ink** is the ground. Warm near-black, not pure black, so OLED phones still
-  show the difference between a card and the page.
-- **Ember** (`cinnabar`) is action. It marks the one thing to tap and the one
-  thing that moved forward.
-- **Brass** is for ranks, ratings, section numbers and the second half of the
-  signature gradient. It is never a button colour.
-- **Jade** is now reserved for progress and offline state. It is the quiet
-  counterpoint to the warm chrome, not the primary action colour.
+- **Ink** is the ground: deep blue-black in dark mode and cool paper in light mode.
+- **Blue** is the primary action and the selected state. It should identify the next useful tap, not decorate every surface.
+- **Cyan** supports the blue in the mark and occasional progress emphasis.
+- **Gold** marks ratings and ranks. **Jade** is reserved for completed and offline states.
+- Artwork carries most of the colour; controls stay quiet and readable in Arabic and English.
 
-The interface is editorial, not a storefront: a masthead, a numbered section,
-a title, a sentence, a cover. The old five-tab skeleton stays, but the page is
-printed rather than assembled from floating Material pills.
-
-**Three rules**
-
-1. Artwork carries the colour; chrome stays neutral.
-2. Every screen answers "what do I do next?" in one glance.
-3. Motion confirms; it never performs.
+Best is a personal media shelf, not a storefront. Every screen should make the next action obvious, keep local progress visible, and use motion only to confirm a change.
 
 ---
 
@@ -43,45 +32,38 @@ invent a colour, radius or duration.
 
 ### Colour
 
-| Token | Dark | Light | Use |
-|-------|------|-------|-----|
-| `ink` | `#07080B` | — | App ground (dark) |
-| `inkRaised` | `#101218` | — | Cards, nav bar |
-| `inkElevated` | `#161922` | — | Inputs, chips, raised rows |
-| `inkLine` | `#232733` | — | Hairline borders |
-| `paper` | — | `#F7F5F0` | App ground (light) |
-| `paperRaised` | — | `#FFFFFF` | Cards, nav bar |
-| `paperLine` | — | `#E6E1D7` | Hairline borders |
-| `cinnabar` | `#E05A3C` | `#A93620` | Primary action, selected state |
-| `brass` | `#CFA85A` | same | Ranks, numbers, rules, gradient end |
-| `jade` | `#57B394` | `#2F735C` | Progress and offline state only |
-| `danger` | `#E2604D` | same | Destructive and error |
-| `rankGold` / `rankSilver` / `rankBronze` | — | — | Leaderboard numerals |
+All values below are sourced from `packages/best_ui/lib/src/tokens.dart`. Use
+these tokens instead of introducing screen-specific colours.
 
-The signature gradient `aurora = [cinnabar, brass]` appears on the wordmark,
-the spotlight mark and the profile card. It is **never** a page background.
+| Token | Value | Use |
+|-------|-------|-----|
+| `inkDeep` | `#05080F` | Dark hero and reader surfaces |
+| `ink` | `#070B14` | Dark app background |
+| `inkRaised` / `inkElevated` | `#0C1322` / `#111A2B` | Cards and inputs |
+| `paper` / `paperRaised` | `#F5F7FA` / `#FFFFFF` | Light background and cards |
+| `blue` | `#3B82F6` | Primary action and selected state |
+| `cyan` | `#22D3EE` | Signature gradient and secondary emphasis |
+| `gold` | `#F5B942` | Ratings and rank numerals |
+| `jade` | `#34D399` | Progress and offline state |
+| `danger` | `#F87171` | Errors and destructive actions |
+
+The signature gradient `aurora = [blue, cyan]` belongs on the mark and a small
+number of meaningful progress moments. Never use it as a page background.
+
+---
 
 ### Type
 
-Two bundled faces, both OFL:
+The app UI uses the bundled IBM Plex Sans Arabic family for headings, controls,
+metadata, and body text. It stays readable in Arabic and English and avoids
+turning every catalogue title into a decorative headline. Amiri is reserved for
+small display moments and the deterministic cover fallback. CJK native titles
+fall back to the system face.
 
-- **BestDisplay — Amiri.** Display, screen titles, section titles, card titles
-  and the wordmark. It gives Arabic and Latin one editorial serif voice.
-- **BestText — IBM Plex Sans Arabic.** Body, metadata, labels, controls and
-  long Arabic prose. It keeps dense screens legible.
-
-- `displaySmall` — 700, `1.0` height. Masthead titles only.
-- `headlineMedium` — 700, `1.08`. Series and secondary titles.
-- `headlineSmall` — 700, `1.12`. Spotlight title, card emphasis.
-- `titleLarge` — 700, `1.15`. Section titles and stat values.
-- `titleMedium` — 600, `0`. Buttons, compact labels.
-- `titleSmall` — 600, `1.3`. Card titles.
-- `labelLarge` — 700, `0.2`. Buttons.
-- `labelMedium` — 600, `0.2`. Metadata.
-- `labelSmall` — 600, `0.25`. Section numbers, badges, progress labels.
-
-Arabic and Latin share the scale; every layout uses logical alignment, so no
-mirrored stylesheet is needed. CJK native titles fall back to the system face.
+- Page titles are strong and compact; section titles are 17–21 px.
+- Poster titles are at least 13.5 px, with up to two lines.
+- Metadata is muted but remains readable against both surfaces.
+- Tracking is zero in Arabic. Text truncates at deliberate line boundaries.
 
 ### Space, radius, motion
 
@@ -103,11 +85,10 @@ floating cover in the series hero and the spotlight artwork.
 
 ## 3. Brand
 
-- **Mark** — a four-point sparkle cut from the ember-to-brass gradient, drawn
+- **Mark** — a four-point sparkle cut from the blue-to-cyan gradient, drawn
   with a `CustomPainter` (`BestMark`). The tile is squared off and hairlined.
-- **Wordmark** — mark + product name + optional tagline (`BestWordmark`), set in
-  Amiri with zero tracking in Arabic. The name is localized (`بست`), so the
-  lockup never looks like a translation bolted on.
+- **Wordmark** — mark + localized product name + optional tagline
+  (`BestWordmark`), set in the app UI face with zero tracking in Arabic.
 - **Backdrop** — a blurred, dimmed cover behind a title (`BestBackdrop`). Used
   on series pages and error/empty states where a cover exists.
 - **Stat strip** — three numbers in one bordered card (`StatStrip`). Values are
@@ -124,10 +105,10 @@ Five destinations. Anything deeper is a pushed route.
 | Tab | Route | Question it answers |
 |-----|-------|---------------------|
 | Home | `/` | What should I do now? |
+| Database | `/database` | What is worth discovering? |
 | Library | `/library` | What do I own? |
-| Browse | `/browse` | What exists? |
 | Downloads | `/downloads` | What is offline? |
-| Settings | `/settings` | How does Best behave? |
+| Menu | `/menu` | Where are the rest of my tools? |
 
 Routes: `/series?source=&url=`, `/read?source=&url=&unit=`,
 `/watch?source=&url=&unit=`. Source ids and URLs are query parameters, never
@@ -136,72 +117,62 @@ path segments — a source URL can contain slashes and dots.
 `openUnit` chooses `/read` or `/watch` from `MediaKind.isReading`; screens never
 branch on a source name.
 
-### Why five, not four
+### Why these five
 
-The previous build had four tabs (Library, Browse, Downloads, Settings). It
-forced the app to open on an empty shelf, which is the worst first impression a
-media app can make. Home earns the first slot by giving a fresh install a
-spotlight, the sample films and one obvious "open the guide" action. Downloads
-keeps its own tab because offline is a promise, not a preference.
+Home gives a fresh install a clear next step. Database is for broad metadata
+discovery; Browse is a pushed screen for searching installed sources. Library
+and Downloads stay one tap away, while Menu groups settings, backups, history,
+and supporting tools instead of crowding the main navigation.
 
 ### The index bar
 
-- 64 px tall (plus the safe-area inset), flat, with a one-pixel
-  `outlineVariant` hairline and the page surface behind it. No floating pill,
-  no shadow.
-- Five equal columns. The selected column gets a 2 px ember rule at its top
-  edge, a filled icon and an ember label; the other four use outlined icons and
-  muted labels.
-- Labels are always shown at 9.5 px with **zero tracking**, wrapped in a
-  `FittedBox` so "Downloads", "التنزيلات" and large text scales stay on one
-  line on a 320 dp phone. A widget test at 320×640 pins that layout.
-- The selected tab is a `Semantics(selected: true)` button; the label is the
-  accessible name, not the icon.
-
----
+- 64 px tall plus the safe-area inset, flat, with a one-pixel outline and no
+  shadow.
+- Five equal columns. The selected column gets a short 2 px blue rule above
+  its filled icon and blue label; the other four use outlined icons and muted
+  labels.
+- Labels stay visible and scale down when needed so English and Arabic fit on
+  small phones. Keep the selected tab accessible through `Semantics`.
 
 ## 5. Screen blueprints
 
 ### Home — the front door
 
-1. **Masthead** — localized wordmark + tagline, a squared search button, and a
-   hairline that closes the band.
-2. **Search prompt** — a tappable field that jumps to Browse. It looks like an
-   input but is a route, so there is no half-working search on Home.
-3. **Spotlight** — 4:5 editorial card: cover, warm scrim, printed kind label,
-   mark, title in Amiri, native title, year · status · author, a primary
-   "Start reading/watching" bar and a squared arrow. One work only.
-4. **Continue rail (01)** — 302×164 slips with cover, title, progress rule and
-   a page/clock label. Appears only when there is progress.
-5. **Picks (02)** — the curated shelf, unranked.
-6. **Trending (03)** — ranked horizontal rail; outlined brass numerals sit on
-   the artwork.
-7. **Sample films (04)** — public-domain streams so the player is reachable in
-   two taps without a source pack.
-8. **Library-waiting card** — shown only when the shelf is empty; explains the
-   guide and offers one button.
+1. **Wordmark** — localized Best mark and tagline, with a quiet news action.
+2. **Unified search** — one obvious entry point for title discovery.
+3. **Continue hero** — artwork fills a wide card; the title, exact chapter or
+   episode, progress and next action sit on a strong bottom scrim. Reading and
+   watching use the correct action label.
+4. **Your sources** — compact source chips open directly into that catalogue;
+   Add source stays at the end of the rail.
+5. **Discover** — a small set of media-kind filters followed by recent source
+   updates and personalized picks. Empty and error states always offer a next
+   action.
 
-Refresh invalidates the guide, continue and library providers together.
+The hero adapts its height to the available width. On wide layouts the tab
+content is centered and capped instead of stretching text and cards edge to edge.
 
 ### Library — what you own
 
-- Masthead `02`: title + `librarySummary(count)` + sort action.
-- Search field with a 240 ms debounce.
-- Continue rail (same `ContinueCard` as Home, same label helper).
-- Filter chips: All / Unread / In progress / Completed / Favorites.
-- Sort menu: title, recently read, recently added.
-- Responsive grid of `MediaCard`s; no repeated "Library" section header.
-- Empty state: guide action, not a dead end.
+- Title, library count, view toggle, and sort action share one compact header.
+- Search and filters stay visible while the shelf scrolls.
+- Continue rail appears only for the unfiltered library.
+- Grid and row modes use the same `WorkCard` language and preserve progress.
+- Grid sizing follows the actual sliver width, including split-screen and
+  tablet layouts.
+- Empty and filtered-empty states explain the difference and offer a useful
+  action.
 
 ### Browse — what exists
 
-- Masthead `03`: title + `browseSubtitle(sourceCount)` + mark.
-- Source chips: selected chip uses `primaryContainer`, a check icon and an
-  ember border. A source is one tap away, never a form.
-- Search field scoped to the selected source.
-- Result count, then a responsive grid sized from the viewport
-  (`columns = width / 170`, clamped 2–6).
-- Pull to refresh re-fetches the current query.
+- Search spans all installed sources by default; selecting a source scopes it.
+- Source chips stay one tap away, long names truncate cleanly, and the chosen
+  source is always visible. Add source stays at the end of the rail.
+- Results use a poster grid sized from the actual available width; pull to
+  refresh repeats the same query.
+- A no-match state names the searched title and gives a short recovery hint.
+- Empty installs lead directly to the source directory; errors identify the
+  failed source and offer retry or its settings when supported.
 
 ### Series — the work
 
@@ -248,9 +219,18 @@ Refresh invalidates the guide, continue and library providers together.
 - Empty state: explanation + a Browse button.
 - The queue lives in the shell, so leaving the tab never pauses a download.
 
+### Menu — the rest of Best
+
+- A numbered masthead and a centered 760 dp reading column keep the tools easy
+  to scan on phones and wide screens.
+- Source tools and device tools are grouped into quiet cards with clear
+  subtitles and full-row tap targets.
+- Discovery links stay in one expandable group; About and the local-data note
+  remain visible at the end.
+
 ### Settings — your copy of Best
 
-- Masthead `05`: title + "Make Best yours".
+- Masthead `09`: title + "Make Best yours".
 - **Profile card**: mark, name, tagline, "Reader" badge, and works / offline /
   sources. Identity before configuration.
 - **Language**: segmented System / English / العربية.
@@ -266,8 +246,9 @@ Refresh invalidates the guide, continue and library providers together.
 | Component | File | Contract |
 |-----------|------|----------|
 | `BestMark`, `BestWordmark`, `BestBackdrop`, `StatStrip` | `brand.dart` | Brand surfaces; no app strings except a passed label. |
-| `SpotlightCard`, `ContinueCard` | `cards.dart` | Editorial hero and resume card. |
-| `MediaCard` | `media_card.dart` | Shelf card with badge, rank numeral and optional progress. |
+| `ReadingCard` | `apps/best_app/lib/src/reading_card.dart` | Resume hero and compact continue row. |
+| `WorkCard` | `packages/best_ui/lib/src/work_card.dart` | Shared poster/row card with progress. |
+| `MediaCard` | `media_card.dart` | Metadata card with badge, rank numeral and optional progress. |
 | `SectionHeader`, `PageMasthead`, `EmptyState` | `sections.dart` | Numbered section; page masthead `02–05`; empty state with eyebrow + action. |
 | `BestCover` | `cover.dart` | Deterministic gradient fallback when art is missing. |
 | `bestTheme` | `theme.dart` | One builder for both brightnesses. |
@@ -283,7 +264,7 @@ in, which keeps the package reusable and testable.
   Pull-to-refresh keeps the old content visible.
 - **Error** — `EmptyState` with a plain-language title, the technical detail in
   small text, and a Retry button. No red-on-black framework banner.
-- **Empty** — eyebrow, icon in an ember/brass plate, title, one sentence, one
+- **Empty** — icon in a restrained blue plate, title, one sentence, one clear
   action.
 - **Offline** — jade badge in the reader; offline counts on the series page.
 - **Destructive** — confirmation dialog with the count of affected items.
@@ -301,8 +282,8 @@ in, which keeps the package reusable and testable.
 - Dates use `YYYY-MM-DD`; storage uses `KB/MB/GB`.
 - Minimum tap target 44×44; primary buttons 52 high; icon buttons 42–52.
 - Semantic labels on cards (`Semantics(button: true, label: title)`).
-- Contrast: ember on ink ≥ 5:1, onSurfaceVariant on ink ≥ 4.6:1, dark ink on
-  ember ≥ 5:1.
+- Keep body text at strong contrast on both surfaces. Never use the saturated
+  action colour for long copy or small metadata.
 - Text scales: cards use `maxLines` + ellipsis rather than fixed heights where
   possible; the stat strip scales values down instead of clipping.
 
@@ -316,8 +297,9 @@ in, which keeps the package reusable and testable.
   full-resolution decode of off-screen pages beyond `PageView`'s cache.
 - The download queue is a single manager watched by the shell; tiles read from
   the same provider, never poll.
-- Grid extents are computed from `MediaQuery.sizeOf`, so a tablet gets more
-  columns instead of stretched cards.
+- Main tab content is capped at 1120 dp and centered on wide displays. Grid
+  extents are computed from the sliver viewport, so split-screen and tablets
+  get useful columns without stretched covers.
 - Motion never exceeds 220 ms and never blocks input.
 
 ---
@@ -326,15 +308,16 @@ in, which keeps the package reusable and testable.
 
 - **A sixth "Profile" tab.** HikariManga puts profile in the nav; Best's profile
   is the top of Settings. Five is the maximum before labels collide in Arabic.
-- **A store-first home.** The shop is Browse. Home is yours.
+- **A storefront-first home.** Home is for personal progress and discovery, not
+  a rotating promotion wall.
 - **Coin timers and daily rewards.** They convert, but they make a reading app
   feel like a game.
 - **Dynamic colour.** A wallpaper-derived seed would erase the identity. The
   palette is fixed until a real-device review says otherwise.
 - **Drift/ORM.** SQLite through `sqflite_common` is enough for the current
   schema and keeps startup predictable.
-- **A carousel on Home.** One spotlight is editorial; five auto-rotating covers
-  are noise.
+- **Auto-rotating banners.** The home rails are manually browsed, so the user
+  stays in control and artwork never changes under a tap.
 
 ---
 
@@ -345,8 +328,9 @@ packages/best_ui/lib/src/
   tokens.dart      palette, space, radius, motion
   theme.dart       Material 3 scheme + component themes
   brand.dart       mark, wordmark, backdrop, stat strip
-  cards.dart       spotlight, continue card
-  media_card.dart  shelf card
+  cards.dart       discovery spotlight and continue card
+  work_card.dart   poster and row cards
+  media_card.dart  metadata card
   sections.dart    section header, empty state
 apps/best_app/lib/src/
   navigation.dart  routes
@@ -357,6 +341,6 @@ apps/best_app/lib/src/
   l10n/            EN + AR ARB files
 ```
 
-Gates for every release: `flutter analyze` clean, package tests green, release
-APK built in CI, emulator smoke reaching the player, and a browser/device render
-check with a clean console.
+Release checks: `flutter analyze` clean, package tests green, release APK built
+in CI, and Android smoke reaching the reader and player. A real-device review
+checks Arabic, light/dark themes, small phones, and tablet layout.
