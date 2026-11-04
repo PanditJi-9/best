@@ -2,6 +2,7 @@ export 'src/brand.dart';
 export 'src/cards.dart';
 export 'src/cover.dart';
 export 'src/media_card.dart';
+export 'src/poster_tile.dart';
 export 'src/rating.dart';
 export 'src/sections.dart';
 export 'src/theme.dart';

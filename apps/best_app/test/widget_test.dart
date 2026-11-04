@@ -34,6 +34,19 @@ Future<ProviderContainer> _pumpApp(
   );
 }
 
+Future<void> _openSettings(WidgetTester tester) async {
+  await tester.tap(find.text('Menu').last);
+  await tester.pumpAndSettle();
+  await tester.scrollUntilVisible(
+    find.text('Settings'),
+    220,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Settings'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('the shelf renders, then flips to Arabic and RTL', (
     tester,
@@ -73,8 +86,8 @@ void main() {
     // on screen before the shelf is.
     expect(find.text('Best'), findsWidgets);
     expect(find.text('Home'), findsOneWidget);
-    expect(find.text('THE DAILY EDITION'), findsOneWidget);
-    expect(find.byIcon(Icons.search), findsOneWidget);
+    expect(find.text('Your smart reading room'), findsOneWidget);
+    expect(find.byIcon(Icons.search_rounded), findsOneWidget);
 
     // The shelf is one tab away, with its resume rail and real progress.
     await tester.tap(find.text('Library').last);
@@ -88,9 +101,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('متابعة'), findsOneWidget);
-    expect(find.text('المكتبة'), findsWidgets);
+    expect(find.text('مكتبتي'), findsWidgets);
     expect(
-      Directionality.of(tester.element(find.text('المكتبة').first)),
+      Directionality.of(tester.element(find.text('مكتبتي').first)),
       TextDirection.rtl,
     );
   });
@@ -111,10 +124,10 @@ void main() {
 
     for (final label in [
       'Home',
-      'Manga',
-      'Discover',
+      'Database',
       'Library',
       'Downloads',
+      'Menu',
     ]) {
       expect(find.text(label), findsWidgets, reason: '$label tab is missing');
     }
@@ -123,7 +136,7 @@ void main() {
     // Every destination has to survive the narrow phone, not just Home: the
     // library header, the source pills and the settings segments are all rows
     // that can overflow.
-    for (final label in ['Manga', 'Discover', 'Library', 'Downloads']) {
+    for (final label in ['Database', 'Library', 'Downloads', 'Menu']) {
       await tester.tap(find.text(label).last);
       await tester.pumpAndSettle();
       expect(
@@ -218,16 +231,8 @@ void main() {
     await tester.tap(find.byTooltip('Back to series'));
     await tester.pumpAndSettle();
 
-    // Home keeps the scroll offset from the hero tap, which leaves the header
-    // above the build cache; scroll back up to reach its Settings control.
-    await tester.dragUntilVisible(
-      find.byTooltip('Settings'),
-      find.byType(Scrollable).first,
-      const Offset(0, 300),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Settings'));
-    await tester.pumpAndSettle();
+    // Settings lives in the Menu tab, one tap from any space.
+    await _openSettings(tester);
     expect(find.text('Appearance'), findsOneWidget);
     expect(find.text('Language'), findsOneWidget);
   });
@@ -235,15 +240,19 @@ void main() {
   testWidgets('a drama offers the player, not the page reader', (
     tester,
   ) async {
-    await _pumpApp(tester);
+    final repository = MemoryLibraryRepository();
+    final guide = await const DemoSource().popular();
+    final drama = guide.firstWhere((work) => work.title == 'Neon Seoul');
+    await repository.saveMedia(drama.copyWith(inLibrary: true));
 
-    // The drama sits in a rail below the hero; slivers outside the viewport
-    // cache are not built, so the finder must be allowed to start empty.
-    await tester.scrollUntilVisible(
-      find.text('Neon Seoul'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await _pumpApp(tester, repository: repository);
+
+    await tester.tap(find.text('Library').last);
+    await tester.pumpAndSettle();
+    // The floating bar covers the bottom of the grid; lift the first card
+    // above it before tapping, the way a reader would.
+    await tester.drag(
+        find.byType(CustomScrollView).first, const Offset(0, -150));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Neon Seoul').first);
     await tester.pumpAndSettle();
@@ -271,8 +280,7 @@ void main() {
   ) async {
     final container = await _pumpApp(tester);
 
-    await tester.tap(find.byTooltip('Settings'));
-    await tester.pumpAndSettle();
+    await _openSettings(tester);
 
     await tester.scrollUntilVisible(
       find.text('Add a source pack'),
@@ -323,8 +331,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final container = await _pumpApp(tester);
-    await tester.tap(find.byTooltip('Settings'));
-    await tester.pumpAndSettle();
+    await _openSettings(tester);
     await tester.scrollUntilVisible(
       find.text('Add a source pack'),
       300,

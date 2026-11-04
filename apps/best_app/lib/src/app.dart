@@ -9,6 +9,7 @@ import 'l10n/generated/app_localizations.dart';
 import 'providers.dart';
 import 'router.dart';
 import 'network.dart';
+import 'updates.dart';
 
 class BestApp extends ConsumerStatefulWidget {
   const BestApp({super.key});
@@ -26,14 +27,31 @@ class _BestAppState extends ConsumerState<BestApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkUpdates());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkUpdates();
+      _checkAppUpdate();
+    });
     _updates = Timer.periodic(const Duration(hours: 6), (_) => _checkUpdates());
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
-    if (state == AppLifecycleState.resumed) _checkUpdates();
+    if (state == AppLifecycleState.resumed) {
+      _checkUpdates();
+      _checkAppUpdate();
+    }
+  }
+
+  /// The release check is a plain GitHub read, so it waits for a real
+  /// connection and lets [UpdateController] enforce its six-hour gap. A
+  /// platform without the connectivity plugin reports `unknown`; that is not
+  /// enough evidence to spend the reader's data.
+  void _checkAppUpdate() {
+    if (!mounted) return;
+    final network = ref.read(networkProvider).value;
+    if (network != NetworkKind.wifi && network != NetworkKind.mobile) return;
+    unawaited(ref.read(updateProvider.notifier).check());
   }
 
   void _checkUpdates() {
@@ -62,6 +80,11 @@ class _BestAppState extends ConsumerState<BestApp> with WidgetsBindingObserver {
     ref.listen(networkProvider, (previous, next) {
       if (next.value == NetworkKind.wifi && previous?.value != next.value) {
         _checkUpdates();
+      }
+      if ((next.value == NetworkKind.wifi ||
+              next.value == NetworkKind.mobile) &&
+          previous?.value != next.value) {
+        _checkAppUpdate();
       }
     });
     ref.listen(extensionAutoUpdatesProvider, (previous, enabled) {

@@ -9,493 +9,273 @@ import '../actions.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../labels.dart';
 import '../navigation.dart';
-import '../progress_label.dart';
 import '../providers.dart';
 
-/// The daily edition.
+/// The front page is a reading concierge, not a wall of posters.
 ///
-/// A returning reader sees the story they left first. Below it sits the live
-/// catalogue, one editorial spotlight, the four new destinations, and the
-/// weekly challenge. A fresh install gets the guide and the sample player
-/// instead, so the app is never an empty screen with a spinner.
-class HomeScreen extends ConsumerWidget {
+/// The order is deliberate: resume the thing you were reading, choose a kind,
+/// see what actually arrived from your sources, read an editorial pick with
+/// enough context to decide, then browse the real ranking and your sources.
+/// Nothing here is a made-up statistic; every rail is one of the app's existing
+/// live queries.
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
-  static const BrowseKey _guideKey = (
-    sourceId: DemoSource.sourceId,
-    query: '',
-  );
+  @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  /// `null` is the whole catalogue. The other values are reading/watching
+  /// families, not raw enum values: webtoons belong with manga, films with
+  /// drama.
+  MediaKind? _kind;
+
+  bool _matches(Media media) {
+    final kind = _kind;
+    if (kind == null) return true;
+    return switch (kind) {
+      MediaKind.manga =>
+        media.kind == MediaKind.manga || media.kind == MediaKind.webtoon,
+      MediaKind.drama =>
+        media.kind == MediaKind.drama || media.kind == MediaKind.film,
+      _ => media.kind == kind,
+    };
+  }
+
+  Future<void> _refresh() async {
+    ref.invalidate(discoverProvider);
+    ref.invalidate(rankingsProvider);
+    ref.invalidate(recommendationsProvider);
+    ref.invalidate(curatedProvider);
+    ref.invalidate(continueProvider);
+    try {
+      await Future.wait([
+        ref.read(discoverProvider.future),
+        ref.read(rankingsProvider.future),
+      ]);
+    } catch (_) {
+      // The screen renders the failure inline.
+    }
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final discover = ref.watch(discoverProvider);
+    final feed = ref.watch(discoverProvider);
+    final rankings = ref.watch(rankingsProvider).value;
+    final recs = ref.watch(recommendationsProvider).value;
+    final curated = ref.watch(curatedProvider).value ?? const <Media>[];
     final continuing =
         ref.watch(continueProvider).value ?? const <ContinueEntry>[];
-    final shelf = ref.watch(libraryProvider).value ?? const <LibraryEntry>[];
-    final recs = ref.watch(recommendationsProvider).value;
-    final rewards = ref.watch(weeklyRewardsProvider).value;
-    final works = discover.value?.works ?? const <Media>[];
-    final latest = discover.value?.latest ?? const <Media>[];
-    final featured = works.isEmpty ? null : works.first;
-    final trending = works.length <= 1
-        ? const <Media>[]
-        : works.sublist(1, works.length > 13 ? 13 : works.length);
-    final sourceCount = ref
+    final sources = ref
         .watch(sourceRegistryProvider)
         .all
         .where((source) => source.id != DemoSource.sourceId)
-        .length;
+        .toList(growable: false);
 
-    final samples = ref
-            .watch(browseProvider(_guideKey))
-            .value
-            ?.where((media) => media.kind.isWatching)
-            .toList() ??
-        const <Media>[];
+    final latest = (feed.value?.latest ?? const <Media>[])
+        .where(_matches)
+        .toList(growable: false);
+    final popular = (feed.value?.works ?? const <Media>[])
+        .where(_matches)
+        .toList(growable: false);
+    final rated = (rankings?.works ?? const <Media>[])
+        .where(_matches)
+        .toList(growable: false);
+    final picks = (recs != null && recs.works.isNotEmpty ? recs.works : curated)
+        .where(_matches)
+        .toList(growable: false);
+
+    final resume = continuing.isEmpty ? null : continuing.first;
+    final featured = rated.isNotEmpty
+        ? rated.first
+        : (popular.isNotEmpty ? popular.first : null);
+    final loading = feed.isLoading && popular.isEmpty && latest.isEmpty;
+    final failed = feed.hasError && popular.isEmpty && latest.isEmpty;
+    final emptyKind = !loading &&
+        !failed &&
+        latest.isEmpty &&
+        popular.isEmpty &&
+        rated.isEmpty &&
+        picks.isEmpty;
 
     return SafeArea(
       bottom: false,
       child: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(discoverProvider);
-          ref.invalidate(curatedProvider);
-          ref.invalidate(rankingsProvider);
-          ref.invalidate(recommendationsProvider);
-          ref.invalidate(weeklyRewardsProvider);
-          ref.invalidate(continueProvider);
-          ref.invalidate(libraryProvider);
-          try {
-            await ref.read(discoverProvider.future);
-          } catch (_) {
-            // The error state is rendered inline.
-          }
-        },
+        onRefresh: _refresh,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: BestWordmark(
-                        markSize: 30,
-                        tagline: l10n.tagline,
-                        label: l10n.appName,
-                      ),
-                    ),
-                    IconButton.outlined(
-                      tooltip: l10n.searchAll,
-                      onPressed: () => context.push(Routes.browse),
-                      style: IconButton.styleFrom(
-                        foregroundColor: theme.colorScheme.primary,
-                        side: BorderSide(
-                          color: theme.colorScheme.outlineVariant,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(BestRadius.sm),
-                        ),
-                        fixedSize: const Size(46, 46),
-                      ),
-                      icon: const Icon(Icons.search, size: 20),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.outlined(
-                      tooltip: l10n.navSettings,
-                      onPressed: () => context.push(Routes.settings),
-                      style: IconButton.styleFrom(
-                        foregroundColor: theme.colorScheme.onSurfaceVariant,
-                        side: BorderSide(
-                          color: theme.colorScheme.outlineVariant,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(BestRadius.sm),
-                        ),
-                        fixedSize: const Size(46, 46),
-                      ),
-                      icon: const Icon(Icons.tune_rounded, size: 20),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                child: Row(
-                  children: [
-                    Text(
-                      l10n.homeEdition.toUpperCase(),
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: BestColors.brass,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.6,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Container(
-                        height: 1,
-                        color: theme.colorScheme.outlineVariant,
-                      ),
-                    ),
-                    if (discover.value?.live == true) ...[
-                      const SizedBox(width: 10),
-                      Text(
-                        l10n.homeSourcesLive(sourceCount),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            if (discover.value != null && !discover.value!.live)
+            SliverToBoxAdapter(child: _Masthead(l10n: l10n)),
+            if (resume != null)
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.cloud_off_outlined,
-                        size: 16,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          l10n.guideFallback,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            if (continuing.isNotEmpty) ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: SectionHeader(
-                    index: "01",
-                    title: l10n.continueTitle,
-                    actionLabel: l10n.seeAll,
-                    onAction: () => context.go(Routes.library),
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 172,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: continuing.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(width: BestSpace.md),
-                    itemBuilder: (context, index) {
-                      final entry = continuing[index];
-                      return ContinueCard(
-                        title: entry.media.displayTitle,
-                        subtitle: entry.unit.displayTitle,
-                        coverUrl: entry.media.coverUrl,
-                        progress: entry.progress.fraction,
-                        progressLabel: continueProgressLabel(l10n, entry),
-                        isVideo: entry.media.kind.isWatching,
-                        onOpen: () =>
-                            openUnit(context, ref, entry.media, entry.unit),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ],
-            if (discover.isLoading && works.isEmpty)
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 80),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              )
-            else if (discover.hasError && works.isEmpty)
-              SliverToBoxAdapter(
-                child: EmptyState(
-                  icon: Icons.cloud_off_outlined,
-                  title: l10n.sourceError,
-                  body: '${discover.error}',
-                  action: FilledButton.icon(
-                    onPressed: () => ref.invalidate(discoverProvider),
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: Text(l10n.retry),
+                child: _ResumeHero(
+                  entry: resume,
+                  onOpen: () => openUnit(
+                    context,
+                    ref,
+                    resume.media,
+                    resume.unit,
                   ),
                 ),
               )
             else if (featured != null)
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
-                  // A 4:5 poster reads well on a phone; on a tablet an
-                  // uncapped one becomes a page-tall wall, so cap the hero and
-                  // centre it while the rest of the column keeps its measure.
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 520),
-                      child: SpotlightCard(
-                        title: featured.displayTitle,
-                        nativeTitle: featured.nativeTitle,
-                        badge: kindLabel(l10n, featured.kind),
-                        meta: _metaFor(l10n, featured),
-                        coverUrl: featured.coverUrl,
-                        actionLabel: featured.kind.isReading
-                            ? l10n.startReading
-                            : l10n.startWatching,
-                        actionIcon: featured.kind.isReading
-                            ? Icons.menu_book_rounded
-                            : Icons.play_arrow_rounded,
-                        onOpen: () => openSeries(context, ref, featured),
-                      ),
-                    ),
-                  ),
+                child: _SpotlightHero(
+                  media: featured,
+                  label:
+                      rated.isNotEmpty ? l10n.topRatedTitle : l10n.homePickUp,
+                  onOpen: () => openSeries(context, ref, featured),
                 ),
-              ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
-                child: SectionHeader(
-                  index: "02",
-                  title: l10n.homeQuickTitle,
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final width = (constraints.maxWidth - BestSpace.md) / 2;
-                    return Wrap(
-                      spacing: BestSpace.md,
-                      runSpacing: BestSpace.md,
-                      children: [
-                        SizedBox(
-                          width: width,
-                          child: _QuickTile(
-                            icon: Icons.explore_outlined,
-                            label: l10n.navDiscover,
-                            body: l10n.quickDiscoverBody,
-                            onTap: () => context.go(Routes.discover),
-                          ),
-                        ),
-                        SizedBox(
-                          width: width,
-                          child: _QuickTile(
-                            icon: Icons.emoji_events_outlined,
-                            label: l10n.quickTopRatedBody,
-                            body: l10n.topRatedSubtitle,
-                            onTap: () => context.push(Routes.topRated),
-                          ),
-                        ),
-                        SizedBox(
-                          width: width,
-                          child: _QuickTile(
-                            icon: Icons.newspaper_outlined,
-                            label: l10n.newsTitle,
-                            body: l10n.quickNewsBody,
-                            onTap: () => context.push(Routes.news),
-                          ),
-                        ),
-                        SizedBox(
-                          width: width,
-                          child: _QuickTile(
-                            icon: Icons.groups_outlined,
-                            label: l10n.contributorsTitle,
-                            body: l10n.quickContributorsBody,
-                            onTap: () => context.push(Routes.contributors),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ),
-            if (rewards != null)
+              )
+            else if (loading)
+              const SliverToBoxAdapter(child: _HeroSkeleton())
+            else if (failed)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, BestSpace.lg, 20, 0),
-                  child: _WeeklyCard(
-                    rewards: rewards,
-                    onTap: () => context.push(Routes.topRated),
-                  ),
-                ),
-              ),
-            if (latest.isNotEmpty) ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: SectionHeader(
-                    index: "03",
-                    title: l10n.latestTitle,
-                    actionLabel: l10n.seeAll,
-                    onAction: () => context.go(Routes.discover),
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: _MediaRail(
-                  works: latest,
-                  onOpen: (media) => openSeries(context, ref, media),
-                ),
-              ),
-            ],
-            if (recs != null && recs.works.isNotEmpty) ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: SectionHeader(
-                    index: "04",
-                    title:
-                        recs.personalised ? l10n.forYouTitle : l10n.picksTitle,
-                    actionLabel: l10n.seeAll,
-                    onAction: () => context.go(Routes.discover),
-                  ),
-                ),
-              ),
-              if (recs.personalised)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-                    child: Text(
-                      l10n.forYouBecause(recs.genres.join(' · ')),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ),
-              SliverToBoxAdapter(
-                child: _MediaRail(
-                  works: recs.works,
-                  onOpen: (media) => openSeries(context, ref, media),
-                ),
-              ),
-            ],
-            if (trending.isNotEmpty) ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: SectionHeader(
-                    index: "05",
-                    title: l10n.trendingTitle,
-                    actionLabel: l10n.seeAll,
-                    onAction: () => context.go(Routes.manga),
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: _MediaRail(
-                  works: trending,
-                  ranked: true,
-                  onOpen: (media) => openSeries(context, ref, media),
-                ),
-              ),
-            ],
-            if (samples.isNotEmpty && shelf.isEmpty) ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
-                  child: SectionHeader(
-                    index: "06",
-                    title: l10n.samplesTitle,
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Text(
-                    l10n.samplesBody,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 150,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                    itemCount: samples.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(width: BestSpace.md),
-                    itemBuilder: (context, index) {
-                      final media = samples[index];
-                      return _SampleCard(
-                        title: media.displayTitle,
-                        badge: l10n.sampleFilmBadge,
-                        coverUrl: media.coverUrl,
-                        onTap: () => openSeries(context, ref, media),
-                      );
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                  child: _NoticeCard(
+                    icon: Icons.cloud_off_outlined,
+                    title: l10n.sourceError,
+                    body: l10n.nothingHereBody,
+                    actionLabel: l10n.retry,
+                    onAction: () {
+                      ref.invalidate(discoverProvider);
+                      ref.invalidate(rankingsProvider);
                     },
                   ),
                 ),
-              ),
-            ],
-            if (shelf.isEmpty)
+              )
+            else
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                  child: Container(
-                    padding: const EdgeInsets.all(BestSpace.xl),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(BestRadius.md),
-                      border: Border.all(
-                        color: theme.colorScheme.outlineVariant,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const BestMark(size: 38),
-                        const SizedBox(height: BestSpace.md),
-                        Text(
-                          l10n.libraryWaiting,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: BestSpace.xs),
-                        Text(
-                          l10n.libraryWaitingBody,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            height: 1.55,
-                          ),
-                        ),
-                        const SizedBox(height: BestSpace.lg),
-                        FilledButton.icon(
-                          onPressed: () => context.go(Routes.manga),
-                          icon: const Icon(Icons.menu_book_rounded, size: 18),
-                          label: Text(l10n.openManga),
-                        ),
-                      ],
-                    ),
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+                  child: _NoticeCard(
+                    icon: Icons.auto_stories_outlined,
+                    title: l10n.libraryWaiting,
+                    body: l10n.libraryWaitingBody,
+                    actionLabel: l10n.openGuide,
+                    onAction: () => openGuide(context, ref),
                   ),
                 ),
               ),
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
+            SliverToBoxAdapter(
+              child: _KindBar(
+                selected: _kind,
+                onSelected: (kind) => setState(() => _kind = kind),
+              ),
+            ),
+            if (feed.value?.live == false && popular.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                  child: _InlineNote(
+                    icon: Icons.science_outlined,
+                    text: l10n.homeDemoMode,
+                    actionLabel: l10n.homeAddSources,
+                    onAction: () => context.push(Routes.sources),
+                  ),
+                ),
+              ),
+            if (loading) ...[
+              const SliverToBoxAdapter(child: _RailSkeleton()),
+              const SliverToBoxAdapter(child: _RailSkeleton()),
+            ] else if (emptyKind)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 28, 20, 0),
+                  child: _NoticeCard(
+                    icon: Icons.filter_alt_off_outlined,
+                    title: l10n.homeNothingKind,
+                    body: l10n.nothingHereBody,
+                    actionLabel: l10n.filterAll,
+                    onAction: () => setState(() => _kind = null),
+                  ),
+                ),
+              )
+            else ...[
+              if (latest.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: _SectionHeader(
+                    title: l10n.homeNewFromSources,
+                    actionLabel: l10n.seeAll,
+                    onAction: () => context.push(Routes.news),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: _PosterRail(
+                    works: latest.take(12).toList(growable: false),
+                    badge: l10n.homeLatestBadge,
+                    onOpen: (media) => openSeries(context, ref, media),
+                  ),
+                ),
+              ],
+              if (picks.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: _SectionHeader(
+                    title: l10n.homeForYou,
+                    subtitle: recs != null && recs.personalised
+                        ? l10n.forYouBecause(recs.genres.join(' · '))
+                        : null,
+                    actionLabel: l10n.seeAll,
+                    onAction: () => context.push(Routes.discover),
+                  ),
+                ),
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) => Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        index == 0 ? 0 : 10,
+                        20,
+                        0,
+                      ),
+                      child: _EditorialCard(
+                        media: picks[index],
+                        onOpen: () => openSeries(context, ref, picks[index]),
+                      ),
+                    ),
+                    childCount: picks.take(4).length,
+                  ),
+                ),
+              ],
+              if (rated.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: _SectionHeader(
+                    title: l10n.topRatedTitle,
+                    subtitle: l10n.rankingsNote,
+                    actionLabel: l10n.seeAll,
+                    onAction: () => context.push(Routes.topRated),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: _PosterRail(
+                    works: rated.take(12).toList(growable: false),
+                    ranked: true,
+                    onOpen: (media) => openSeries(context, ref, media),
+                  ),
+                ),
+              ],
+            ],
+            SliverToBoxAdapter(
+              child: _SectionHeader(
+                title: l10n.mangaSourcesTitle,
+                actionLabel:
+                    sources.isEmpty ? l10n.homeAddSources : l10n.seeAll,
+                onAction: () => context.push(Routes.sources),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: _SourceRail(
+                sources: sources,
+                onOpen: (source) =>
+                    context.push(Routes.browseSource(source.id)),
+                onAdd: () => context.push(Routes.sources),
+              ),
+            ),
+            // Clear the floating tab bar: the source rail must not sit under it.
+            const SliverToBoxAdapter(child: SizedBox(height: 104)),
           ],
         ),
       ),
@@ -503,49 +283,665 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-String _metaFor(AppLocalizations l10n, Media media) {
-  final parts = <String>[
-    kindLabel(l10n, media.kind),
-    if (media.year != null) '${media.year}',
-    if (media.author != null && media.author!.trim().isNotEmpty) media.author!,
-    if (media.rating != null) '★ ${media.rating!.toStringAsFixed(1)}',
-  ];
-  return parts.join(' · ');
+class _Masthead extends StatelessWidget {
+  const _Masthead({required this.l10n});
+
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 14, 0),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: BestColors.aurora,
+              ),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: BestColors.blue.withValues(alpha: 0.35),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: const Text(
+              'B',
+              style: TextStyle(
+                fontFamily: BestFonts.display,
+                color: Colors.white,
+                fontSize: 23,
+                fontWeight: FontWeight.w700,
+                height: 1,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.appName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+                Text(
+                  l10n.homeSubtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _RoundIcon(
+            icon: Icons.search_rounded,
+            tooltip: l10n.searchAll,
+            onTap: () => context.push(Routes.browseQuery('')),
+          ),
+          const SizedBox(width: 6),
+          _RoundIcon(
+            icon: Icons.notifications_none_rounded,
+            tooltip: l10n.newsTitle,
+            onTap: () => context.push(Routes.news),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _MediaRail extends StatelessWidget {
-  const _MediaRail({
-    required this.works,
-    required this.onOpen,
-    this.ranked = false,
+class _RoundIcon extends StatelessWidget {
+  const _RoundIcon({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
   });
 
-  final List<Media> works;
-  final void Function(Media) onOpen;
-  final bool ranked;
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Icon(icon, size: 21, color: theme.colorScheme.onSurface),
+        ),
+      ),
+    );
+  }
+}
+
+class _ResumeHero extends StatelessWidget {
+  const _ResumeHero({required this.entry, required this.onOpen});
+
+  final ContinueEntry entry;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final media = entry.media;
+    final total = entry.progress.total;
+    final position = entry.progress.position;
+    final fraction = total <= 0
+        ? (entry.progress.completed ? 1.0 : 0.0)
+        : (position / total).clamp(0.0, 1.0);
+    final percent = (fraction * 100).round();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(BestRadius.xl),
+        child: SizedBox(
+          height: 198,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              BestBackdrop(
+                title: media.displayTitle,
+                url: media.coverUrl,
+                blur: 30,
+                opacity: 0.72,
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: AlignmentDirectional.centerStart,
+                    end: AlignmentDirectional.centerEnd,
+                    colors: [
+                      theme.colorScheme.surface.withValues(alpha: 0.18),
+                      theme.colorScheme.surface.withValues(alpha: 0.92),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 86,
+                      height: 129,
+                      child: BestCover(
+                        title: media.displayTitle,
+                        url: media.coverUrl,
+                        radius: BestRadius.md,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            l10n.homePickUp.toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1,
+                              fontSize: 10,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            media.displayTitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${kindLabel(l10n, media.kind)} · '
+                            '${l10n.menuChaptersShort} '
+                            '${shortNumber(entry.unit.number)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          ClipRRect(
+                            borderRadius:
+                                BorderRadius.circular(BestRadius.pill),
+                            child: LinearProgressIndicator(
+                              value: fraction,
+                              minHeight: 4,
+                              color: theme.colorScheme.primary,
+                              backgroundColor:
+                                  theme.colorScheme.surfaceContainerHighest,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Row(
+                            children: [
+                              Text(
+                                '$percent%',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const Spacer(),
+                              SizedBox(
+                                height: 34,
+                                child: FilledButton.icon(
+                                  onPressed: onOpen,
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size(0, 34),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                        BestRadius.sm,
+                                      ),
+                                    ),
+                                  ),
+                                  icon: const Icon(
+                                    Icons.play_arrow_rounded,
+                                    size: 17,
+                                  ),
+                                  label: Text(
+                                    l10n.continueReading,
+                                    style: const TextStyle(fontSize: 11.5),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SpotlightHero extends StatelessWidget {
+  const _SpotlightHero({
+    required this.media,
+    required this.label,
+    required this.onOpen,
+  });
+
+  final Media media;
+  final String label;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(BestRadius.xl),
+        child: SizedBox(
+          height: 232,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              BestBackdrop(
+                title: media.displayTitle,
+                url: media.coverUrl,
+                blur: 24,
+                opacity: 0.8,
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      theme.colorScheme.surface.withValues(alpha: 0.05),
+                      theme.colorScheme.surface.withValues(alpha: 0.55),
+                      theme.colorScheme.surface.withValues(alpha: 0.97),
+                    ],
+                    stops: const [0, 0.45, 1],
+                  ),
+                ),
+              ),
+              PositionedDirectional(
+                start: 16,
+                end: 16,
+                bottom: 14,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    SizedBox(
+                      width: 92,
+                      height: 138,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(BestRadius.md),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.45),
+                              blurRadius: 22,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: BestCover(
+                          title: media.displayTitle,
+                          url: media.coverUrl,
+                          radius: BestRadius.md,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.auto_awesome_rounded,
+                                size: 13,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            media.displayTitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              height: 1.15,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            media.genres.take(3).join(' · '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              if (media.rating != null) ...[
+                                RatingBadge(
+                                    score: media.rating!, compact: true),
+                                const SizedBox(width: 8),
+                              ],
+                              Flexible(
+                                child: Text(
+                                  statusLabel(l10n, media.status),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            height: 36,
+                            child: FilledButton.icon(
+                              onPressed: onOpen,
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size(0, 36),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(BestRadius.sm),
+                                ),
+                              ),
+                              icon: const Icon(
+                                Icons.menu_book_rounded,
+                                size: 17,
+                              ),
+                              label: Text(
+                                l10n.startReading,
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _KindBar extends StatelessWidget {
+  const _KindBar({required this.selected, required this.onSelected});
+
+  final MediaKind? selected;
+  final ValueChanged<MediaKind?> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final options = <(MediaKind?, String)>[
+      (null, l10n.filterAll),
+      (MediaKind.manga, l10n.kindManga),
+      (MediaKind.manhwa, l10n.kindManhwa),
+      (MediaKind.manhua, l10n.kindManhua),
+      (MediaKind.anime, l10n.kindAnime),
+      (MediaKind.drama, l10n.kindDrama),
+    ];
+    return Padding(
+      padding: const EdgeInsets.only(top: 18),
+      child: SizedBox(
+        height: 36,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          itemCount: options.length,
+          separatorBuilder: (context, index) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final option = options[index];
+            return _KindChip(
+              label: option.$2,
+              selected: option.$1 == selected,
+              onTap: () => onSelected(option.$1),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _KindChip extends StatelessWidget {
+  const _KindChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(BestRadius.pill),
+      child: AnimatedContainer(
+        duration: BestMotion.fast,
+        curve: BestMotion.curve,
+        padding: const EdgeInsets.symmetric(horizontal: 15),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(BestRadius.pill),
+          border: Border.all(
+            color: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outlineVariant,
+          ),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: selected
+                ? theme.colorScheme.onPrimary
+                : theme.colorScheme.onSurfaceVariant,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.title,
+    this.subtitle,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String title;
+  final String? subtitle;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 26, 14, 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 3,
+            height: 17,
+            margin: const EdgeInsets.only(top: 2),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              borderRadius: BorderRadius.circular(BestRadius.pill),
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (actionLabel != null && onAction != null)
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 32),
+                textStyle: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              child: Text(actionLabel!),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PosterRail extends StatelessWidget {
+  const _PosterRail({
+    required this.works,
+    required this.onOpen,
+    this.badge,
+    this.ranked = false,
+  });
+
+  final List<Media> works;
+  final ValueChanged<Media> onOpen;
+  final String? badge;
+  final bool ranked;
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
-      height: 288,
+      height: 224,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: works.length,
-        separatorBuilder: (context, index) =>
-            const SizedBox(width: BestSpace.md),
+        separatorBuilder: (context, index) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
           final media = works[index];
           return SizedBox(
-            width: 132,
-            child: MediaCard(
+            width: 122,
+            child: PosterTile(
               title: media.displayTitle,
-              subtitle: kindLabel(l10n, media.kind),
               coverUrl: media.coverUrl,
-              badge: kindLabel(l10n, media.kind),
+              badge: ranked ? '#${index + 1}' : badge,
+              genres: media.genres,
               rating: media.rating,
-              rank: ranked ? index + 1 : null,
               onTap: () => onOpen(media),
             ),
           );
@@ -555,71 +951,11 @@ class _MediaRail extends StatelessWidget {
   }
 }
 
-class _QuickTile extends StatelessWidget {
-  const _QuickTile({
-    required this.icon,
-    required this.label,
-    required this.body,
-    required this.onTap,
-  });
+class _EditorialCard extends StatelessWidget {
+  const _EditorialCard({required this.media, required this.onOpen});
 
-  final IconData icon;
-  final String label;
-  final String body;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: theme.colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(BestRadius.md),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(BestSpace.md),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(BestRadius.md),
-            border: Border.all(color: theme.colorScheme.outlineVariant),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, size: 22, color: theme.colorScheme.primary),
-              const SizedBox(height: BestSpace.sm),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontFamily: BestFonts.display,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                body,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  height: 1.35,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _WeeklyCard extends StatelessWidget {
-  const _WeeklyCard({required this.rewards, required this.onTap});
-
-  final WeeklyRewards rewards;
-  final VoidCallback onTap;
+  final Media media;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -627,85 +963,97 @@ class _WeeklyCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Material(
       color: theme.colorScheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(BestRadius.md),
-      clipBehavior: Clip.antiAlias,
+      borderRadius: BorderRadius.circular(BestRadius.lg),
       child: InkWell(
-        onTap: onTap,
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(BestRadius.lg),
         child: Container(
-          padding: const EdgeInsets.all(BestSpace.lg),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(BestRadius.md),
-            border: Border.all(
-              color: BestColors.brass.withValues(alpha: 0.42),
-            ),
+            borderRadius: BorderRadius.circular(BestRadius.lg),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
           ),
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.local_fire_department_outlined,
-                    size: 18,
-                    color: BestColors.brass,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      l10n.weeklyChallengeTitle,
+              SizedBox(
+                width: 78,
+                height: 117,
+                child: BestCover(
+                  title: media.displayTitle,
+                  url: media.coverUrl,
+                  radius: BestRadius.sm,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      media.displayTitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.titleSmall?.copyWith(
-                        fontFamily: BestFonts.display,
+                        fontSize: 14,
                         fontWeight: FontWeight.w700,
+                        height: 1.25,
                       ),
                     ),
-                  ),
-                  Text(
-                    l10n.weeklyStreak(rewards.streakDays),
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: BestSpace.md),
-              Text(
-                l10n.weeklyChallengeBody(rewards.weekPages, rewards.goal),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: BestSpace.sm),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(BestRadius.pill),
-                child: LinearProgressIndicator(
-                  value: rewards.progress,
-                  minHeight: 6,
-                  color: BestColors.brass,
-                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                ),
-              ),
-              const SizedBox(height: BestSpace.sm),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      l10n.weeklyBadgesEarned(
-                        rewards.earned.length,
-                        RewardBadge.values.length,
-                      ),
+                    const SizedBox(height: 3),
+                    Text(
+                      media.genres.take(3).join(' · '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
-                  ),
-                  Text(
-                    l10n.weeklyChallengeCta,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w700,
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        if (media.rating != null) ...[
+                          RatingBadge(score: media.rating!, compact: true),
+                          const SizedBox(width: 7),
+                        ],
+                        Flexible(
+                          child: Text(
+                            '${kindLabel(l10n, media.kind)} · '
+                            '${statusLabel(l10n, media.status)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    if (media.synopsis != null &&
+                        media.synopsis!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        media.synopsis!.replaceAll(RegExp(r'\s+'), ' ').trim(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 11,
+                          height: 1.45,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ],
           ),
@@ -715,70 +1063,341 @@ class _WeeklyCard extends StatelessWidget {
   }
 }
 
-class _SampleCard extends StatelessWidget {
-  const _SampleCard({
-    required this.title,
-    required this.badge,
-    required this.coverUrl,
-    required this.onTap,
+class _SourceRail extends StatelessWidget {
+  const _SourceRail({
+    required this.sources,
+    required this.onOpen,
+    required this.onAdd,
   });
 
-  final String title;
-  final String badge;
-  final String? coverUrl;
+  final List<SourceAdapter> sources;
+  final ValueChanged<SourceAdapter> onOpen;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    if (sources.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: _NoticeCard(
+          icon: Icons.extension_outlined,
+          title: l10n.mangaNoSourcesTitle,
+          body: l10n.mangaNoSourcesBody,
+          actionLabel: l10n.homeAddSources,
+          onAction: onAdd,
+        ),
+      );
+    }
+    return SizedBox(
+      height: 54,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: sources.length + 1,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          if (index == sources.length) {
+            return _AddSourceChip(label: l10n.homeAddSources, onTap: onAdd);
+          }
+          final source = sources[index];
+          return _SourceChip(source: source, onTap: () => onOpen(source));
+        },
+      ),
+    );
+  }
+}
+
+class _SourceChip extends StatelessWidget {
+  const _SourceChip({required this.source, required this.onTap});
+
+  final SourceAdapter source;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SizedBox(
-      width: 210,
-      child: Material(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(BestRadius.md),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Row(
-            children: [
-              SizedBox(
-                width: 92,
-                height: 150,
-                child: BestCover(title: title, url: coverUrl),
+    final letter = source.name.trim().isEmpty
+        ? '?'
+        : String.fromCharCode(source.name.trim().runes.first);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(BestRadius.md),
+      child: Container(
+        padding: const EdgeInsetsDirectional.fromSTEB(7, 7, 12, 7),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(BestRadius.md),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    theme.colorScheme.primary,
+                    theme.colorScheme.secondary,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(BestRadius.sm),
               ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(BestSpace.md),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        badge.toUpperCase(),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: BestColors.brass,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        title,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontFamily: BestFonts.display,
-                          fontWeight: FontWeight.w700,
-                          height: 1.25,
-                        ),
-                      ),
-                    ],
-                  ),
+              child: Text(
+                letter,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
                 ),
               ),
-            ],
+            ),
+            const SizedBox(width: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 110),
+              child: Text(
+                source.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AddSourceChip extends StatelessWidget {
+  const _AddSourceChip({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(BestRadius.md),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primary.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(BestRadius.md),
+          border: Border.all(
+            color: theme.colorScheme.primary.withValues(alpha: 0.35),
           ),
         ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.add_rounded, size: 18, color: theme.colorScheme.primary),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w700,
+                fontSize: 11.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NoticeCard extends StatelessWidget {
+  const _NoticeCard({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(BestRadius.lg),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(BestRadius.md),
+            ),
+            child: Icon(icon, size: 21, color: theme.colorScheme.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  body,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: onAction,
+            child: Text(actionLabel),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineNote extends StatelessWidget {
+  const _InlineNote({
+    required this.icon,
+    required this.text,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  final IconData icon;
+  final String text;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: onAction,
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              minimumSize: const Size(0, 30),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+            child: Text(actionLabel),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroSkeleton extends StatelessWidget {
+  const _HeroSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+      child: Container(
+        height: 198,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(BestRadius.xl),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RailSkeleton extends StatelessWidget {
+  const _RailSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 130,
+            height: 15,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(BestRadius.pill),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 170,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: 4,
+              separatorBuilder: (context, index) => const SizedBox(width: 10),
+              itemBuilder: (context, index) => Container(
+                width: 110,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(BestRadius.md),
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

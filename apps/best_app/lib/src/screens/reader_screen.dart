@@ -7,6 +7,7 @@ import 'package:best_domain/best_domain.dart';
 import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../extension_host.dart';
 import '../l10n/generated/app_localizations.dart';
@@ -71,8 +72,11 @@ class _ReaderView extends ConsumerStatefulWidget {
 }
 
 class _ReaderViewState extends ConsumerState<_ReaderView> {
-  late final PageController _controller;
+  PageController? _pagedController;
   late final LibraryRepository _repository;
+  final ItemScrollController _verticalController = ItemScrollController();
+  final ItemPositionsListener _verticalPositions =
+      ItemPositionsListener.create();
   late int _index;
   Timer? _saveTimer;
 
@@ -82,6 +86,8 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
 
   List<MediaResource> get _resources => widget.data.resources;
 
+  ReaderMode get _mode => ref.read(settingsProvider).readerMode;
+
   @override
   void initState() {
     super.initState();
@@ -90,26 +96,66 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     final saved = widget.data.progress?.position ?? 0;
     _index = total == 0 ? 0 : saved.clamp(0, total - 1);
     _furthest = _index;
-    _controller = PageController(initialPage: _index);
+    _verticalPositions.itemPositions.addListener(_onVerticalPositions);
   }
 
   @override
   void dispose() {
     _saveTimer?.cancel();
     _saveNow();
-    _controller.dispose();
+    _verticalPositions.itemPositions.removeListener(_onVerticalPositions);
+    _pagedController?.dispose();
     super.dispose();
   }
 
   void _onPageChanged(int index) {
     setState(() => _index = index);
-    if (index > _furthest) {
-      final fresh = index - _furthest;
-      _furthest = index;
-      unawaited(_repository.recordActivity(pages: fresh));
-    }
+    _markRead(index);
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 320), _saveNow);
+  }
+
+  /// Continuous mode has no page callback, so the item under the top of the
+  /// viewport is the current page. Its top half is the threshold: a page is
+  /// reached when the reader can actually see it, not when its first pixel
+  /// enters from below.
+  void _onVerticalPositions() {
+    if (!mounted) return;
+    final total = _resources.length;
+    if (total == 0) return;
+    final positions = _verticalPositions.itemPositions.value
+        .where((position) => position.itemTrailingEdge > 0)
+        .toList();
+    if (positions.isEmpty) return;
+    positions.sort((a, b) => a.index.compareTo(b.index));
+    final current = positions.firstWhere(
+      (position) =>
+          position.itemLeadingEdge <= 0.5 && position.itemTrailingEdge > 0.5,
+      orElse: () => positions.first,
+    );
+    final index = current.index.clamp(0, total - 1);
+    if (index == _index) return;
+    setState(() => _index = index);
+    _markRead(index);
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 320), _saveNow);
+  }
+
+  void _markRead(int index) {
+    if (index <= _furthest) return;
+    final fresh = index - _furthest;
+    _furthest = index;
+    unawaited(_repository.recordActivity(pages: fresh));
+  }
+
+  void _setMode(ReaderMode mode) {
+    if (mode == _mode) return;
+    ref.read(settingsProvider.notifier).setReaderMode(mode);
+    // Both layouts keep the reader at the same page; the paged controller is
+    // rebuilt because its initial page is fixed at construction.
+    _pagedController?.dispose();
+    _pagedController = PageController(initialPage: _index);
+    setState(() {});
   }
 
   void _saveNow() {
@@ -133,6 +179,9 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     final l10n = AppLocalizations.of(context);
     final unit = widget.data.unit;
     final total = _resources.length;
+    final mode = ref.watch(
+      settingsProvider.select((settings) => settings.readerMode),
+    );
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -168,6 +217,20 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: mode == ReaderMode.paged
+                ? l10n.readerModeVertical
+                : l10n.readerModePaged,
+            onPressed: () => _setMode(
+              mode == ReaderMode.paged ? ReaderMode.vertical : ReaderMode.paged,
+            ),
+            icon: Icon(
+              mode == ReaderMode.paged
+                  ? Icons.view_stream_outlined
+                  : Icons.auto_stories_outlined,
+              size: 21,
+            ),
+          ),
           if (widget.data.offline)
             Padding(
               padding: const EdgeInsetsDirectional.only(end: 14),
@@ -216,17 +279,33 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
             )
           : Stack(
               children: [
-                PageView.builder(
-                  controller: _controller,
-                  onPageChanged: _onPageChanged,
-                  itemCount: total,
-                  itemBuilder: (context, index) => _ResourcePage(
-                    resource: _resources[index],
-                    sourceId: widget.data.media.ref.sourceId,
-                    index: index,
-                    total: total,
+                if (mode == ReaderMode.vertical)
+                  ScrollablePositionedList.builder(
+                    itemScrollController: _verticalController,
+                    itemPositionsListener: _verticalPositions,
+                    initialScrollIndex: _index,
+                    itemCount: total,
+                    itemBuilder: (context, index) => _ResourcePage(
+                      resource: _resources[index],
+                      sourceId: widget.data.media.ref.sourceId,
+                      index: index,
+                      total: total,
+                      continuous: true,
+                    ),
+                  )
+                else
+                  PageView.builder(
+                    controller: _pagedController ??=
+                        PageController(initialPage: _index),
+                    onPageChanged: _onPageChanged,
+                    itemCount: total,
+                    itemBuilder: (context, index) => _ResourcePage(
+                      resource: _resources[index],
+                      sourceId: widget.data.media.ref.sourceId,
+                      index: index,
+                      total: total,
+                    ),
                   ),
-                ),
                 Positioned(
                   left: 0,
                   right: 0,
@@ -334,14 +413,31 @@ Widget _pageFrame(
   );
 }
 
-Widget _networkImage(String url, Map<String, String> headers) {
+Widget _networkImage(
+  String url,
+  Map<String, String> headers, {
+  bool fitWidth = false,
+}) {
   return Image.network(
     url,
     headers: headers.isEmpty ? null : headers,
-    fit: BoxFit.contain,
+    width: fitWidth ? double.infinity : null,
+    fit: fitWidth ? BoxFit.fitWidth : BoxFit.contain,
     frameBuilder: _pageFrame,
     loadingBuilder: (context, child, progress) {
       if (progress == null) return child;
+      if (fitWidth) {
+        // A page that has not decoded yet has no intrinsic height. Reserving
+        // a page-shaped box keeps the continuous strip scrollable while the
+        // first images arrive instead of collapsing to zero height.
+        return SizedBox(
+          width: double.infinity,
+          height: MediaQuery.sizeOf(context).width * 1.4,
+          child: const Center(
+            child: CircularProgressIndicator(color: Colors.white54),
+          ),
+        );
+      }
       return const Center(
         child: CircularProgressIndicator(color: Colors.white54),
       );
@@ -392,12 +488,18 @@ class _ResourcePage extends ConsumerStatefulWidget {
     required this.sourceId,
     required this.index,
     required this.total,
+    this.continuous = false,
   });
 
   final MediaResource resource;
   final String sourceId;
   final int index;
   final int total;
+
+  /// Continuous mode lays pages at the full width with their natural height,
+  /// so the chapter reads as one strip. Pinch-zoom is off there: a
+  /// two-finger gesture inside a scroll view fights the scroll itself.
+  final bool continuous;
 
   @override
   ConsumerState<_ResourcePage> createState() => _ResourcePageState();
@@ -420,16 +522,21 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
     }
   }
 
+  /// Paged mode keeps pinch-zoom; continuous mode must leave the vertical
+  /// drag to the list.
+  Widget _pageBody(Widget child) {
+    if (widget.continuous) return child;
+    return InteractiveViewer(minScale: 1, maxScale: 4, child: child);
+  }
+
   @override
   Widget build(BuildContext context) {
     final resource = widget.resource;
     return switch (resource) {
-      ImageResource(:final url, :final headers) => InteractiveViewer(
-          minScale: 1,
-          maxScale: 4,
-          child: Center(
+      ImageResource(:final url, :final headers) => _pageBody(
+          Center(
             child: _bytes == null
-                ? _networkImage(url, headers)
+                ? _networkImage(url, headers, fitWidth: widget.continuous)
                 : FutureBuilder<Uint8List?>(
                     future: _bytes,
                     builder: (context, snapshot) {
@@ -439,11 +546,18 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                       final bytes = snapshot.data;
                       if (bytes == null || bytes.isEmpty) {
                         // The host is absent (tests, desktop) or declined.
-                        return _networkImage(url, headers);
+                        return _networkImage(
+                          url,
+                          headers,
+                          fitWidth: widget.continuous,
+                        );
                       }
                       return Image.memory(
                         bytes,
-                        fit: BoxFit.contain,
+                        width: widget.continuous ? double.infinity : null,
+                        fit: widget.continuous
+                            ? BoxFit.fitWidth
+                            : BoxFit.contain,
                         gaplessPlayback: true,
                         frameBuilder: _pageFrame,
                         errorBuilder: (context, error, stack) =>
@@ -453,13 +567,12 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                   ),
           ),
         ),
-      FileResource(:final path) => InteractiveViewer(
-          minScale: 1,
-          maxScale: 4,
-          child: Center(
+      FileResource(:final path) => _pageBody(
+          Center(
             child: Image.file(
               File(path),
-              fit: BoxFit.contain,
+              width: widget.continuous ? double.infinity : null,
+              fit: widget.continuous ? BoxFit.fitWidth : BoxFit.contain,
               errorBuilder: (context, error, stack) => const Center(
                 child: Icon(
                   Icons.broken_image_outlined,
@@ -471,12 +584,22 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
           ),
         ),
       SyntheticPage(index: final pageIndex, label: final label) =>
-        _SyntheticPageView(
-          page: pageIndex,
-          label: label,
-          position: widget.index,
-          total: widget.total,
-        ),
+        widget.continuous
+            ? AspectRatio(
+                aspectRatio: 3 / 4,
+                child: _SyntheticPageView(
+                  page: pageIndex,
+                  label: label,
+                  position: widget.index,
+                  total: widget.total,
+                ),
+              )
+            : _SyntheticPageView(
+                page: pageIndex,
+                label: label,
+                position: widget.index,
+                total: widget.total,
+              ),
       VideoResource() => Center(
           child: Padding(
             padding: const EdgeInsets.all(32),

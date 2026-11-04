@@ -239,6 +239,28 @@ and a video extraction path), the preference screens some extensions expose, and
 JavaScript-evaluating sources. Each fails with a clear message rather than a
 crash.
 
+## 1.0.0 — complete
+
+1.0.0 is the line where the pieces stop being features and become one app.
+
+- [x] **Two reader layouts.** Paged keeps pinch-zoom; vertical joins a chapter
+  into one scroll with natural image heights, the way webtoons are drawn. The
+  choice is persisted, the toolbar toggles it without losing the page, and
+  progress is recorded in both layouts.
+- [x] **Updates without a store.** About Best reads the public GitHub release
+  feed, compares the installed version and build number with the latest tag, and
+  offers the signed APK plus readable release notes. The automatic check is
+  throttled to six hours, needs a connection, uploads nothing, and never installs
+  by itself. Home shows a quiet banner only when a newer build exists.
+- [x] **Release plumbing.** The version comes from the package, release notes
+  are plain text, source/releases/licenses links live in one screen, and the
+  build is tagged `v1.0.0` only after CI and the emulator smoke pass.
+- [x] **The Database.** A fifth space reads AniList, MyAnimeList, hwa.so and
+  Anime Corner into one IMDb-style surface: trending and airing rails, the MAL
+  community top five, a manhwa shelf, real news cards, search across all three
+  title catalogues, and a detail page that keeps every community's score
+  separate. Each provider fails independently and is named when it does.
+
 ## 7. Growth
 
 - Arabic-first discovery: curated lists for manhwa/manhua that actually update.
@@ -251,7 +273,8 @@ crash.
 
 ## 8. Release engineering
 
-- Signed AAB with a keystore in CI secrets; Play internal track first.
+- Signed APK from GitHub Actions with the keystore in CI secrets; a `v*` tag is
+  the only thing that publishes, and the release page carries the APK.
 - Crash reporting with opt-in and PII scrubbing.
 - Startup budget: cold start under 1.5 s on a mid-range phone.
 - Performance budget: no frame over 32 ms while scrolling the shelf.

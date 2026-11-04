@@ -30,6 +30,65 @@ class ReleaseNote {
 
 const List<ReleaseNote> kReleaseNotes = [
   ReleaseNote(
+    version: '1.0.0',
+    date: '2026-11-04',
+    lines: [
+      NewsLine(
+        LocalizedText(
+          en: 'A reader that fits the story',
+          ar: 'قارئ يناسب العمل',
+        ),
+        LocalizedText(
+          en: 'Paged stays one page at a time with pinch-zoom; vertical joins '
+              'the chapter into one scroll, the way webtoons are drawn. The '
+              'choice is saved and both layouts remember your page.',
+          ar: '«صفحات» يبقى صفحة واحدة مع التكبير بإصبعين، و«عمودي» يصل الفصل '
+              'في تمريرة واحدة كما تُرسم المانهوا. الاختيار يُحفظ، والوضعان '
+              'يتذكّران صفحتك.',
+        ),
+      ),
+      NewsLine(
+        LocalizedText(
+          en: 'Updates without a store',
+          ar: 'تحديثات بلا متجر',
+        ),
+        LocalizedText(
+          en: 'About Best reads the public GitHub release feed, compares the '
+              'build you run with the latest signed APK, and shows the notes '
+              'before you download anything.',
+          ar: 'شاشة «حول بست» تقرأ إصدارات GitHub العامة، وتقارن نسختك بأحدث '
+              'APK موقّع، وتعرض الملاحظات قبل أن تنزّل أي شيء.',
+        ),
+      ),
+      NewsLine(
+        LocalizedText(
+          en: 'A database, not just a shelf',
+          ar: 'موسوعة، لا مجرد رفّ',
+        ),
+        LocalizedText(
+          en: 'The new Database reads AniList, MyAnimeList, hwa.so and Anime '
+              'Corner: trending, airing, the MAL top five, a manhwa shelf, '
+              'news, and a detail page that keeps every community score apart.',
+          ar: 'الموسوعة الجديدة تقرأ AniList وMyAnimeList وhwa.so وAnime Corner: '
+              'الرائج، والمعروض الآن، وأفضل خمسة في MAL، ورفّ مانهوا، وأخبار، '
+              'وصفحة عمل تُبقي تقييم كل مجتمع منفصلًا.',
+        ),
+      ),
+      NewsLine(
+        LocalizedText(
+          en: 'One complete shelf',
+          ar: 'رفّ واحد مكتمل',
+        ),
+        LocalizedText(
+          en: 'Five spaces, real MangaDex scores, the extension directory, '
+              'offline downloads and encrypted sync — the 1.0 set.',
+          ar: 'خمس مساحات، وتقييمات MangaDex حقيقية، ودليل الإضافات، وتحميل '
+              'بدون إنترنت، ومزامنة مشفّرة — مجموعة 1.0.',
+        ),
+      ),
+    ],
+  ),
+  ReleaseNote(
     version: '0.11.0',
     date: '2026-11-03',
     lines: [

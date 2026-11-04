@@ -51,7 +51,8 @@ class MangaSmokeTest(unittest.TestCase):
             with self.subTest(label=label):
                 report = {"source": "MangaDex", "catalogue": False, "chapters": False, "reader": False}
                 screens = [hierarchy("Real title\nManga"), hierarchy(label),
-                           hierarchy("Real title", "Page 1 of 23", "Page image")]
+                           hierarchy("Real title", "Page 1 of 23", "Page image",
+                                     "Vertical")]
                 seen = {"count": 0}
 
                 def fake_dump():
@@ -70,13 +71,15 @@ class MangaSmokeTest(unittest.TestCase):
                         patch.object(manga.Path, "write_text"):
                     manga.check_source("MangaDex", report)
                 select.assert_called_once_with("MangaDex")
-                self.assertIs(tap.call_args.args[0], screens[1][0])
+                self.assertIs(tap.call_args_list[1].args[0], screens[1][0])
+                self.assertIs(tap.call_args_list[2].args[0], screens[2][3])
                 swipe.assert_not_called()
                 self.assertTrue(report["catalogue"])
                 self.assertTrue(report["chapters"])
                 self.assertTrue(report["reader"])
+                self.assertTrue(report["vertical"])
                 self.assertEqual(report["page_count"], 23)
-                self.assertEqual(screenshot.call_count, 3)
+                self.assertEqual(screenshot.call_count, 4)
 
     def test_real_reader_evidence_records_each_stage_and_keeps_site_failure(self):
         def check(name, report):

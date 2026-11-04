@@ -332,6 +332,7 @@ class AppSettings {
     this.wifiOnly = false,
     this.storageCapGb = 0,
     this.suwayomiUrl,
+    this.readerMode = ReaderMode.paged,
   });
 
   /// `null` follows the system locale.
@@ -349,6 +350,10 @@ class AppSettings {
   /// `null` means no server: Best stays on its built-in catalogues.
   final String? suwayomiUrl;
 
+  /// How a chapter is laid out. Paged suits manga; vertical joins the pages
+  /// into one scroll, which is how manhwa and webtoons are drawn.
+  final ReaderMode readerMode;
+
   AppSettings copyWith({
     String? languageCode,
     bool clearLanguage = false,
@@ -357,6 +362,7 @@ class AppSettings {
     int? storageCapGb,
     String? suwayomiUrl,
     bool clearSuwayomi = false,
+    ReaderMode? readerMode,
   }) {
     return AppSettings(
       languageCode: clearLanguage ? null : (languageCode ?? this.languageCode),
@@ -364,7 +370,21 @@ class AppSettings {
       wifiOnly: wifiOnly ?? this.wifiOnly,
       storageCapGb: storageCapGb ?? this.storageCapGb,
       suwayomiUrl: clearSuwayomi ? null : (suwayomiUrl ?? this.suwayomiUrl),
+      readerMode: readerMode ?? this.readerMode,
     );
+  }
+}
+
+/// The two ways to move through a chapter.
+enum ReaderMode {
+  paged,
+  vertical;
+
+  static ReaderMode fromName(String? name) {
+    for (final mode in values) {
+      if (mode.name == name) return mode;
+    }
+    return ReaderMode.paged;
   }
 }
 
@@ -374,6 +394,7 @@ class SettingsController extends Notifier<AppSettings> {
   static const String _wifiOnlyKey = 'wifi_only';
   static const String _storageCapKey = 'storage_cap_gb';
   static const String _suwayomiKey = 'suwayomi_url';
+  static const String _readerModeKey = 'reader_mode';
 
   @override
   AppSettings build() {
@@ -384,6 +405,9 @@ class SettingsController extends Notifier<AppSettings> {
       wifiOnly: preferences?.getBool(_wifiOnlyKey) ?? false,
       storageCapGb: preferences?.getInt(_storageCapKey) ?? 0,
       suwayomiUrl: preferences?.getString(_suwayomiKey),
+      readerMode: ReaderMode.fromName(
+        preferences?.getString(_readerModeKey),
+      ),
     );
   }
 
@@ -410,6 +434,12 @@ class SettingsController extends Notifier<AppSettings> {
   void setStorageCapGb(int value) {
     unawaited(ref.read(preferencesProvider)?.setInt(_storageCapKey, value));
     state = state.copyWith(storageCapGb: value);
+  }
+
+  void setReaderMode(ReaderMode mode) {
+    unawaited(
+        ref.read(preferencesProvider)?.setString(_readerModeKey, mode.name));
+    state = state.copyWith(readerMode: mode);
   }
 
   /// `null` forgets the server. The address is stored as typed; the client
@@ -479,6 +509,13 @@ final FutureProvider<List<ContinueEntry>> continueProvider =
     FutureProvider<List<ContinueEntry>>((ref) async {
   ref.watch(libraryChangesProvider);
   return ref.watch(repositoryProvider).continueReading();
+});
+
+/// Everything opened recently, whether or not it is on the shelf.
+final FutureProvider<List<Media>> recentProvider =
+    FutureProvider<List<Media>>((ref) async {
+  ref.watch(libraryChangesProvider);
+  return ref.watch(repositoryProvider).recent(limit: 40);
 });
 
 /// Re-read after every write, including the one the manager makes per page.

@@ -136,6 +136,30 @@ def check_source(name: str, report: dict) -> None:
             if state == "pending":
                 raise RuntimeError(f"{name} reader: no page image appeared")
             report.update(reader=True, page_count=count)
+
+            # 1.0.0 added a second layout. Prove the same chapter survives the
+            # switch: the page counter must stay and the image must remain
+            # decoded, not collapse into a blank scroll.
+            mode = find_any(root, "Vertical")
+            if mode is None:
+                mode = find_any(root, "عمودي")
+            if mode is None:
+                raise RuntimeError(f"{name} reader: the layout button did not render")
+            tap(mode, wait=5)
+            root = dump()
+            if reader_pages(root) is None:
+                raise RuntimeError(f"{name} reader: vertical layout lost the page counter")
+            state = page_image_state(root)
+            if state != "ready":
+                raise RuntimeError(
+                    f"{name} reader: vertical layout image state was {state}")
+            screenshot(f"manga-{name}-reader-vertical.png")
+            report["vertical"] = True
+            paged = find_any(root, "Paged")
+            if paged is None:
+                paged = find_any(root, "صفحات")
+            if paged is not None:
+                tap(paged, wait=3)
             return
         time.sleep(2)
     debug_texts(root)

@@ -71,7 +71,7 @@ class DownloadsScreen extends ConsumerWidget {
                         title: l10n.downloadsEmptyTitle,
                         body: l10n.downloadsEmptyBody,
                         action: FilledButton.icon(
-                          onPressed: () => context.go(Routes.manga),
+                          onPressed: () => context.push(Routes.manga),
                           icon: const Icon(Icons.explore_outlined, size: 18),
                           label: Text(l10n.browseTitle),
                         ),
@@ -80,7 +80,8 @@ class DownloadsScreen extends ConsumerWidget {
                   );
                 }
                 return ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                  // Clear the floating tab bar: the last card must not sit under it.
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 104),
                   children: [
                     StatStrip(
                       stats: [

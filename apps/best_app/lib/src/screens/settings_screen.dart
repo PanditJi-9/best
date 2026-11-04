@@ -10,6 +10,7 @@ import '../navigation.dart';
 import '../labels.dart';
 import '../extension_host.dart';
 import '../providers.dart';
+import '../updates.dart';
 
 /// Settings is the "your copy of Best" screen: identity and numbers first, then
 /// three compact groups. Choices are segmented instead of three stacked rows so
@@ -29,6 +30,19 @@ class SettingsScreen extends ConsumerWidget {
     final packs = ref.watch(sourcePacksProvider);
     final extensions = ref.watch(extensionCatalogProvider).value ??
         const ExtensionCatalog.empty();
+    final update = ref.watch(updateProvider);
+    final build = ref.watch(appBuildProvider).value;
+    final installed =
+        build == null ? null : '${build.version} (${build.build})';
+    final updateSummary = update.isLoading
+        ? l10n.checkingUpdates
+        : update.value?.available == true
+            ? l10n.updateAvailable(update.value!.latestVersion)
+            : update.hasError
+                ? l10n.updateCheckFailed
+                : installed == null
+                    ? l10n.checkUpdates
+                    : '${l10n.versionLabel} $installed';
 
     return Scaffold(
       appBar: AppBar(),
@@ -98,6 +112,44 @@ class SettingsScreen extends ConsumerWidget {
                   ],
                   onSelect: (mode) =>
                       ref.read(settingsProvider.notifier).setThemeMode(mode),
+                ),
+              ),
+            ),
+            _Group(
+              title: l10n.readingGroup,
+              icon: Icons.menu_book_outlined,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _Segmented<ReaderMode>(
+                      selected: settings.readerMode,
+                      options: [
+                        _SegmentOption(
+                          value: ReaderMode.paged,
+                          icon: Icons.auto_stories_outlined,
+                          label: l10n.readerModePaged,
+                        ),
+                        _SegmentOption(
+                          value: ReaderMode.vertical,
+                          icon: Icons.view_stream_outlined,
+                          label: l10n.readerModeVertical,
+                        ),
+                      ],
+                      onSelect: (mode) => ref
+                          .read(settingsProvider.notifier)
+                          .setReaderMode(mode),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      l10n.readerModeBody,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        height: 1.55,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -328,54 +380,68 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             _Group(
-              title: l10n.about,
+              title: l10n.aboutUpdatesGroup,
               icon: Icons.info_outline_rounded,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const BestMark(size: 44),
-                        const SizedBox(width: BestSpace.md),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                l10n.appName,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: -0.3,
-                                ),
+                        Row(
+                          children: [
+                            const BestMark(size: 44),
+                            const SizedBox(width: BestSpace.md),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    l10n.appName,
+                                    style:
+                                        theme.textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -0.3,
+                                    ),
+                                  ),
+                                  Text(
+                                    l10n.tagline,
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              Text(
-                                l10n.tagline,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                            Icon(
+                              Icons.verified_outlined,
+                              size: 20,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ],
                         ),
-                        Icon(
-                          Icons.verified_outlined,
-                          size: 20,
-                          color: theme.colorScheme.primary,
+                        const SizedBox(height: 14),
+                        Text(
+                          l10n.aboutBody,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            height: 1.65,
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
-                    Text(
-                      l10n.aboutBody,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        height: 1.65,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  const Divider(height: 1, indent: 52),
+                  _LinkTile(
+                    icon: update.value?.available == true
+                        ? Icons.system_update_alt_rounded
+                        : Icons.info_outline_rounded,
+                    title: l10n.aboutTitle,
+                    subtitle: updateSummary,
+                    onTap: () => context.push(Routes.about),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 18),

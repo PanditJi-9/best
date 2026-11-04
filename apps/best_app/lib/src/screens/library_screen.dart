@@ -149,7 +149,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     ),
                   const SliverToBoxAdapter(child: SizedBox(height: 12)),
                   ..._shelfSlivers(context, l10n, shelf, query),
-                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                  // Clear the floating tab bar: the last row must not sit under it.
+                  const SliverToBoxAdapter(child: SizedBox(height: 104)),
                 ],
               ),
             ),

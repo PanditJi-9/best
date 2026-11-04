@@ -2,53 +2,49 @@ import 'package:flutter/material.dart';
 
 import 'tokens.dart';
 
-/// One builder for both brightnesses. The bundled faces are deliberate:
-/// Amiri (editorial Arabic/Latin serif) and IBM Plex Sans Arabic (a workhorse
-/// for UI, metadata and long Arabic prose) are the two bundled families.
-/// Keeping both in the design package means every screen gets the same voice.
+/// One builder for both brightnesses, tuned for a poster-first reading app.
+///
+/// Headings use the UI face, not the editorial serif: a catalogue screen is a
+/// product surface, and mixing a display serif into every chapter row made the
+/// old build feel like a magazine that happened to scroll. Amiri is still
+/// bundled for the wordmark and long-form quotes.
 ThemeData bestTheme(Brightness brightness) {
   final isDark = brightness == Brightness.dark;
   final scheme =
       ColorScheme.fromSeed(
-        seedColor: BestColors.cinnabar,
+        seedColor: BestColors.blue,
         brightness: brightness,
       ).copyWith(
-        primary: isDark ? BestColors.cinnabar : BestColors.cinnabarDeep,
-        onPrimary: isDark ? BestColors.ink : Colors.white,
+        primary: isDark ? BestColors.blue : BestColors.blueDeep,
+        onPrimary: Colors.white,
         primaryContainer: isDark
-            ? BestColors.cinnabar.withValues(alpha: 0.18)
-            : BestColors.cinnabar.withValues(alpha: 0.14),
-        onPrimaryContainer: isDark
-            ? BestColors.cinnabar
-            : BestColors.cinnabarDeep,
-        secondary: BestColors.brass,
-        onSecondary: BestColors.ink,
-        secondaryContainer: BestColors.brass.withValues(alpha: 0.16),
-        onSecondaryContainer: isDark
-            ? BestColors.brass
-            : const Color(0xFF5B4317),
+            ? BestColors.blue.withValues(alpha: 0.20)
+            : BestColors.blue.withValues(alpha: 0.12),
+        onPrimaryContainer: isDark ? BestColors.blueSoft : BestColors.blueDeep,
+        secondary: isDark ? BestColors.cyan : const Color(0xFF0891B2),
+        onSecondary: isDark ? BestColors.ink : Colors.white,
+        secondaryContainer: BestColors.cyan.withValues(alpha: 0.16),
+        onSecondaryContainer:
+            isDark ? BestColors.cyan : const Color(0xFF155E75),
         tertiary: BestColors.jade,
         onTertiary: BestColors.ink,
         surface: isDark ? BestColors.ink : BestColors.paper,
-        onSurface: isDark ? const Color(0xFFF3EADB) : const Color(0xFF191510),
+        onSurface: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A),
         onSurfaceVariant: isDark
-            ? const Color(0xFFA89D8A)
-            : const Color(0xFF655C4D),
-        surfaceContainerLow: isDark
-            ? BestColors.inkRaised
-            : BestColors.paperRaised,
-        surfaceContainer: isDark
-            ? BestColors.inkElevated
-            : const Color(0xFFEFE6D6),
-        surfaceContainerHigh: isDark
-            ? const Color(0xFF211C14)
-            : const Color(0xFFE8DECC),
-        surfaceContainerHighest: isDark
-            ? const Color(0xFF2A241A)
-            : const Color(0xFFE2D6C2),
-        outline: isDark ? const Color(0xFF6F6554) : const Color(0xFF8C806B),
+            ? const Color(0xFF94A3B8)
+            : const Color(0xFF64748B),
+        surfaceContainerLow:
+            isDark ? BestColors.inkRaised : BestColors.paperRaised,
+        surfaceContainer:
+            isDark ? BestColors.inkElevated : const Color(0xFFF1F5F9),
+        surfaceContainerHigh:
+            isDark ? const Color(0xFF162136) : const Color(0xFFE9EFF7),
+        surfaceContainerHighest:
+            isDark ? const Color(0xFF1B2942) : const Color(0xFFE2E8F0),
+        outline: isDark ? const Color(0xFF3B4A63) : const Color(0xFF94A3B8),
         outlineVariant: isDark ? BestColors.inkLine : BestColors.paperLine,
         error: BestColors.danger,
+        onError: isDark ? BestColors.ink : Colors.white,
       );
 
   final base = ThemeData(
@@ -71,69 +67,69 @@ ThemeData bestTheme(Brightness brightness) {
       )
       .copyWith(
         displayLarge: base.textTheme.displayLarge?.copyWith(
-          fontFamily: BestFonts.display,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0,
-          height: 0.96,
+          fontFamily: BestFonts.text,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -1.2,
+          height: 1.0,
         ),
         displayMedium: base.textTheme.displayMedium?.copyWith(
-          fontFamily: BestFonts.display,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0,
-          height: 0.98,
+          fontFamily: BestFonts.text,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.8,
+          height: 1.02,
         ),
         displaySmall: base.textTheme.displaySmall?.copyWith(
-          fontFamily: BestFonts.display,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0,
-          height: 1.05,
+          fontFamily: BestFonts.text,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.4,
+          height: 1.06,
         ),
         headlineLarge: base.textTheme.headlineLarge?.copyWith(
-          fontFamily: BestFonts.display,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0,
-          height: 1.05,
-        ),
-        headlineMedium: base.textTheme.headlineMedium?.copyWith(
-          fontFamily: BestFonts.display,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0,
+          fontFamily: BestFonts.text,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.4,
           height: 1.08,
         ),
+        headlineMedium: base.textTheme.headlineMedium?.copyWith(
+          fontFamily: BestFonts.text,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.2,
+          height: 1.1,
+        ),
         headlineSmall: base.textTheme.headlineSmall?.copyWith(
-          fontFamily: BestFonts.display,
+          fontFamily: BestFonts.text,
           fontWeight: FontWeight.w700,
-          letterSpacing: 0,
-          height: 1.12,
+          height: 1.14,
         ),
         titleLarge: base.textTheme.titleLarge?.copyWith(
-          fontFamily: BestFonts.display,
+          fontFamily: BestFonts.text,
           fontWeight: FontWeight.w700,
           letterSpacing: 0,
-          height: 1.15,
+          height: 1.18,
         ),
         titleMedium: base.textTheme.titleMedium?.copyWith(
           fontWeight: FontWeight.w600,
           letterSpacing: 0,
+          height: 1.25,
         ),
         titleSmall: base.textTheme.titleSmall?.copyWith(
           fontWeight: FontWeight.w600,
           height: 1.3,
         ),
-        bodyLarge: base.textTheme.bodyLarge?.copyWith(height: 1.7),
-        bodyMedium: base.textTheme.bodyMedium?.copyWith(height: 1.65),
-        bodySmall: base.textTheme.bodySmall?.copyWith(height: 1.55),
+        bodyLarge: base.textTheme.bodyLarge?.copyWith(height: 1.6),
+        bodyMedium: base.textTheme.bodyMedium?.copyWith(height: 1.55),
+        bodySmall: base.textTheme.bodySmall?.copyWith(height: 1.5),
         labelLarge: base.textTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.w700,
-          letterSpacing: 0.2,
+          letterSpacing: 0.1,
         ),
         labelMedium: base.textTheme.labelMedium?.copyWith(
           fontWeight: FontWeight.w600,
-          letterSpacing: 0.2,
+          letterSpacing: 0.1,
         ),
         labelSmall: base.textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.w600,
-          letterSpacing: 0.25,
+          letterSpacing: 0.15,
         ),
       );
 
@@ -150,13 +146,13 @@ ThemeData bestTheme(Brightness brightness) {
       titleTextStyle: text.titleLarge,
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: isDark ? BestColors.inkRaised : BestColors.paperRaised,
+      backgroundColor: isDark ? const Color(0xFF0A101C) : BestColors.paperRaised,
       surfaceTintColor: Colors.transparent,
-      indicatorColor: scheme.primary.withValues(alpha: 0.16),
+      indicatorColor: scheme.primary.withValues(alpha: 0.18),
       indicatorShape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(BestRadius.sm),
+        borderRadius: BorderRadius.circular(BestRadius.pill),
       ),
-      height: 64,
+      height: 68,
       elevation: 0,
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
@@ -171,7 +167,7 @@ ThemeData bestTheme(Brightness brightness) {
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return IconThemeData(
-          size: 22,
+          size: 23,
           color: selected ? scheme.primary : scheme.onSurfaceVariant,
         );
       }),
@@ -194,25 +190,25 @@ ThemeData bestTheme(Brightness brightness) {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(BestRadius.md),
-        borderSide: BorderSide(color: scheme.primary, width: 1.5),
+        borderSide: BorderSide(color: scheme.primary, width: 1.4),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 52),
+        minimumSize: const Size(0, 48),
         padding: const EdgeInsets.symmetric(horizontal: BestSpace.xl),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(BestRadius.sm),
+          borderRadius: BorderRadius.circular(BestRadius.md),
         ),
         textStyle: text.labelLarge?.copyWith(fontSize: 14),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size(0, 48),
+        minimumSize: const Size(0, 46),
         side: BorderSide(color: scheme.outlineVariant),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(BestRadius.sm),
+          borderRadius: BorderRadius.circular(BestRadius.md),
         ),
       ),
     ),
@@ -225,9 +221,7 @@ ThemeData bestTheme(Brightness brightness) {
     chipTheme: base.chipTheme.copyWith(
       backgroundColor: isDark ? BestColors.inkElevated : BestColors.paperRaised,
       selectedColor: scheme.primaryContainer,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(BestRadius.sm),
-      ),
+      shape: const StadiumBorder(),
       side: BorderSide(color: scheme.outlineVariant),
       labelStyle: text.labelMedium,
       padding: const EdgeInsets.symmetric(horizontal: BestSpace.md),
@@ -252,9 +246,10 @@ ThemeData bestTheme(Brightness brightness) {
       surfaceTintColor: Colors.transparent,
       modalBackgroundColor: scheme.surfaceContainerLow,
       showDragHandle: true,
+      dragHandleColor: scheme.outline,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          top: Radius.circular(BestRadius.lg),
+          top: Radius.circular(BestRadius.xl),
         ),
       ),
     ),
@@ -269,7 +264,7 @@ ThemeData bestTheme(Brightness brightness) {
       behavior: SnackBarBehavior.floating,
       backgroundColor: isDark
           ? BestColors.inkElevated
-          : const Color(0xFF231F26),
+          : const Color(0xFF0F172A),
       contentTextStyle: text.bodyMedium?.copyWith(color: Colors.white),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(BestRadius.sm),

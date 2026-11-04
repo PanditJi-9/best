@@ -2,14 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'navigation.dart';
+import 'meta/meta_models.dart';
+import 'screens/about_screen.dart';
 import 'screens/backup_screen.dart';
 import 'screens/browse_screen.dart';
 import 'screens/contributors_screen.dart';
+import 'screens/database_screen.dart';
 import 'screens/discover_screen.dart';
 import 'screens/downloads_screen.dart';
+import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
+import 'screens/menu_screen.dart';
 import 'screens/manga_screen.dart';
+import 'screens/meta_detail_screen.dart';
+import 'screens/meta_list_screen.dart';
+import 'screens/meta_search_screen.dart';
 import 'screens/news_screen.dart';
 import 'screens/reader_screen.dart';
 import 'screens/series_screen.dart';
@@ -43,16 +51,8 @@ GoRouter buildRouter() => GoRouter(
             StatefulShellBranch(
               routes: [
                 GoRoute(
-                  path: Routes.manga,
-                  builder: (context, state) => const MangaScreen(),
-                ),
-              ],
-            ),
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                  path: Routes.discover,
-                  builder: (context, state) => const DiscoverScreen(),
+                  path: Routes.database,
+                  builder: (context, state) => const DatabaseScreen(),
                 ),
               ],
             ),
@@ -72,7 +72,62 @@ GoRouter buildRouter() => GoRouter(
                 ),
               ],
             ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: Routes.menu,
+                  builder: (context, state) => const MenuScreen(),
+                ),
+              ],
+            ),
           ],
+        ),
+        GoRoute(
+          path: Routes.manga,
+          builder: (context, state) => const MangaScreen(),
+        ),
+        GoRoute(
+          path: Routes.discover,
+          builder: (context, state) => const DiscoverScreen(),
+        ),
+        GoRoute(
+          path: Routes.metaSearch,
+          builder: (context, state) => const MetaSearchScreen(),
+        ),
+        GoRoute(
+          path: '/meta/work',
+          builder: (context, state) {
+            final query = state.uri.queryParameters;
+            MetaSource? source;
+            for (final value in MetaSource.values) {
+              if (value.name == query['source']) {
+                source = value;
+                break;
+              }
+            }
+            if (source == null || (query['id'] ?? '').isEmpty) {
+              return const MetaSearchScreen();
+            }
+            return MetaDetailScreen(source: source, id: query['id']!);
+          },
+        ),
+        GoRoute(
+          path: '/meta/list',
+          builder: (context, state) {
+            final query = state.uri.queryParameters;
+            MetaListKind? kind;
+            for (final value in MetaListKind.values) {
+              if (value.name == query['kind']) {
+                kind = value;
+                break;
+              }
+            }
+            return MetaListScreen(kind: kind ?? MetaListKind.anilistTrending);
+          },
+        ),
+        GoRoute(
+          path: Routes.history,
+          builder: (context, state) => const HistoryScreen(),
         ),
         GoRoute(
           path: Routes.browse,
@@ -87,6 +142,10 @@ GoRouter buildRouter() => GoRouter(
         GoRoute(
           path: Routes.settings,
           builder: (context, state) => const SettingsScreen(),
+        ),
+        GoRoute(
+          path: Routes.about,
+          builder: (context, state) => const AboutScreen(),
         ),
         GoRoute(
           path: Routes.topRated,

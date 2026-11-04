@@ -80,7 +80,7 @@
   "themeLight": "Light",
   "themeDark": "Dark",
   "about": "About",
-  "aboutBody": "Best 0.4.2 — one shelf for manga, manhwa, anime and Asian drama, with a real video player. Built to stay fast on a mid-range phone.",
+  "aboutBody": "Best — one shelf for manga, manhwa, anime and Asian drama, with a real video player. Built to stay fast on a mid-range phone.",
   "pageOf": "Page {current} of {total}",
   "@pageOf": {
     "placeholders": {
@@ -465,7 +465,16 @@
   "directorySearch": "Search sites, extensions or languages",
   "directoryIntro": "Original extension APKs from Keiyoushi and Yuzono. These are community extensions, not the sites’ official apps. Availability varies by site.",
   "directoryCounts": "{bundles} extensions · {sources} source/language entries",
-  "@directoryCounts": {"placeholders": {"bundles": {"type": "int"}, "sources": {"type": "int"}}},
+  "@directoryCounts": {
+    "placeholders": {
+      "bundles": {
+        "type": "int"
+      },
+      "sources": {
+        "type": "int"
+      }
+    }
+  },
   "directoryInstalled": "Activated",
   "directoryUpdates": "Updates",
   "directoryActivate": "Activate",
@@ -490,7 +499,13 @@
   "directoryAutoUpdatesBody": "Check activated extensions when Best opens or resumes, up to every 6 hours. No new sites are installed automatically.",
   "directoryUpdating": "Checking publisher updates…",
   "directoryUpdateDone": "{count} extensions updated",
-  "@directoryUpdateDone": {"placeholders": {"count": {"type": "int"}}},
+  "@directoryUpdateDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "directoryUpdateFailed": "Some updates failed; existing extensions were kept.",
   "directoryAndroidOnly": "Extension activation is available in the Android APK.",
   "directoryActivationFailed": "Could not activate this extension. Try again when connected.",
@@ -515,14 +530,35 @@
   "latestEmpty": "No source returned a latest list yet. Open Manga and browse one directly.",
   "forYouTitle": "For you",
   "forYouBecause": "Because you read {genres}",
-  "@forYouBecause": {"placeholders": {"genres": {"type": "String"}}},
+  "@forYouBecause": {
+    "placeholders": {
+      "genres": {
+        "type": "String"
+      }
+    }
+  },
   "weeklyChallengeTitle": "Weekly challenge",
   "weeklyChallengeBody": "{pages} of {goal} pages this week",
-  "@weeklyChallengeBody": {"placeholders": {"pages": {"type": "int"}, "goal": {"type": "int"}}},
+  "@weeklyChallengeBody": {
+    "placeholders": {
+      "pages": {
+        "type": "int"
+      },
+      "goal": {
+        "type": "int"
+      }
+    }
+  },
   "weeklyChallengeCta": "View the ranking",
   "openManga": "Browse manga",
   "homeSourcesLive": "Live from {count} sources",
-  "@homeSourcesLive": {"placeholders": {"count": {"type": "int"}}},
+  "@homeSourcesLive": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "mangaTitle": "Manga",
   "mangaSearchHint": "Search every source",
   "mangaSourcesTitle": "Your sources",
@@ -533,7 +569,13 @@
   "mangaAnimeBadge": "Anime",
   "mangaMangaBadge": "Manga",
   "mangaSourceCount": "{count} sites",
-  "@mangaSourceCount": {"placeholders": {"count": {"type": "int"}}},
+  "@mangaSourceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "mangaNoResults": "No work matched this search.",
   "discoverTitle": "Discover",
   "discoverSubtitle": "Real scores, fresh chapters and picks from your shelf",
@@ -551,12 +593,36 @@
   "topRatedEmptyBody": "MangaDex did not answer. Nothing is ranked until real scores arrive.",
   "topRatedNote": "Ranked by MangaDex community score. A work without a score is not listed.",
   "topRatedScore": "{score} / 10",
-  "@topRatedScore": {"placeholders": {"score": {"type": "String"}}},
+  "@topRatedScore": {
+    "placeholders": {
+      "score": {
+        "type": "String"
+      }
+    }
+  },
   "weeklyGoalLabel": "{pages} / {goal} pages",
-  "@weeklyGoalLabel": {"placeholders": {"pages": {"type": "int"}, "goal": {"type": "int"}}},
+  "@weeklyGoalLabel": {
+    "placeholders": {
+      "pages": {
+        "type": "int"
+      },
+      "goal": {
+        "type": "int"
+      }
+    }
+  },
   "weeklyBadgesTitle": "Badges",
   "weeklyBadgesEarned": "{earned} of {total} earned",
-  "@weeklyBadgesEarned": {"placeholders": {"earned": {"type": "int"}, "total": {"type": "int"}}},
+  "@weeklyBadgesEarned": {
+    "placeholders": {
+      "earned": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "badgeFirstUnit": "First finish",
   "badgeStreak3": "3-day streak",
   "badgeStreak7": "7-day streak",
@@ -566,7 +632,13 @@
   "badgeLocked": "Not yet",
   "rewardsLocalNote": "These badges live on this device only. They are not a currency and are never uploaded.",
   "weeklyStreak": "{days}-day streak",
-  "@weeklyStreak": {"placeholders": {"days": {"type": "int"}}},
+  "@weeklyStreak": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
   "newsTitle": "News",
   "newsSubtitle": "Release notes, fresh chapters and the extension market",
   "newsReleases": "Release notes",
@@ -574,27 +646,301 @@
   "newsChaptersEmpty": "No source reported a new chapter yet.",
   "newsMarket": "Extension market",
   "newsMarketBody": "{extensions} extensions · {sources} sources · {publishers} publishers",
-  "@newsMarketBody": {"placeholders": {"extensions": {"type": "int"}, "sources": {"type": "int"}, "publishers": {"type": "int"}}},
+  "@newsMarketBody": {
+    "placeholders": {
+      "extensions": {
+        "type": "int"
+      },
+      "sources": {
+        "type": "int"
+      },
+      "publishers": {
+        "type": "int"
+      }
+    }
+  },
   "newsMarketCached": "Saved index — connect to refresh",
   "newsOpenDirectory": "Open the directory",
   "newsVersionDate": "v{version} · {date}",
-  "@newsVersionDate": {"placeholders": {"version": {"type": "String"}, "date": {"type": "String"}}},
+  "@newsVersionDate": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "contributorsTitle": "Top contributors",
   "contributorsSubtitle": "The publishers behind the extension directory",
   "contributorsBody": "Community publishers, not Best staff. Activating an extension installs their APK; updates come from the same repository.",
   "contributorsExtensions": "{count} extensions",
-  "@contributorsExtensions": {"placeholders": {"count": {"type": "int"}}},
+  "@contributorsExtensions": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "contributorsSources": "{count} sources",
-  "@contributorsSources": {"placeholders": {"count": {"type": "int"}}},
+  "@contributorsSources": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "contributorsYourTitle": "Your shelf",
   "contributorsYourBody": "{works} works · {units} chapters finished",
-  "@contributorsYourBody": {"placeholders": {"works": {"type": "int"}, "units": {"type": "int"}}},
+  "@contributorsYourBody": {
+    "placeholders": {
+      "works": {
+        "type": "int"
+      },
+      "units": {
+        "type": "int"
+      }
+    }
+  },
   "contributorsEmpty": "The directory has not loaded. Connect and try again.",
   "contributorsLanguages": "Languages",
   "contributorsAnime": "Anime",
   "contributorsManga": "Manga",
   "sourcesReady": "{count} sources",
-  "@sourcesReady": {"placeholders": {"count": {"type": "int"}}},
+  "@sourcesReady": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "liveBadge": "LIVE",
-  "sectionMore": "More from Best"
+  "sectionMore": "More from Best",
+  "readingGroup": "Reading",
+  "readerModeTitle": "Page layout",
+  "readerModeBody": "Paged turns one page at a time; vertical joins the chapter into a single scroll, the way webtoons are drawn.",
+  "readerModePaged": "Paged",
+  "readerModeVertical": "Vertical",
+  "aboutUpdatesGroup": "About & updates",
+  "versionLabel": "Version",
+  "checkUpdates": "Check for updates",
+  "checkingUpdates": "Checking…",
+  "updateAvailable": "Version {version} is available",
+  "updateUpToDate": "You are on the latest version",
+  "updateCheckFailed": "Couldn't check for updates",
+  "updateNetwork": "No connection. Try again when you're online.",
+  "updateRateLimited": "GitHub is rate-limiting checks. Try again later.",
+  "updateNotFound": "No published release was found.",
+  "updateMalformed": "The update server sent something unexpected.",
+  "updateServer": "GitHub returned an error. Try again later.",
+  "aboutTitle": "About Best",
+  "aboutSubtitle": "Version, updates and the project",
+  "aboutVersionLine": "Version {version} · build {build}",
+  "aboutUpdatesBody": "Best is distributed as a signed APK on GitHub. The check reads the public release feed; nothing is uploaded, and no update installs without your tap.",
+  "downloadUpdate": "Download update",
+  "openReleasePage": "Open the release page",
+  "viewSource": "View source on GitHub",
+  "releaseNotes": "What's new",
+  "releaseNotesEmpty": "This release has no notes.",
+  "publishedOn": "Published {date}",
+  "updateBannerTitle": "Best {version} is ready",
+  "updateBannerBody": "A new signed build is on GitHub.",
+  "seeWhatsNew": "See what's new",
+  "aboutLicenses": "Open-source licenses",
+  "aboutLocalNote": "Your library, progress and downloads stay on this device.",
+  "@updateAvailable": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "@aboutVersionLine": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "build": {
+        "type": "String"
+      }
+    }
+  },
+  "@publishedOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "@updateBannerTitle": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "linkFailed": "Couldn't open the link.",
+  "navHistory": "History",
+  "navTop": "Leaderboard",
+  "navMenu": "Menu",
+  "homeLatest": "Latest",
+  "homePopular": "Popular",
+  "homeRecommended": "For you",
+  "homeChooseSource": "Choose a source",
+  "homeSourcesSubtitle": "Pick a source to browse its catalogue",
+  "homeSourcesArabic": "Arabic sources",
+  "homeSourcesEnglish": "English sources",
+  "homeSourcesEmpty": "No matching sources",
+  "homeManageSources": "Manage sources",
+  "homeRefreshSources": "Refresh source list",
+  "homeNoLatest": "This source does not publish a latest page.",
+  "homeNoRatings": "This source does not publish ratings, so it cannot be ranked.",
+  "homeNoRecommendations": "Add works to your library to start recommendations.",
+  "homeNoResults": "Nothing in this tab right now.",
+  "historyTitle": "History",
+  "historyContinue": "Continue reading",
+  "historyRecent": "Recently opened",
+  "historyDownloads": "Active downloads",
+  "historyEmptyTitle": "No history yet",
+  "historyEmptyBody": "Open a work and start reading; it will appear here.",
+  "historyRecentEmpty": "You have not opened anything yet.",
+  "historyDownloadsEmpty": "No active downloads.",
+  "historyLastRead": "Last read",
+  "rankingsTitle": "Leaderboard",
+  "rankingsSubtitle": "A real ranking from MangaDex",
+  "rankingsByFollows": "Most followed",
+  "rankingsNote": "All numbers come from MangaDex; there is no in-app voting.",
+  "menuTitle": "Menu",
+  "menuLocalProfile": "Your library on this device",
+  "menuLocalNote": "No account, no upload; your data stays with you.",
+  "menuReadingGroup": "Reading",
+  "menuLibraryGroup": "Library",
+  "menuAppGroup": "App",
+  "menuWorks": "works",
+  "menuMinutes": "min",
+  "menuChaptersShort": "ch.",
+  "detailViewChapters": "View chapters",
+  "detailStory": "Story",
+  "detailReadMore": "Read more",
+  "detailReadLess": "Read less",
+  "detailRating": "Rating",
+  "open": "Open",
+  "homeSubtitle": "Your smart reading room",
+  "homeNewFromSources": "New from your sources",
+  "homePickUp": "Pick up where you left off",
+  "homeNothingKind": "Nothing of this kind right now.",
+  "homeAddSources": "Add sources",
+  "homeLatestBadge": "New",
+  "homeForYou": "Picked for you",
+  "homeSource": "Source",
+  "libraryGrid": "Grid",
+  "libraryList": "List",
+  "libraryView": "View",
+  "librarySort": "Sort",
+  "libraryFilter": "Filter",
+  "menuVersion": "Version",
+  "homeDemoMode": "Demo mode — add a source for a real catalogue.",
+  "navDatabase": "Database",
+  "metaTitle": "The Database",
+  "metaSubtitle": "Anime and manhwa from four databases",
+  "metaSearchHint": "Search a title, studio, or author…",
+  "metaSearchTitle": "Search the database",
+  "metaTrending": "Trending now",
+  "metaTrendingSub": "By AniList",
+  "metaAiring": "Airing now",
+  "metaAiringSub": "Releasing this season",
+  "metaMalTop": "Top on MyAnimeList",
+  "metaMalTopSub": "Ranked by the MAL community",
+  "metaHwaTop": "Manhwa spotlight",
+  "metaHwaTopSub": "Top rated on MangaUpdates",
+  "metaNews": "Anime news",
+  "metaNewsSub": "From Anime Corner",
+  "metaOpenSource": "Open on source",
+  "metaFindInSources": "Find in your sources",
+  "metaStory": "Story",
+  "metaReadMore": "Read more",
+  "metaReadLess": "Less",
+  "metaNumbers": "By the numbers",
+  "metaRank": "Rank",
+  "metaPopularity": "Popularity",
+  "metaFavourites": "Favourites",
+  "metaVotes": "Ratings",
+  "metaMembers": "Members",
+  "metaEpisodes": "Episodes",
+  "metaChapters": "Chapters",
+  "metaDuration": "Duration",
+  "metaFormat": "Format",
+  "metaSeason": "Season",
+  "metaYear": "Year",
+  "metaCountry": "Country",
+  "metaGenres": "Genres",
+  "metaCredits": "Credits",
+  "metaLinks": "Official links",
+  "metaSimilar": "More like this",
+  "metaNoResults": "No results",
+  "metaNoResultsBody": "Try another title or the native name.",
+  "metaSearchStart": "Search AniList, MyAnimeList, and hwa.so",
+  "metaSearchStartBody": "Type at least two characters.",
+  "metaTryExamples": "Try:",
+  "metaSourceUnavailable": "{source} did not answer",
+  "metaSourceUnavailableBody": "The other sources still work. Try again later.",
+  "metaAttribution": "Data and scores from AniList, MyAnimeList, hwa.so, and Anime Corner.",
+  "metaAttributionNote": "Each community keeps its own score; we never blend them.",
+  "metaLoading": "Gathering the database…",
+  "metaError": "Couldn't load the database",
+  "metaAllNews": "All news",
+  "metaOpenArticle": "Open article",
+  "metaBy": "By {author}",
+  "metaTopAnime": "Top anime",
+  "metaFullRanking": "Full ranking",
+  "statusAiring": "Airing",
+  "statusFinished": "Finished",
+  "statusUpcoming": "Upcoming",
+  "statusAnnounced": "Announced",
+  "menuSourcesGroup": "Sources",
+  "menuToolsGroup": "Tools",
+  "menuHistoryBody": "What you read and your downloads",
+  "menuDownloadsBody": "Chapters saved on this device",
+  "menuStatsBody": "Your pages and badges",
+  "menuDatabaseBody": "Anime and manhwa from four databases",
+  "menuNewsBody": "Releases and source news",
+  "menuTopBody": "Real scores from MangaDex",
+  "menuContributorsBody": "Extension publishers",
+  "menuExtensionsBody": "Install and manage extensions",
+  "menuDirectoryBody": "Every available site",
+  "menuSettingsBody": "Theme, reading and downloads",
+  "menuBackupBody": "Local backup",
+  "menuSyncBody": "Encrypted WebDAV sync",
+  "menuAboutBody": "Version and updates",
+  "@metaSourceUnavailable": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "@metaBy": {
+    "placeholders": {
+      "author": {
+        "type": "String"
+      }
+    }
+  },
+  "metaEpShort": "ep",
+  "metaChShort": "ch",
+  "metaMembersShort": "members",
+  "metaDetails": "Details",
+  "metaSources": "Sources",
+  "metaErrorBody": "Check your connection; all four sources need the internet.",
+  "metaOpenFailed": "Couldn't open the link.",
+  "metaStoryCredit": "Story",
+  "metaArtCredit": "Art",
+  "metaStudio": "Studio",
+  "metaPublisher": "Publisher",
+  "metaNextEpisode": "Next episode",
+  "metaThemes": "Themes",
+  "metaAnimeResults": "Anime",
+  "metaManhwaResults": "Manhwa & manga",
+  "metaSearchResults": "Results"
 }

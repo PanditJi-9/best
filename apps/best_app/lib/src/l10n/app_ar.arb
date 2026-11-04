@@ -4,7 +4,7 @@
   "tagline": "مانجا · مانهوا · أنمي · دراما",
   "startReading": "ابدأ القراءة",
   "backToSeries": "رجوع إلى العمل",
-  "navLibrary": "المكتبة",
+  "navLibrary": "مكتبتي",
   "navBrowse": "تصفّح",
   "navDownloads": "التحميلات",
   "navSettings": "الإعدادات",
@@ -80,7 +80,7 @@
   "themeLight": "فاتح",
   "themeDark": "داكن",
   "about": "حول",
-  "aboutBody": "بست 0.4.2 — رفّ واحد للمانجا والمانهوا والأنمي والدراما الآسيوية، مع مشغل فيديو حقيقي. مبني ليبقى سريعاً على هاتف متوسط.",
+  "aboutBody": "بست — رفّ واحد للمانجا والمانهوا والأنمي والدراما الآسيوية، بمشغّل فيديو حقيقي. مبني ليبقى سريعاً على هاتف متوسط.",
   "pageOf": "صفحة {current} من {total}",
   "@pageOf": {
     "placeholders": {
@@ -449,7 +449,16 @@
   "directorySearch": "ابحث عن موقع أو إضافة أو لغة",
   "directoryIntro": "حزم الإضافات الأصلية من Keiyoushi وYuzono. إضافات مجتمعية، وليست تطبيقات المواقع الرسمية. عمل كل موقع يعتمد على توفره.",
   "directoryCounts": "{bundles} إضافة · {sources} مدخل مصدر/لغة",
-  "@directoryCounts": {"placeholders": {"bundles": {"type": "int"}, "sources": {"type": "int"}}},
+  "@directoryCounts": {
+    "placeholders": {
+      "bundles": {
+        "type": "int"
+      },
+      "sources": {
+        "type": "int"
+      }
+    }
+  },
   "directoryInstalled": "المفعّلة",
   "directoryUpdates": "التحديثات",
   "directoryActivate": "تفعيل",
@@ -474,7 +483,13 @@
   "directoryAutoUpdatesBody": "فحص المفعّل عند فتح بست أو العودة إليه، كل ٦ ساعات كحد أقصى. لا تُثبّت مواقع جديدة تلقائيًا.",
   "directoryUpdating": "جارٍ فحص تحديثات الناشرين…",
   "directoryUpdateDone": "تم تحديث {count} إضافة",
-  "@directoryUpdateDone": {"placeholders": {"count": {"type": "int"}}},
+  "@directoryUpdateDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "directoryUpdateFailed": "تعذّر بعض التحديثات؛ احتُفظ بالإضافات السابقة.",
   "directoryAndroidOnly": "تفعيل الإضافات متاح في نسخة أندرويد APK.",
   "directoryActivationFailed": "تعذّر تفعيل الإضافة. أعد المحاولة عند الاتصال.",
@@ -559,5 +574,231 @@
   "contributorsManga": "مانجا",
   "sourcesReady": "{count} مصدر",
   "liveBadge": "مباشر",
-  "sectionMore": "المزيد من بست"
+  "sectionMore": "المزيد من بست",
+  "readingGroup": "القراءة",
+  "readerModeTitle": "تخطيط الصفحات",
+  "readerModeBody": "«صفحات» يقلّب صفحة واحدة في كل مرة، و«عمودي» يصل الفصل في تمريرة واحدة كما تُرسم المانهوا.",
+  "readerModePaged": "صفحات",
+  "readerModeVertical": "عمودي",
+  "aboutUpdatesGroup": "حول والتحديثات",
+  "versionLabel": "الإصدار",
+  "checkUpdates": "التحقق من التحديثات",
+  "checkingUpdates": "جارٍ التحقق…",
+  "updateAvailable": "الإصدار {version} متاح",
+  "updateUpToDate": "أنت على أحدث إصدار",
+  "updateCheckFailed": "تعذّر التحقق من التحديثات",
+  "updateNetwork": "لا يوجد اتصال. أعد المحاولة عند الاتصال.",
+  "updateRateLimited": "GitHub يحدّ من الطلبات الآن. أعد المحاولة لاحقاً.",
+  "updateNotFound": "لا يوجد إصدار منشور.",
+  "updateMalformed": "أرسل خادم التحديثات رداً غير متوقع.",
+  "updateServer": "أعاد GitHub خطأً. أعد المحاولة لاحقاً.",
+  "aboutTitle": "حول بست",
+  "aboutSubtitle": "الإصدار والتحديثات والمشروع",
+  "aboutVersionLine": "الإصدار {version} · البناء {build}",
+  "aboutUpdatesBody": "يُوزَّع بست كملف APK موقّع على GitHub. يقرأ الفحص قائمة الإصدارات العامة؛ لا يُرفع شيء، ولا يُثبَّت تحديث دون لمسك.",
+  "downloadUpdate": "تنزيل التحديث",
+  "openReleasePage": "فتح صفحة الإصدار",
+  "viewSource": "عرض المصدر على GitHub",
+  "releaseNotes": "الجديد",
+  "releaseNotesEmpty": "لا توجد ملاحظات لهذا الإصدار.",
+  "publishedOn": "نُشر في {date}",
+  "updateBannerTitle": "بست {version} جاهز",
+  "updateBannerBody": "نسخة موقّعة جديدة على GitHub.",
+  "seeWhatsNew": "شاهد الجديد",
+  "aboutLicenses": "تراخيص المصادر المفتوحة",
+  "aboutLocalNote": "مكتبتك وتقدّمك وتحميلاتك تبقى على هذا الجهاز.",
+  "@updateAvailable": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "@aboutVersionLine": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "build": {
+        "type": "String"
+      }
+    }
+  },
+  "@publishedOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "@updateBannerTitle": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "linkFailed": "تعذّر فتح الرابط.",
+  "navHistory": "السجل",
+  "navTop": "المتصدرون",
+  "navMenu": "القائمة",
+  "homeLatest": "الأحدث",
+  "homePopular": "الأكثر شعبية",
+  "homeRecommended": "توصيات",
+  "homeChooseSource": "اختر مصدرًا",
+  "homeSourcesSubtitle": "اختر مصدرًا لعرض كتالوجه",
+  "homeSourcesArabic": "المصادر العربية",
+  "homeSourcesEnglish": "المصادر الإنجليزية",
+  "homeSourcesEmpty": "لا توجد مصادر مطابقة",
+  "homeManageSources": "إدارة المصادر",
+  "homeRefreshSources": "تحديث قائمة المصادر",
+  "homeNoLatest": "هذا المصدر لا ينشر صفحة «الأحدث».",
+  "homeNoRatings": "هذا المصدر لا ينشر تقييمات، لذلك لا يمكن ترتيبه.",
+  "homeNoRecommendations": "أضف أعمالًا إلى مكتبتك ليبدأ الاقتراح.",
+  "homeNoResults": "لا توجد أعمال في هذا التبويب الآن.",
+  "historyTitle": "السجل",
+  "historyContinue": "أكمل القراءة",
+  "historyRecent": "آخر المشاهدات",
+  "historyDownloads": "التحميلات الجارية",
+  "historyEmptyTitle": "لا يوجد سجل بعد",
+  "historyEmptyBody": "افتح عملًا وابدأ القراءة، وسيظهر هنا.",
+  "historyRecentEmpty": "لم تفتح أي عمل بعد.",
+  "historyDownloadsEmpty": "لا توجد تحميلات جارية.",
+  "historyLastRead": "آخر قراءة",
+  "rankingsTitle": "المتصدرون",
+  "rankingsSubtitle": "ترتيب حقيقي من MangaDex",
+  "rankingsByFollows": "الأكثر متابعة",
+  "rankingsNote": "كل الأرقام من MangaDex؛ لا تصويت داخل التطبيق.",
+  "menuTitle": "القائمة",
+  "menuLocalProfile": "مكتبتك على هذا الجهاز",
+  "menuLocalNote": "لا حساب ولا رفع؛ بياناتك تبقى معك.",
+  "menuReadingGroup": "القراءة",
+  "menuLibraryGroup": "المكتبة",
+  "menuAppGroup": "التطبيق",
+  "menuWorks": "عمل",
+  "menuMinutes": "دقيقة",
+  "menuChaptersShort": "فصل",
+  "detailViewChapters": "عرض الفصول",
+  "detailStory": "القصة",
+  "detailReadMore": "عرض المزيد",
+  "detailReadLess": "عرض أقل",
+  "detailRating": "التقييم",
+  "open": "فتح",
+  "homeSubtitle": "رفّك الذكي للقراءة",
+  "homeNewFromSources": "جديد من مصادرك",
+  "homePickUp": "واصل من حيث توقفت",
+  "homeNothingKind": "لا أعمال من هذا النوع الآن.",
+  "homeAddSources": "أضف مصادر",
+  "homeLatestBadge": "جديد",
+  "homeForYou": "مختارات لك",
+  "homeSource": "المصدر",
+  "libraryGrid": "شبكة",
+  "libraryList": "قائمة",
+  "libraryView": "طريقة العرض",
+  "librarySort": "الترتيب",
+  "libraryFilter": "تصفية",
+  "menuVersion": "الإصدار",
+  "homeDemoMode": "وضع العرض — أضف مصدرًا لكتالوج حقيقي.",
+  "navDatabase": "الموسوعة",
+  "metaTitle": "الموسوعة",
+  "metaSubtitle": "أنمي ومانهوا من أربع قواعد بيانات",
+  "metaSearchHint": "ابحث عن عمل أو استوديو أو مؤلف…",
+  "metaSearchTitle": "بحث في الموسوعة",
+  "metaTrending": "الأكثر رواجًا الآن",
+  "metaTrendingSub": "حسب AniList",
+  "metaAiring": "يُعرض الآن",
+  "metaAiringSub": "أنمي مستمر هذا الموسم",
+  "metaMalTop": "الأعلى في MyAnimeList",
+  "metaMalTopSub": "ترتيب مجتمع MAL",
+  "metaHwaTop": "مانهوا مختارة",
+  "metaHwaTopSub": "الأعلى تقييمًا على MangaUpdates",
+  "metaNews": "أخبار الأنمي",
+  "metaNewsSub": "من Anime Corner",
+  "metaOpenSource": "افتح في المصدر",
+  "metaFindInSources": "ابحث في مصادرك",
+  "metaStory": "القصة",
+  "metaReadMore": "اقرأ المزيد",
+  "metaReadLess": "أقل",
+  "metaNumbers": "بالأرقام",
+  "metaRank": "الترتيب",
+  "metaPopularity": "الشعبية",
+  "metaFavourites": "المفضلة",
+  "metaVotes": "التقييمات",
+  "metaMembers": "الأعضاء",
+  "metaEpisodes": "الحلقات",
+  "metaChapters": "الفصول",
+  "metaDuration": "المدة",
+  "metaFormat": "الصيغة",
+  "metaSeason": "الموسم",
+  "metaYear": "السنة",
+  "metaCountry": "البلد",
+  "metaGenres": "التصنيفات",
+  "metaCredits": "فريق العمل",
+  "metaLinks": "روابط رسمية",
+  "metaSimilar": "أعمال مشابهة",
+  "metaNoResults": "لا نتائج",
+  "metaNoResultsBody": "جرّب عنوانًا آخر أو الاسم الأصلي.",
+  "metaSearchStart": "ابحث في AniList وMyAnimeList وhwa.so",
+  "metaSearchStartBody": "اكتب حرفين على الأقل.",
+  "metaTryExamples": "جرّب:",
+  "metaSourceUnavailable": "لم يستجب {source}",
+  "metaSourceUnavailableBody": "بقية المصادر تعمل. أعد المحاولة لاحقًا.",
+  "metaAttribution": "البيانات والتقييمات من AniList وMyAnimeList وhwa.so وAnime Corner.",
+  "metaAttributionNote": "لكل مجتمع تقييمه؛ ولا نخلط الدرجات.",
+  "metaLoading": "نجمع البيانات…",
+  "metaError": "تعذّر تحميل الموسوعة",
+  "metaAllNews": "كل الأخبار",
+  "metaOpenArticle": "افتح المقال",
+  "metaBy": "بقلم {author}",
+  "metaTopAnime": "أفضل الأنمي",
+  "metaFullRanking": "الترتيب الكامل",
+  "statusAiring": "يُعرض",
+  "statusFinished": "انتهى",
+  "statusUpcoming": "قادم",
+  "statusAnnounced": "معلن",
+  "menuSourcesGroup": "المصادر",
+  "menuToolsGroup": "الأدوات",
+  "menuHistoryBody": "آخر ما قرأت وتنزيلاتك",
+  "menuDownloadsBody": "الفصول المحفوظة على الجهاز",
+  "menuStatsBody": "صفحاتك وشاراتك",
+  "menuDatabaseBody": "أنمي ومانهوا من أربع قواعد بيانات",
+  "menuNewsBody": "إصدارات وأخبار المصادر",
+  "menuTopBody": "تقييمات حقيقية من MangaDex",
+  "menuContributorsBody": "ناشرو الإضافات",
+  "menuExtensionsBody": "تثبيت وإدارة الإضافات",
+  "menuDirectoryBody": "كل المواقع المتاحة",
+  "menuSettingsBody": "المظهر والقراءة والتحميل",
+  "menuBackupBody": "نسخة احتياطية محلية",
+  "menuSyncBody": "مزامنة مشفّرة عبر WebDAV",
+  "menuAboutBody": "الإصدار والتحديثات",
+  "@metaSourceUnavailable": {
+    "placeholders": {
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "@metaBy": {
+    "placeholders": {
+      "author": {
+        "type": "String"
+      }
+    }
+  },
+  "metaEpShort": "حلقة",
+  "metaChShort": "فصل",
+  "metaMembersShort": "عضو",
+  "metaDetails": "التفاصيل",
+  "metaSources": "المصادر",
+  "metaErrorBody": "تحقّق من اتصالك؛ المصادر الأربعة تحتاج الإنترنت.",
+  "metaOpenFailed": "تعذّر فتح الرابط.",
+  "metaStoryCredit": "القصة",
+  "metaArtCredit": "الرسم",
+  "metaStudio": "الاستوديو",
+  "metaPublisher": "الناشر",
+  "metaNextEpisode": "الحلقة القادمة",
+  "metaThemes": "السمات",
+  "metaAnimeResults": "أنمي",
+  "metaManhwaResults": "مانهوا ومانجا",
+  "metaSearchResults": "النتائج"
 }
