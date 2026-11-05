@@ -232,7 +232,7 @@ class EmptyState extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: BestSpace.xl,
-            vertical: BestSpace.xxl,
+            vertical: BestSpace.lg,
           ),
           child: TweenAnimationBuilder<double>(
             tween: Tween<double>(begin: 0, end: 1),
