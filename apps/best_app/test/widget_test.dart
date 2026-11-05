@@ -271,15 +271,17 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
-    // Bring the first episode fully on screen. Its section header sits just
-    // above it, so the header stays in the built range.
+    // Bring the first episode fully on screen.
     await tester.ensureVisible(find.text('Episode 1'));
     await tester.pumpAndSettle();
     // The stat strip names episodes too, so only the section header counts.
+    // Finders skip widgets scrolled out of view by default. The header can end
+    // up just above the first episode, so search the built tree instead.
     expect(
       find.descendant(
-        of: find.byType(SectionHeader),
-        matching: find.text('Episodes'),
+        of: find.byType(SectionHeader, skipOffstage: false),
+        matching: find.text('Episodes', skipOffstage: false),
+        skipOffstage: false,
       ),
       findsOneWidget,
     );
