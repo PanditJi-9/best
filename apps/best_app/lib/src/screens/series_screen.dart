@@ -22,10 +22,7 @@ class SeriesScreen extends ConsumerWidget {
     final data = ref.watch(seriesProvider(key));
 
     return data.when(
-      loading: () => Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: CircularProgressIndicator()),
-      ),
+      loading: () => const _SeriesSkeleton(),
       error: (error, stack) => Scaffold(
         appBar: AppBar(),
         body: EmptyState(
@@ -40,6 +37,48 @@ class SeriesScreen extends ConsumerWidget {
         ),
       ),
       data: (series) => _SeriesBody(data: series, seriesKey: key),
+    );
+  }
+}
+
+/// The series page while its details load: the same silhouette as the loaded
+/// page (cover, title, primary action, a few chapter rows), so the layout does
+/// not jump when the real content arrives.
+class _SeriesSkeleton extends StatelessWidget {
+  const _SeriesSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(),
+      body: const SingleChildScrollView(
+        physics: NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(
+          BestLayout.gutter,
+          BestSpace.sm,
+          BestLayout.gutter,
+          BestSpace.xl,
+        ),
+        child: BestPulse(
+          child: Column(
+            children: [
+              BestSkeletonBox(width: 124, height: 186, radius: BestRadius.md),
+              SizedBox(height: BestSpace.xl),
+              BestSkeletonBox(width: 220, height: 22, radius: 6),
+              SizedBox(height: BestSpace.md),
+              BestSkeletonBox(width: 140, height: 14, radius: 6),
+              SizedBox(height: BestSpace.xl),
+              BestSkeletonBox(height: 52, radius: BestRadius.md),
+              SizedBox(height: BestSpace.xl),
+              RowSkeleton(),
+              SizedBox(height: 10),
+              RowSkeleton(),
+              SizedBox(height: 10),
+              RowSkeleton(),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -99,7 +138,7 @@ class _SeriesBody extends ConsumerWidget {
                         textAlign: TextAlign.center,
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w900,
-                          letterSpacing: -0.8,
+                          letterSpacing: BestType.tracking(context, -0.8),
                           height: 1.08,
                         ),
                       ),
@@ -845,7 +884,7 @@ class _ShelfPlan extends ConsumerWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  letterSpacing: 1.4,
+                  letterSpacing: BestType.tracking(context, 1.4),
                   fontWeight: FontWeight.w700,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),

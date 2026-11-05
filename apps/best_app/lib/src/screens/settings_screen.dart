@@ -470,7 +470,7 @@ class SettingsScreen extends ConsumerWidget {
                                     style:
                                         theme.textTheme.titleMedium?.copyWith(
                                       fontWeight: FontWeight.w900,
-                                      letterSpacing: -0.3,
+                                      letterSpacing: BestType.tracking(context, -0.3),
                                     ),
                                   ),
                                   Text(
@@ -520,7 +520,7 @@ class SettingsScreen extends ConsumerWidget {
                   color: theme.colorScheme.onSurfaceVariant.withValues(
                     alpha: 0.7,
                   ),
-                  letterSpacing: 0.4,
+                  letterSpacing: BestType.tracking(context, 0.4),
                 ),
               ),
             ),
@@ -622,7 +622,7 @@ class _ProfileCard extends StatelessWidget {
                       l10n.appName,
                       style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w900,
-                        letterSpacing: -1,
+                        letterSpacing: BestType.tracking(context, -1),
                         height: 1,
                       ),
                     ),
@@ -633,7 +633,7 @@ class _ProfileCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
-                        letterSpacing: 0.3,
+                        letterSpacing: BestType.tracking(context, 0.3),
                       ),
                     ),
                   ],
@@ -654,7 +654,7 @@ class _ProfileCard extends StatelessWidget {
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 0.4,
+                      letterSpacing: BestType.tracking(context, 0.4),
                     ),
                   ),
                 ),
@@ -766,7 +766,7 @@ class _Group extends StatelessWidget {
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 0.7,
+                    letterSpacing: BestType.tracking(context, 0.7),
                   ),
                 ),
               ],
@@ -1004,7 +1004,7 @@ class _PackTile extends StatelessWidget {
                     detail!.toUpperCase(),
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
-                      letterSpacing: 0.6,
+                      letterSpacing: BestType.tracking(context, 0.6),
                     ),
                   ),
               ],

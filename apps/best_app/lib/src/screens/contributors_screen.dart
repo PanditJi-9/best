@@ -364,7 +364,7 @@ class _KindChip extends StatelessWidget {
       child: Text(
         label,
         style: theme.textTheme.labelSmall?.copyWith(
-          fontSize: 9,
+          fontSize: 10,
           color: theme.colorScheme.onSurfaceVariant,
         ),
       ),

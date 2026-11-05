@@ -361,7 +361,7 @@ class _SourceTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
-                        letterSpacing: 0.2,
+                        letterSpacing: BestType.tracking(context, 0.2),
                       ),
                     ),
                   ],

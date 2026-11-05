@@ -305,7 +305,7 @@ class _ContinueCard extends ConsumerWidget {
                               : l10n.continueReading,
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
-                            fontSize: 10,
+                            fontSize: 10.5,
                           ),
                         ),
                         const Spacer(),
@@ -419,7 +419,7 @@ class _RecentRow extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
-                        fontSize: 10,
+                        fontSize: 10.5,
                       ),
                     ),
                   ],
@@ -545,7 +545,7 @@ class _DownloadRow extends StatelessWidget {
                 status,
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: 10,
+                  fontSize: 10.5,
                 ),
               ),
             ],
@@ -575,7 +575,7 @@ class _DownloadRow extends StatelessWidget {
               l10n.downloadProgress(task.completed, task.total),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 9.5,
+                fontSize: 10.5,
               ),
             ),
           ],

@@ -4,9 +4,15 @@ import 'tokens.dart';
 
 /// A cover that never shows a broken image icon.
 ///
-/// When a source has no cover, or the network fails, the fallback is a stable
-/// gradient derived from the title plus its first glyph. That keeps the shelf
-/// looking intentional offline instead of filling it with grey boxes.
+/// While the artwork loads, the slot shows a quiet sunken surface (no letter
+/// flash, no pulse: a grid of nine covers must not blink). When the first frame
+/// arrives the image fades in. When a source has no cover, or the network
+/// fails, the fallback is a stable gradient derived from the title plus its
+/// first glyph. That keeps the shelf looking intentional offline instead of
+/// filling it with grey boxes.
+///
+/// Decoding is capped to the size the slot is actually painted at, so a
+/// 1200 px source never costs full-resolution memory inside a 120 px tile.
 class BestCover extends StatelessWidget {
   const BestCover({
     super.key,
@@ -19,36 +25,63 @@ class BestCover extends StatelessWidget {
   final String? url;
   final double radius;
 
+  /// Never decode a cover wider than this, however large the slot is.
+  static const int _maxDecodeWidth = 1080;
+
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final fallback = _CoverFallback(title: title);
-    final image = (url == null || url!.isEmpty)
-        ? fallback
-        : Image.network(
+    final hasUrl = url != null && url!.isNotEmpty;
+
+    Widget content;
+    if (!hasUrl) {
+      content = fallback;
+    } else {
+      final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
+      final fade = BestMotionPolicy.of(context, BestMotion.slow);
+      content = LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final width = constraints.maxWidth;
+          final int? cacheWidth = width.isFinite && width > 0
+              ? (width * dpr).round().clamp(64, _maxDecodeWidth).toInt()
+              : null;
+          return Image.network(
             url!,
             fit: BoxFit.cover,
+            cacheWidth: cacheWidth,
             filterQuality: FilterQuality.medium,
+            gaplessPlayback: true,
             frameBuilder: (
               BuildContext context,
               Widget child,
               int? frame,
               bool wasSynchronouslyLoaded,
             ) {
-              if (wasSynchronouslyLoaded || frame != null) return child;
-              return fallback;
+              if (wasSynchronouslyLoaded) return child;
+              return AnimatedOpacity(
+                opacity: frame == null ? 0 : 1,
+                duration: fade,
+                curve: BestMotion.curve,
+                child: child,
+              );
             },
             errorBuilder: (
               BuildContext context,
               Object error,
               StackTrace? stack,
-            ) => fallback,
+            ) =>
+                fallback,
           );
+        },
+      );
+    }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: ColoredBox(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: image,
+        color: scheme.surfaceContainerHighest,
+        child: content,
       ),
     );
   }
@@ -60,12 +93,12 @@ class _CoverFallback extends StatelessWidget {
   final String title;
 
   static const List<List<Color>> _palettes = [
-    [Color(0xFF2A1B16), Color(0xFF7A3526)],
-    [Color(0xFF1D2420), Color(0xFF3F6B57)],
-    [Color(0xFF2B2118), Color(0xFF8A5A32)],
+    [Color(0xFF14233F), Color(0xFF2F5FA8)],
+    [Color(0xFF12292B), Color(0xFF2F7F86)],
+    [Color(0xFF1C1F3A), Color(0xFF5B5FC7)],
     [Color(0xFF1B2433), Color(0xFF355C7D)],
-    [Color(0xFF2E1B24), Color(0xFF7B3B4C)],
-    [Color(0xFF22222A), Color(0xFF5A5A78)],
+    [Color(0xFF2A1B33), Color(0xFF7A4F9E)],
+    [Color(0xFF13262E), Color(0xFF3F7A8C)],
   ];
 
   @override
@@ -73,9 +106,8 @@ class _CoverFallback extends StatelessWidget {
     final trimmed = title.trim();
     final index = (trimmed.hashCode & 0x7fffffff) % _palettes.length;
     final palette = _palettes[index];
-    final glyph = trimmed.isEmpty
-        ? '?'
-        : String.fromCharCode(trimmed.runes.first);
+    final glyph =
+        trimmed.isEmpty ? '?' : String.fromCharCode(trimmed.runes.first);
 
     return DecoratedBox(
       decoration: BoxDecoration(

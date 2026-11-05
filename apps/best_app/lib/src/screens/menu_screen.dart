@@ -102,7 +102,7 @@ class MenuScreen extends ConsumerWidget {
                     padding: const EdgeInsets.only(top: BestSpace.xl),
                     child: Material(
                       color: Theme.of(context).colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(BestRadius.lg),
+                      shape: _cardShape(context),
                       clipBehavior: Clip.antiAlias,
                       child: ExpansionTile(
                         tilePadding: const EdgeInsetsDirectional.only(
@@ -152,7 +152,7 @@ class MenuScreen extends ConsumerWidget {
                     padding: const EdgeInsets.only(top: BestSpace.xl),
                     child: Material(
                       color: Theme.of(context).colorScheme.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(BestRadius.lg),
+                      shape: _cardShape(context),
                       clipBehavior: Clip.antiAlias,
                       child: _Tile(
                         icon: Icons.info_outline_rounded,
@@ -206,6 +206,12 @@ class MenuScreen extends ConsumerWidget {
   }
 }
 
+/// The card contract: a raised surface closed by a one-pixel outline.
+ShapeBorder _cardShape(BuildContext context) => RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(BestRadius.lg),
+      side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+    );
+
 class _Group extends StatelessWidget {
   const _Group({required this.title, required this.children});
 
@@ -222,7 +228,7 @@ class _Group extends StatelessWidget {
             const SizedBox(height: BestSpace.sm),
             Material(
               color: Theme.of(context).colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(BestRadius.lg),
+              shape: _cardShape(context),
               clipBehavior: Clip.antiAlias,
               child: Column(
                 children: [
@@ -231,7 +237,7 @@ class _Group extends StatelessWidget {
                     if (i < children.length - 1)
                       const Divider(
                         height: 1,
-                        indent: BestSpace.lg,
+                        indent: BestSpace.md + 40 + BestSpace.md,
                         endIndent: BestSpace.lg,
                       ),
                   ],
@@ -257,24 +263,33 @@ class _Tile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: BestSpace.md,
-          vertical: BestSpace.xs,
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return ListTile(
+      contentPadding: const EdgeInsetsDirectional.only(
+        start: BestSpace.md,
+        end: BestSpace.sm,
+        top: BestSpace.xs,
+        bottom: BestSpace.xs,
+      ),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: primary.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(BestRadius.md),
         ),
-        leading: Icon(
-          icon,
-          size: 22,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-        title: Text(title, style: BestType.cardTitle(context)),
-        subtitle: Text(
-          body,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: BestType.body(context),
-        ),
-        trailing: const Icon(Icons.chevron_right_rounded, size: 20),
-        onTap: onTap,
-      );
+        child: Icon(icon, size: 21, color: primary),
+      ),
+      title: Text(title, style: BestType.cardTitle(context)),
+      subtitle: Text(
+        body,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: BestType.body(context),
+      ),
+      trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+      onTap: onTap,
+    );
+  }
 }

@@ -110,6 +110,24 @@ abstract final class BestMotion {
 /// Minimum target size shared by the component themes.
 abstract final class BestLayout {
   static const double minTouch = 48;
+
+  /// The horizontal gutter every scrolling page uses. Rails bleed to the
+  /// screen edge and re-apply this value to their own first and last item, so
+  /// a card is never cut off at an invisible inner margin.
+  static const double gutter = 20;
+
+  /// Widest a tab's content column may grow before it is centred.
+  static const double maxContentWidth = 1120;
+}
+
+/// Reduced-motion aware helpers. A decorative animation asks here first, so a
+/// person who turned animations off in system settings gets a still screen.
+abstract final class BestMotionPolicy {
+  static bool reduced(BuildContext context) =>
+      MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
+  static Duration of(BuildContext context, Duration value) =>
+      reduced(context) ? Duration.zero : value;
 }
 
 /// The app's type voice, in one place.
@@ -131,7 +149,7 @@ abstract final class BestType {
       fontSize: 30,
       fontWeight: FontWeight.w800,
       height: 1.08,
-      letterSpacing: tracking(context, -0.8),
+      letterSpacing: tracking(context, -0.6),
     );
   }
 
@@ -150,9 +168,9 @@ abstract final class BestType {
   static TextStyle cardTitle(BuildContext context) {
     final theme = Theme.of(context);
     return theme.textTheme.titleSmall!.copyWith(
-      fontSize: 13.5,
+      fontSize: 14,
       fontWeight: FontWeight.w700,
-      height: 1.25,
+      height: 1.3,
       letterSpacing: 0,
     );
   }
@@ -161,9 +179,9 @@ abstract final class BestType {
   static TextStyle meta(BuildContext context) {
     final theme = Theme.of(context);
     return theme.textTheme.labelSmall!.copyWith(
-      fontSize: 10.5,
+      fontSize: 11.5,
       fontWeight: FontWeight.w500,
-      height: 1.3,
+      height: 1.35,
       color: theme.colorScheme.onSurfaceVariant,
       letterSpacing: 0,
     );
@@ -174,9 +192,9 @@ abstract final class BestType {
   static TextStyle eyebrow(BuildContext context) {
     final theme = Theme.of(context);
     return theme.textTheme.labelSmall!.copyWith(
-      fontSize: 9.5,
+      fontSize: 10.5,
       fontWeight: FontWeight.w800,
-      height: 1.1,
+      height: 1.15,
       letterSpacing: tracking(context, 1.1),
     );
   }
@@ -190,8 +208,8 @@ abstract final class BestType {
   static TextStyle body(BuildContext context) {
     final theme = Theme.of(context);
     return theme.textTheme.bodySmall!.copyWith(
-      fontSize: 11.5,
-      height: 1.5,
+      fontSize: 12.5,
+      height: 1.55,
       color: theme.colorScheme.onSurfaceVariant,
     );
   }

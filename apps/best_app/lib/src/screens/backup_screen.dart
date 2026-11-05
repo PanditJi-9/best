@@ -196,7 +196,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           Text(
             l10n.backupRestoreSection.toUpperCase(),
             style: theme.textTheme.labelSmall?.copyWith(
-              letterSpacing: 1.4,
+              letterSpacing: BestType.tracking(context, 1.4),
               fontWeight: FontWeight.w700,
               color: theme.colorScheme.onSurfaceVariant,
             ),

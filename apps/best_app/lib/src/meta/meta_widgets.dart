@@ -35,10 +35,10 @@ class MetaSourceChip extends StatelessWidget {
         maxLines: 1,
         style: TextStyle(
           color: color,
-          fontSize: compact ? 8.5 : 9.5,
+          fontSize: compact ? 9.5 : 10.5,
           fontWeight: FontWeight.w800,
           height: 1.1,
-          letterSpacing: 0.1,
+          letterSpacing: 0,
         ),
       ),
     );
@@ -99,7 +99,7 @@ class MetaScore extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 9,
+                fontSize: 10,
                 fontWeight: FontWeight.w400,
               ),
             ),
@@ -181,7 +181,7 @@ class MetaPosterCard extends StatelessWidget {
                           label,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 9.5,
+                            fontSize: 10.5,
                             fontWeight: FontWeight.w800,
                             height: 1.1,
                           ),
@@ -231,7 +231,7 @@ class MetaPosterCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 9.5,
+                fontSize: 10.5,
                 fontWeight: FontWeight.w400,
               ),
             ),
@@ -305,7 +305,7 @@ class MetaSectionHeader extends StatelessWidget {
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2,
+                    letterSpacing: BestType.tracking(context, -0.2),
                   ),
                 ),
                 if (subtitle != null) ...[
@@ -419,7 +419,7 @@ class MetaRankRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
-                      fontSize: 9.5,
+                      fontSize: 10.5,
                       fontWeight: FontWeight.w400,
                     ),
                   ),
@@ -528,7 +528,7 @@ class MetaNewsCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
-                              fontSize: 9,
+                              fontSize: 10,
                               fontWeight: FontWeight.w400,
                             ),
                           ),

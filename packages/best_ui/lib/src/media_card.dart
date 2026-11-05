@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
 import 'cover.dart';
+import 'press_scale.dart';
 import 'rating.dart';
 import 'tokens.dart';
+import 'work_card.dart' show CoverBadge;
 
-/// The shelf card: a poster, a printed kind label, and a title set in the
-/// display face. It takes already-localized strings so the package never needs
-/// to know which language the app is in.
+/// The shelf card: a poster, a printed kind label, and a title in the app's UI
+/// face (the same title style `WorkCard` uses, so a rail of `MediaCard`s and a
+/// grid of `WorkCard`s read as one family). It takes already-localized strings
+/// so the package never needs to know which language the app is in.
 class MediaCard extends StatelessWidget {
   const MediaCard({
     super.key,
@@ -43,7 +46,7 @@ class MediaCard extends StatelessWidget {
     return Semantics(
       button: true,
       label: title,
-      child: InkWell(
+      child: BestTapScale(
         onTap: onTap,
         borderRadius: BorderRadius.circular(BestRadius.md),
         child: Column(
@@ -69,31 +72,14 @@ class MediaCard extends StatelessWidget {
                       radius: BestRadius.md,
                     ),
                   ),
-                  if (badge != null)
+                  if (badge != null && badge!.trim().isNotEmpty)
                     PositionedDirectional(
                       top: BestSpace.sm,
                       start: BestSpace.sm,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: BestColors.cinnabar,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 3,
-                          ),
-                          child: Text(
-                            badge!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: BestColors.ink,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                        ),
+                      end: BestSpace.sm,
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: CoverBadge(label: badge!),
                       ),
                     ),
                   if (rating != null)
@@ -139,12 +125,7 @@ class MediaCard extends StatelessWidget {
                 title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontFamily: BestFonts.display,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  height: 1.25,
-                ),
+                style: BestType.cardTitle(context),
               ),
             ),
             const SizedBox(height: 2),
@@ -152,10 +133,7 @@ class MediaCard extends StatelessWidget {
               subtitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                letterSpacing: 0.2,
-              ),
+              style: BestType.meta(context),
             ),
             if (progress > 0) ...[
               const SizedBox(height: BestSpace.sm),
@@ -164,7 +142,8 @@ class MediaCard extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: progress.clamp(0.0, 1.0),
                   minHeight: 3,
-                  color: BestColors.cinnabar,
+                  color: theme.colorScheme.primary,
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
                 ),
               ),
             ],

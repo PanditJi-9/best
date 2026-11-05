@@ -636,7 +636,7 @@ class _WatchViewState extends ConsumerState<_WatchView> {
                               style: const TextStyle(
                                 color: Colors.white38,
                                 fontSize: 10,
-                                letterSpacing: 0.2,
+                                letterSpacing: 0,
                               ),
                             ),
                           ],

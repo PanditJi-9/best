@@ -13,6 +13,11 @@ import 'tokens.dart';
 /// screen can be written with plain `FilledButton`, `Chip` and `IconButton`
 /// and still land on the app's 48 dp target, radius and colour. A screen that
 /// hand-rolls those values is the thing this file exists to prevent.
+///
+/// Letter spacing is deliberately zero in every text role. Arabic is a
+/// first-class language here and Flutter turns off letter joining as soon as
+/// `letterSpacing` is non-zero, which breaks the cursive connection inside a
+/// word. Latin tracking is added per role through `BestType.tracking`.
 ThemeData bestTheme(Brightness brightness) {
   final isDark = brightness == Brightness.dark;
   final scheme = ColorScheme.fromSeed(
@@ -55,6 +60,8 @@ ThemeData bestTheme(Brightness brightness) {
     // the classic ripple: same feedback, no runtime shader dependency.
     splashFactory: InkRipple.splashFactory,
     fontFamily: BestFonts.text,
+    visualDensity: VisualDensity.standard,
+    materialTapTargetSize: MaterialTapTargetSize.padded,
   );
 
   final text = base.textTheme
@@ -68,36 +75,37 @@ ThemeData bestTheme(Brightness brightness) {
         displayLarge: base.textTheme.displayLarge?.copyWith(
           fontFamily: BestFonts.text,
           fontWeight: FontWeight.w800,
-          letterSpacing: -1.2,
+          letterSpacing: 0,
           height: 1.0,
         ),
         displayMedium: base.textTheme.displayMedium?.copyWith(
           fontFamily: BestFonts.text,
           fontWeight: FontWeight.w800,
-          letterSpacing: -0.8,
+          letterSpacing: 0,
           height: 1.02,
         ),
         displaySmall: base.textTheme.displaySmall?.copyWith(
           fontFamily: BestFonts.text,
           fontWeight: FontWeight.w800,
-          letterSpacing: -0.4,
+          letterSpacing: 0,
           height: 1.06,
         ),
         headlineLarge: base.textTheme.headlineLarge?.copyWith(
           fontFamily: BestFonts.text,
           fontWeight: FontWeight.w800,
-          letterSpacing: -0.4,
+          letterSpacing: 0,
           height: 1.08,
         ),
         headlineMedium: base.textTheme.headlineMedium?.copyWith(
           fontFamily: BestFonts.text,
           fontWeight: FontWeight.w800,
-          letterSpacing: -0.2,
+          letterSpacing: 0,
           height: 1.1,
         ),
         headlineSmall: base.textTheme.headlineSmall?.copyWith(
           fontFamily: BestFonts.text,
           fontWeight: FontWeight.w700,
+          letterSpacing: 0,
           height: 1.14,
         ),
         titleLarge: base.textTheme.titleLarge?.copyWith(
@@ -113,22 +121,34 @@ ThemeData bestTheme(Brightness brightness) {
         ),
         titleSmall: base.textTheme.titleSmall?.copyWith(
           fontWeight: FontWeight.w600,
+          letterSpacing: 0,
           height: 1.3,
         ),
-        bodyLarge: base.textTheme.bodyLarge?.copyWith(height: 1.6),
-        bodyMedium: base.textTheme.bodyMedium?.copyWith(height: 1.55),
-        bodySmall: base.textTheme.bodySmall?.copyWith(height: 1.5),
+        // Material 3 ships positive tracking on body text (0.25-0.5). That is
+        // fine for Latin and visibly separates joined Arabic letters.
+        bodyLarge: base.textTheme.bodyLarge?.copyWith(
+          letterSpacing: 0,
+          height: 1.6,
+        ),
+        bodyMedium: base.textTheme.bodyMedium?.copyWith(
+          letterSpacing: 0,
+          height: 1.55,
+        ),
+        bodySmall: base.textTheme.bodySmall?.copyWith(
+          letterSpacing: 0,
+          height: 1.5,
+        ),
         labelLarge: base.textTheme.labelLarge?.copyWith(
           fontWeight: FontWeight.w700,
-          letterSpacing: 0.1,
+          letterSpacing: 0,
         ),
         labelMedium: base.textTheme.labelMedium?.copyWith(
           fontWeight: FontWeight.w600,
-          letterSpacing: 0.1,
+          letterSpacing: 0,
         ),
         labelSmall: base.textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.w600,
-          letterSpacing: 0.15,
+          letterSpacing: 0,
         ),
       );
 
@@ -196,6 +216,16 @@ ThemeData bestTheme(Brightness brightness) {
         borderRadius: BorderRadius.circular(BestRadius.md),
         borderSide: BorderSide(color: scheme.primary, width: 1.4),
       ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(BestRadius.md),
+        borderSide: BorderSide(color: scheme.error),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(BestRadius.md),
+        borderSide: BorderSide(color: scheme.error, width: 1.4),
+      ),
+      prefixIconColor: scheme.onSurfaceVariant,
+      suffixIconColor: scheme.onSurfaceVariant,
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
@@ -205,6 +235,7 @@ ThemeData bestTheme(Brightness brightness) {
           borderRadius: BorderRadius.circular(BestRadius.md),
         ),
         textStyle: text.labelLarge?.copyWith(fontSize: 14),
+        iconSize: 18,
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -248,7 +279,13 @@ ThemeData bestTheme(Brightness brightness) {
       backgroundColor: isDark ? BestColors.inkElevated : BestColors.paperRaised,
       selectedColor: scheme.primaryContainer,
       shape: const StadiumBorder(),
-      side: BorderSide(color: scheme.outlineVariant),
+      side: WidgetStateBorderSide.resolveWith((Set<WidgetState> states) {
+        return BorderSide(
+          color: states.contains(WidgetState.selected)
+              ? scheme.primary.withValues(alpha: 0.55)
+              : scheme.outlineVariant,
+        );
+      }),
       labelStyle: text.labelMedium,
       padding: const EdgeInsets.symmetric(horizontal: BestSpace.md),
       labelPadding: const EdgeInsets.symmetric(horizontal: BestSpace.xs),
@@ -307,6 +344,66 @@ ThemeData bestTheme(Brightness brightness) {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(BestRadius.sm),
       ),
+    ),
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: <TargetPlatform, PageTransitionsBuilder>{
+        TargetPlatform.android: ZoomPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+        TargetPlatform.linux: ZoomPageTransitionsBuilder(),
+        TargetPlatform.fuchsia: ZoomPageTransitionsBuilder(),
+      },
+    ),
+    scrollbarTheme: ScrollbarThemeData(
+      radius: const Radius.circular(BestRadius.pill),
+      thickness: const WidgetStatePropertyAll<double>(3),
+      thumbColor: WidgetStatePropertyAll<Color>(
+        scheme.onSurfaceVariant.withValues(alpha: 0.38),
+      ),
+    ),
+    tooltipTheme: TooltipThemeData(
+      waitDuration: const Duration(milliseconds: 500),
+      textStyle: text.labelMedium?.copyWith(
+        color: isDark ? BestColors.ink : Colors.white,
+      ),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(BestRadius.sm),
+      ),
+    ),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith<Color?>(
+        (Set<WidgetState> states) =>
+            states.contains(WidgetState.selected) ? Colors.white : null,
+      ),
+      trackColor: WidgetStateProperty.resolveWith<Color?>(
+        (Set<WidgetState> states) =>
+            states.contains(WidgetState.selected) ? scheme.primary : null,
+      ),
+    ),
+    sliderTheme: SliderThemeData(
+      trackHeight: 4,
+      activeTrackColor: scheme.primary,
+      inactiveTrackColor: scheme.surfaceContainerHighest,
+      thumbColor: scheme.primary,
+      overlayColor: scheme.primary.withValues(alpha: 0.14),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: scheme.surfaceContainerHigh,
+      surfaceTintColor: Colors.transparent,
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(BestRadius.md),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      textStyle: text.bodyMedium,
+    ),
+    expansionTileTheme: ExpansionTileThemeData(
+      shape: const Border(),
+      collapsedShape: const Border(),
+      iconColor: scheme.primary,
+      collapsedIconColor: scheme.onSurfaceVariant,
     ),
     textSelectionTheme: TextSelectionThemeData(
       cursorColor: scheme.primary,

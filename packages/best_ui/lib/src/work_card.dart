@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'cover.dart';
+import 'press_scale.dart';
 import 'tokens.dart';
 
 /// The shape of a work, at the two densities the app actually uses.
@@ -111,7 +112,7 @@ class _Poster extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
+    return BestTapScale(
       onTap: onTap,
       onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(BestRadius.md),
@@ -359,7 +360,7 @@ class CoverBadge extends StatelessWidget {
           style: theme.textTheme.labelSmall?.copyWith(
             color: Colors.white,
             fontWeight: FontWeight.w700,
-            fontSize: dense ? 8 : 9.5,
+            fontSize: dense ? 9 : 10.5,
             height: 1.1,
             letterSpacing: 0,
           ),

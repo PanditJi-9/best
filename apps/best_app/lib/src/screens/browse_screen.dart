@@ -234,7 +234,13 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
             const SizedBox(height: 8),
             Expanded(
               child: results.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
+                loading: () => const CustomScrollView(
+                  physics: NeverScrollableScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(child: SizedBox(height: 10)),
+                    SliverPosterGridSkeleton(),
+                  ],
+                ),
                 error: (error, stack) => EmptyState(
                   icon: Icons.cloud_off_outlined,
                   title: l10n.sourceError,
@@ -289,7 +295,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                           l10n.resultCount(works.length),
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
-                            letterSpacing: 0.3,
+                            letterSpacing: BestType.tracking(context, 0.3),
                           ),
                         ),
                       ),
@@ -336,14 +342,14 @@ class _SourcePill extends StatelessWidget {
           color: selected
               ? theme.colorScheme.primaryContainer
               : theme.colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(BestRadius.sm),
+          borderRadius: BorderRadius.circular(BestRadius.pill),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(BestRadius.sm),
+                borderRadius: BorderRadius.circular(BestRadius.pill),
                 border: Border.all(
                   color: selected
                       ? theme.colorScheme.primary.withValues(alpha: 0.55)
@@ -417,7 +423,7 @@ class _BrowseGrid extends StatelessWidget {
               crossAxisCount: columns,
               mainAxisSpacing: 22,
               crossAxisSpacing: 14,
-              mainAxisExtent: tileWidth * 1.5 + 82,
+              mainAxisExtent: tileWidth * 1.5 + 88,
             ),
             itemCount: works.length,
             itemBuilder: (context, index) {

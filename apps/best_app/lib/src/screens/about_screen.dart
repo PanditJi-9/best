@@ -62,7 +62,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
                   l10n.appName,
                   style: theme.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.w900,
-                    letterSpacing: -1,
+                    letterSpacing: BestType.tracking(context, -1),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -71,7 +71,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
                   textAlign: TextAlign.center,
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
-                    letterSpacing: 0.4,
+                    letterSpacing: BestType.tracking(context, 0.4),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -232,7 +232,7 @@ class _UpdateCard extends ConsumerWidget {
               style: theme.textTheme.labelMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w800,
-                letterSpacing: 0.6,
+                letterSpacing: BestType.tracking(context, 0.6),
               ),
             ),
             const SizedBox(height: 6),

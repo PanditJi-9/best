@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'tokens.dart';
 
-/// A numbered editorial section: index, title, one quiet action, and a
-/// hairline that closes the band.
+/// A section heading: an accent tick, the title, and one quiet action.
+///
+/// The old build closed every band with a hairline; with six sections on Home
+/// that read as a form, not as a shelf. The accent tick and the whitespace now
+/// do the separating, and the optional [index] keeps the numbered editorial
+/// voice for screens that want it.
 class SectionHeader extends StatelessWidget {
   const SectionHeader({
     super.key,
@@ -23,53 +27,92 @@ class SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasAction = actionLabel != null && onAction != null;
     return Padding(
-      padding: const EdgeInsets.only(top: BestSpace.xl),
-      child: Column(
+      padding: const EdgeInsets.only(
+        top: BestSectionSpec.spaceBefore,
+        bottom: BestSectionSpec.spaceAfter - BestSpace.xs,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            children: [
-              if (index != null) ...[
-                Text(
-                  index!.padLeft(2, '0'),
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: BestColors.brass,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.4,
-                  ),
+          const _AccentTick(),
+          const SizedBox(width: BestSpace.sm + 2),
+          if (index != null) ...[
+            Text(
+              index!.padLeft(2, '0'),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: BestColors.brass,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(width: BestSpace.sm),
+          ],
+          Expanded(
+            child: Semantics(
+              header: true,
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: BestType.sectionTitle(context).copyWith(fontSize: 19),
+              ),
+            ),
+          ),
+          if (hasAction)
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsetsDirectional.only(
+                  start: BestSpace.md,
+                  end: BestSpace.xs,
                 ),
-                const SizedBox(width: 10),
-              ],
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleLarge?.copyWith(fontSize: 21),
+                minimumSize: const Size(0, 40),
+                textStyle: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              if (actionLabel != null && onAction != null)
-                TextButton(
-                  onPressed: onAction,
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: BestSpace.sm,
-                    ),
-                    textStyle: theme.textTheme.labelSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.7,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      actionLabel!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  child: Text(actionLabel!.toUpperCase()),
-                )
-              else if (trailing != null)
-                trailing!,
-            ],
-          ),
-          const SizedBox(height: BestSpace.sm),
-          Divider(height: 1, color: theme.colorScheme.outlineVariant),
+                  const SizedBox(width: 2),
+                  const Icon(Icons.chevron_right_rounded, size: 18),
+                ],
+              ),
+            )
+          else if (trailing != null)
+            trailing!,
         ],
+      ),
+    );
+  }
+}
+
+class _AccentTick extends StatelessWidget {
+  const _AccentTick();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ExcludeSemantics(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: BestColors.aurora,
+          ),
+          borderRadius: BorderRadius.all(Radius.circular(BestRadius.pill)),
+        ),
+        child: SizedBox(width: 4, height: 20),
       ),
     );
   }
@@ -121,13 +164,17 @@ class PageMasthead extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Expanded(
-              child: Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.displaySmall?.copyWith(
-                  fontSize: 34,
-                  height: 1.1,
+              child: Semantics(
+                header: true,
+                child: Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.displaySmall?.copyWith(
+                    fontSize: 32,
+                    height: 1.12,
+                    letterSpacing: BestType.tracking(context, -0.6),
+                  ),
                 ),
               ),
             ),
@@ -142,7 +189,8 @@ class PageMasthead extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
-              letterSpacing: 0.2,
+              fontSize: 12.5,
+              height: 1.4,
             ),
           ),
         ],
@@ -153,6 +201,11 @@ class PageMasthead extends StatelessWidget {
   }
 }
 
+/// An empty, error or "nothing yet" state.
+///
+/// A soft glow sits behind the icon plate, the whole block eases in once, and
+/// the copy column is capped so it stays readable on a tablet. Nothing here
+/// loops: an empty screen should be calm.
 class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
@@ -172,58 +225,90 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: BestSpace.xl,
-        vertical: BestSpace.xxl,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 68,
-            height: 68,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(BestRadius.md),
-              border: Border.all(
-                color: theme.colorScheme.primary.withValues(alpha: 0.38),
-              ),
-            ),
-            child: Icon(icon, size: 30, color: theme.colorScheme.primary),
+    final primary = theme.colorScheme.primary;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: BestSpace.xl,
+            vertical: BestSpace.xxl,
           ),
-          if (eyebrow != null) ...[
-            const SizedBox(height: BestSpace.lg),
-            Text(
-              eyebrow!,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: BestColors.brass,
-                letterSpacing: 1.4,
-                fontWeight: FontWeight.w700,
-              ),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0, end: 1),
+            duration: BestMotionPolicy.of(context, BestMotion.slow),
+            curve: BestMotion.emphasized,
+            builder: (BuildContext context, double t, Widget? child) {
+              return Opacity(
+                opacity: t,
+                child: Transform.translate(
+                  offset: Offset(0, (1 - t) * 10),
+                  child: child,
+                ),
+              );
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        primary.withValues(alpha: 0.20),
+                        primary.withValues(alpha: 0),
+                      ],
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(BestSpace.lg),
+                    child: Container(
+                      width: 68,
+                      height: 68,
+                      decoration: BoxDecoration(
+                        color: primary.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(BestRadius.lg),
+                        border: Border.all(
+                          color: primary.withValues(alpha: 0.38),
+                        ),
+                      ),
+                      child: Icon(icon, size: 30, color: primary),
+                    ),
+                  ),
+                ),
+                if (eyebrow != null) ...[
+                  const SizedBox(height: BestSpace.md),
+                  Text(
+                    eyebrow!,
+                    textAlign: TextAlign.center,
+                    style: BestType.eyebrow(context).copyWith(
+                      color: BestColors.brass,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: BestSpace.md),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.titleLarge?.copyWith(fontSize: 22),
+                ),
+                const SizedBox(height: BestSpace.sm),
+                Text(
+                  body,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.65,
+                  ),
+                ),
+                if (action != null) ...[
+                  const SizedBox(height: BestSpace.xl),
+                  action!,
+                ],
+              ],
             ),
-          ],
-          const SizedBox(height: BestSpace.lg),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleLarge?.copyWith(fontSize: 24),
           ),
-          const SizedBox(height: BestSpace.sm),
-          Text(
-            body,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              height: 1.65,
-            ),
-          ),
-          if (action != null) ...[
-            const SizedBox(height: BestSpace.xl),
-            action!,
-          ],
-        ],
+        ),
       ),
     );
   }

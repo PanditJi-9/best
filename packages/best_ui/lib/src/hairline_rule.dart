@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'tokens.dart';
-
 /// A 1px hairline used to separate layers without shadows.
 ///
 /// The design language separates layers with colour and rules, not with

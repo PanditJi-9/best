@@ -133,8 +133,15 @@ class _BestAppState extends ConsumerState<BestApp> with WidgetsBindingObserver {
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       routerConfig: _router,
       builder: (BuildContext context, Widget? child) {
-        if (!locked) return child ?? const SizedBox.shrink();
-        return _BiometricLockScreen(onUnlock: _checkBiometrics);
+        if (locked) return _BiometricLockScreen(onUnlock: _checkBiometrics);
+        // Fixed-height rails and grid cells are tuned for a text scale of up
+        // to ~1.35; beyond that the cards would clip their own titles. The
+        // floor keeps very small settings readable.
+        return MediaQuery.withClampedTextScaling(
+          minScaleFactor: 0.9,
+          maxScaleFactor: 1.35,
+          child: child ?? const SizedBox.shrink(),
+        );
       },
     );
   }
@@ -147,67 +154,77 @@ class _BiometricLockScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Material(
-      color: Colors.black,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: BestColors.jade.withValues(alpha: 0.15),
-                  border: Border.all(
-                    color: BestColors.jade.withValues(alpha: 0.4),
-                    width: 2,
-                  ),
-                ),
-                child: const Icon(
-                  Icons.fingerprint_rounded,
-                  size: 48,
-                  color: BestColors.jade,
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'تطبيق Best مقفل',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'مكتبتك وسجل قراءتك محمية بواسطة القفل البيومتري',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
-              ),
-              const SizedBox(height: 32),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  backgroundColor: BestColors.jade,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 14,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                onPressed: onUnlock,
-                icon: const Icon(Icons.lock_open_rounded, size: 20),
-                label: const Text(
-                  'إلغاء القفل الآن',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                ),
-              ),
+      color: scheme.surface,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: RadialGradient(
+            center: const Alignment(0, -0.45),
+            radius: 0.9,
+            colors: [
+              scheme.primary.withValues(alpha: 0.16),
+              scheme.surface,
             ],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const BestMark(size: 56),
+                    const SizedBox(height: 28),
+                    Container(
+                      width: 84,
+                      height: 84,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: scheme.primary.withValues(alpha: 0.12),
+                        border: Border.all(
+                          color: scheme.primary.withValues(alpha: 0.40),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.fingerprint_rounded,
+                        size: 46,
+                        color: scheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'تطبيق Best مقفل',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'مكتبتك وسجل قراءتك محمية بواسطة القفل البيومتري',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        height: 1.6,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    FilledButton.icon(
+                      onPressed: onUnlock,
+                      icon: const Icon(Icons.lock_open_rounded),
+                      label: const Text('إلغاء القفل الآن'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),

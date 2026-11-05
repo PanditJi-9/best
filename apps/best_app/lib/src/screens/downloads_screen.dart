@@ -100,7 +100,11 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
             ),
           Expanded(
             child: downloads.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const SingleChildScrollView(
+                physics: NeverScrollableScrollPhysics(),
+                padding: EdgeInsets.all(BestLayout.gutter),
+                child: RowListSkeleton(count: 4),
+              ),
               error: (error, stack) => Center(
                 child: EmptyState(
                   icon: Icons.error_outline,

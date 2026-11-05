@@ -195,11 +195,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     LibraryQuery query,
   ) {
     return shelf.when<List<Widget>>(
-      loading: () => const [
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(child: CircularProgressIndicator()),
-        ),
+      loading: () => [
+        if (_grid)
+          const SliverPosterGridSkeleton()
+        else
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: BestLayout.gutter),
+              child: RowListSkeleton(),
+            ),
+          ),
       ],
       error: (error, stack) => [
         SliverFillRemaining(
@@ -285,7 +290,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     crossAxisCount: columns,
                     mainAxisSpacing: 22,
                     crossAxisSpacing: 14,
-                    mainAxisExtent: tileWidth * 1.5 + 82,
+                    mainAxisExtent: tileWidth * 1.5 + 88,
                   ),
                   delegate: SliverChildBuilderDelegate((context, index) {
                     final entry = entries[index];
@@ -329,18 +334,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 alignment: AlignmentDirectional.centerStart,
                 child: Text(
                   l10n.sort,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800),
+                  style: BestType.sectionTitle(context),
                 ),
               ),
             ),
             for (final sort in LibrarySort.values)
               ListTile(
+                selected: query.sort == sort,
                 title: Text(sortLabel(l10n, sort)),
                 trailing: query.sort == sort
-                    ? const Icon(Icons.check, size: 20)
+                    ? const Icon(Icons.check_rounded, size: 20)
                     : null,
                 onTap: () => Navigator.of(context).pop(sort),
               ),

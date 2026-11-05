@@ -48,7 +48,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
     final continuing = ref.watch(resumeProvider);
     final slots = continuing.value ?? const <ResumeSlot>[];
     final feed = ref.watch(discoverProvider);
@@ -73,99 +72,112 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             .take(12)
             .toList();
 
+    final discoverLoading = sources.isNotEmpty &&
+        (feed.isLoading || recommendations.isLoading);
+
     return SafeArea(
       bottom: false,
       child: RefreshIndicator(
         onRefresh: _refresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          // Rails bleed to the screen edge and carry the gutter themselves;
+          // everything else is wrapped in `_inset`.
+          padding: const EdgeInsets.only(top: 16, bottom: 28),
           children: [
-            Row(children: [
-              Expanded(
-                child: BestWordmark(
-                  markSize: 40,
-                  label: l10n.appName,
-                  tagline: l10n.homeSubtitle,
+            _inset(
+              Row(children: [
+                Expanded(
+                  child: BestWordmark(
+                    markSize: 40,
+                    label: l10n.appName,
+                    tagline: l10n.homeSubtitle,
+                  ),
                 ),
-              ),
-              const SizedBox(width: BestSpace.sm),
-              IconButton.filledTonal(
-                tooltip: l10n.newsTitle,
-                onPressed: () => context.push(Routes.news),
-                icon: const Icon(Icons.notifications_none_rounded),
-              ),
-            ]),
-            const SizedBox(height: 22),
-            Material(
-              color: theme.colorScheme.surfaceContainerLow,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(BestRadius.lg),
-                  side: BorderSide(color: theme.colorScheme.outlineVariant)),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                key: const ValueKey('home-unified-search'),
+                const SizedBox(width: BestSpace.sm),
+                IconButton.filledTonal(
+                  tooltip: l10n.newsTitle,
+                  onPressed: () => context.push(Routes.news),
+                  icon: const Icon(Icons.notifications_none_rounded),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 20),
+            _inset(
+              _SearchEntry(
+                label: l10n.searchEverything,
                 onTap: () => context.push(Routes.metaSearch),
-                child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(children: [
-                      Icon(Icons.search_rounded,
-                          color: theme.colorScheme.primary),
-                      const SizedBox(width: 12),
-                      Expanded(
-                          child: Text(l10n.searchEverything,
-                              style: theme.textTheme.bodyMedium)),
-                      const Icon(Icons.arrow_forward_rounded, size: 18),
-                    ])),
               ),
             ),
+            // The banner carries its own gutter.
             const UpdateBanner(),
             const SizedBox(height: 20),
             if (slots.isNotEmpty)
-              ReadingCard(
-                  slot: slots.first,
-                  prominent: true,
-                  onOpen: () => openUnit(
-                      context, ref, slots.first.media, slots.first.unit))
+              _inset(
+                BestReveal(
+                  child: ReadingCard(
+                    slot: slots.first,
+                    prominent: true,
+                    onOpen: () => openUnit(
+                      context,
+                      ref,
+                      slots.first.media,
+                      slots.first.unit,
+                    ),
+                  ),
+                ),
+              )
             else if (continuing.isLoading)
-              const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  child: LinearProgressIndicator())
+              _inset(const BestPulse(child: HeroSkeleton(height: 252)))
             else if (continuing.hasError)
-              _Prompt(
+              _inset(
+                _Prompt(
                   title: l10n.sourceError,
                   body: l10n.retry,
                   label: l10n.retry,
                   icon: Icons.refresh_rounded,
-                  onTap: () => ref.invalidate(resumeProvider))
+                  onTap: () => ref.invalidate(resumeProvider),
+                ),
+              )
             else
-              _Prompt(
+              _inset(
+                _Prompt(
                   title: l10n.homeCaughtUpTitle,
                   body: l10n.homeCaughtUpBody,
                   label: sources.isEmpty ? l10n.openGuide : l10n.openLibrary,
                   icon: Icons.auto_stories_outlined,
                   onTap: sources.isEmpty
                       ? () => openGuide(context, ref)
-                      : () => context.go(Routes.library)),
-            _Heading(
+                      : () => context.go(Routes.library),
+                ),
+              ),
+            _inset(
+              _Heading(
                 title: l10n.mangaSourcesTitle,
                 action: l10n.seeAll,
-                onTap: () => context.push(Routes.manga)),
+                onTap: () => context.push(Routes.manga),
+              ),
+            ),
             if (sources.isEmpty)
-              _Prompt(
+              _inset(
+                _Prompt(
                   title: l10n.mangaNoSourcesTitle,
                   body: l10n.mangaNoSourcesBody,
                   label: l10n.homeAddSources,
                   icon: Icons.extension_outlined,
-                  onTap: () => context.push(Routes.sources))
+                  onTap: () => context.push(Routes.sources),
+                ),
+              )
             else
               SizedBox(
                 height: 48,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: BestLayout.gutter),
                   itemCount: sources.length + 1,
                   separatorBuilder: (context, index) =>
-                      const SizedBox(width: BestSpace.xs),
+                      const SizedBox(width: BestSpace.sm),
                   itemBuilder: (context, index) => index == sources.length
                       ? ActionChip(
                           avatar: const Icon(Icons.add_rounded, size: 17),
@@ -188,61 +200,89 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                 ),
               ),
-            _Heading(
+            _inset(
+              _Heading(
                 title: l10n.discoverTitle,
                 action: l10n.navDatabase,
-                onTap: () => context.go(Routes.database)),
+                onTap: () => context.go(Routes.database),
+              ),
+            ),
             SizedBox(
-                height: 48,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    for (final kind in <MediaKind?>[
-                      null,
-                      MediaKind.manga,
-                      MediaKind.manhwa,
-                      MediaKind.anime,
-                      MediaKind.drama,
-                    ])
-                      Padding(
-                          padding: const EdgeInsetsDirectional.only(end: 8),
-                          child: ChoiceChip(
-                            label: Text(kind == null
-                                ? l10n.filterAll
-                                : kindLabel(l10n, kind)),
-                            selected: _kind == kind,
-                            onSelected: (_) => setState(() => _kind = kind),
-                          )),
-                  ],
-                )),
+              height: 48,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: BestLayout.gutter),
+                children: [
+                  for (final kind in <MediaKind?>[
+                    null,
+                    MediaKind.manga,
+                    MediaKind.manhwa,
+                    MediaKind.anime,
+                    MediaKind.drama,
+                  ])
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(end: 8),
+                      child: ChoiceChip(
+                        label: Text(
+                          kind == null
+                              ? l10n.filterAll
+                              : kindLabel(l10n, kind),
+                        ),
+                        selected: _kind == kind,
+                        onSelected: (_) => setState(() => _kind = kind),
+                      ),
+                    ),
+                ],
+              ),
+            ),
             const SizedBox(height: 12),
             if (latest.isNotEmpty) ...[
-              Text(l10n.homeNewFromSources,
-                  style: BestType.sectionTitle(context)),
+              _inset(
+                Text(
+                  l10n.homeNewFromSources,
+                  style: BestType.sectionTitle(context),
+                ),
+              ),
               const SizedBox(height: 12),
-              _Works(works: latest, onOpen: (m) => openSeries(context, ref, m)),
+              BestReveal(
+                child: _Works(
+                  works: latest,
+                  onOpen: (m) => openSeries(context, ref, m),
+                ),
+              ),
             ],
             if (picks.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(l10n.homeForYou, style: BestType.sectionTitle(context)),
+              const SizedBox(height: 16),
+              _inset(
+                Text(l10n.homeForYou, style: BestType.sectionTitle(context)),
+              ),
               if (recommendations.value?.personalised == true)
-                Padding(
+                _inset(
+                  Padding(
                     padding: const EdgeInsets.only(top: 6),
                     child: Text(
-                        l10n.forYouBecause(
-                            recommendations.value!.genres.join(' · ')),
-                        style: BestType.body(context))),
+                      l10n.forYouBecause(
+                        recommendations.value!.genres.join(' · '),
+                      ),
+                      style: BestType.body(context),
+                    ),
+                  ),
+                ),
               const SizedBox(height: 12),
-              _Works(works: picks, onOpen: (m) => openSeries(context, ref, m)),
+              BestReveal(
+                child: _Works(
+                  works: picks,
+                  onOpen: (m) => openSeries(context, ref, m),
+                ),
+              ),
             ],
             if (latest.isEmpty && picks.isEmpty)
-              if (sources.isNotEmpty &&
-                  (feed.isLoading || recommendations.isLoading))
-                const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: LinearProgressIndicator())
+              if (discoverLoading)
+                const PosterRailSkeleton()
               else
-                _Prompt(
+                _inset(
+                  _Prompt(
                     title:
                         feed.hasError ? l10n.sourceError : l10n.homeNothingKind,
                     body: l10n.homeDiscoveryBody,
@@ -250,8 +290,67 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     icon: Icons.travel_explore_rounded,
                     onTap: feed.hasError
                         ? _refresh
-                        : () => context.go(Routes.database)),
+                        : () => context.go(Routes.database),
+                  ),
+                ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Wraps a non-rail child in the page gutter.
+Widget _inset(Widget child) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: BestLayout.gutter),
+      child: child,
+    );
+
+/// The one search entry on Home. It looks like a field but opens the unified
+/// search screen, so it is a button with a 52 dp target, not a `TextField`.
+class _SearchEntry extends StatelessWidget {
+  const _SearchEntry({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(BestRadius.lg),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: const ValueKey('home-unified-search'),
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 54),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: BestSpace.lg),
+            child: Row(children: [
+              Icon(Icons.search_rounded, color: theme.colorScheme.primary),
+              const SizedBox(width: BestSpace.md),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_rounded,
+                size: 18,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ]),
+          ),
         ),
       ),
     );
@@ -295,6 +394,7 @@ class _Prompt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
     return Container(
       padding: const EdgeInsets.all(BestSpace.lg),
       decoration: BoxDecoration(
@@ -302,17 +402,33 @@ class _Prompt extends StatelessWidget {
         borderRadius: BorderRadius.circular(BestRadius.xl),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: BestType.sectionTitle(context)),
-          const SizedBox(height: BestSpace.sm),
-          Text(body, style: BestType.body(context)),
-          const SizedBox(height: BestSpace.md),
-          OutlinedButton.icon(
-            onPressed: onTap,
-            icon: Icon(icon, size: 18),
-            label: Text(label),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(BestRadius.md),
+            ),
+            child: Icon(icon, size: 22, color: primary),
+          ),
+          const SizedBox(width: BestSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: BestType.sectionTitle(context)),
+                const SizedBox(height: BestSpace.xs + 2),
+                Text(body, style: BestType.body(context)),
+                const SizedBox(height: BestSpace.md),
+                OutlinedButton(
+                  onPressed: onTap,
+                  child: Text(label),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -336,9 +452,10 @@ class _Works extends StatelessWidget {
     final cardWidth = (screenWidth * 0.36).clamp(132.0, 162.0).toDouble();
 
     return SizedBox(
-      height: cardWidth * 1.5 + 72,
+      height: cardWidth * 1.5 + 84,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: BestLayout.gutter),
         itemCount: works.length,
         separatorBuilder: (context, index) =>
             const SizedBox(width: BestSpace.md),

@@ -144,7 +144,7 @@ class _DetailBody extends StatelessWidget {
                               metaKindLabel(l10n, work.kind),
                               style: theme.textTheme.labelSmall?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant,
-                                fontSize: 9.5,
+                                fontSize: 10.5,
                               ),
                             ),
                         ],
@@ -158,7 +158,7 @@ class _DetailBody extends StatelessWidget {
                           fontSize: 22,
                           fontWeight: FontWeight.w900,
                           height: 1.12,
-                          letterSpacing: -0.4,
+                          letterSpacing: BestType.tracking(context, -0.4),
                         ),
                       ),
                       if (work.nativeTitle != null &&
@@ -195,7 +195,7 @@ class _DetailBody extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.labelSmall?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
-                                  fontSize: 9.5,
+                                  fontSize: 10.5,
                                   height: 1.3,
                                   fontWeight: FontWeight.w400,
                                 ),
@@ -489,7 +489,7 @@ class _DetailBody extends StatelessWidget {
               l10n.metaAttribution,
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 9,
+                fontSize: 10,
                 height: 1.45,
                 fontWeight: FontWeight.w400,
               ),
@@ -613,7 +613,7 @@ class _DetailSection extends StatelessWidget {
           style: theme.textTheme.titleMedium?.copyWith(
             fontSize: 16,
             fontWeight: FontWeight.w800,
-            letterSpacing: -0.2,
+            letterSpacing: BestType.tracking(context, -0.2),
           ),
         ),
       ],
@@ -695,7 +695,7 @@ class _InfoPill extends StatelessWidget {
             text,
             style: theme.textTheme.labelSmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
-              fontSize: 9.5,
+              fontSize: 10.5,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -744,7 +744,7 @@ class _StatTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelSmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
-              fontSize: 9,
+              fontSize: 10,
               fontWeight: FontWeight.w400,
             ),
           ),
@@ -782,7 +782,7 @@ class _TagChip extends StatelessWidget {
           color: strong
               ? theme.colorScheme.primary
               : theme.colorScheme.onSurfaceVariant,
-          fontSize: 9.5,
+          fontSize: 10.5,
           fontWeight: strong ? FontWeight.w700 : FontWeight.w500,
         ),
       ),
@@ -810,7 +810,7 @@ class _CreditGroup extends StatelessWidget {
               label,
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 9.5,
+                fontSize: 10.5,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -883,7 +883,7 @@ class _LinkRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
-                        fontSize: 9,
+                        fontSize: 10,
                         fontWeight: FontWeight.w400,
                       ),
                     ),

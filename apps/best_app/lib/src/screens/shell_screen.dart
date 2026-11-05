@@ -1,5 +1,6 @@
 import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,14 +10,54 @@ import '../providers.dart';
 /// The five rooms of the app: what is new, what is out there, what you own,
 /// what is offline, and the controls.
 ///
-/// A quiet, full-width dock keeps all five destinations legible in either language.
-class ShellScreen extends ConsumerWidget {
+/// A quiet, full-width dock keeps all five destinations legible in either
+/// language. Switching tabs eases the new page in (a short fade, never a
+/// slide: tabs are peers, not steps) and gives a light haptic tick.
+class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ShellScreen> createState() => _ShellScreenState();
+}
+
+class _ShellScreenState extends ConsumerState<ShellScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _fade = AnimationController(
+    vsync: this,
+    duration: BestMotion.normal,
+    value: 1,
+  );
+  late final Animation<double> _opacity = Tween<double>(begin: 0.4, end: 1)
+      .animate(CurvedAnimation(parent: _fade, curve: BestMotion.curve));
+
+  @override
+  void didUpdateWidget(covariant ShellScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.navigationShell.currentIndex !=
+            widget.navigationShell.currentIndex &&
+        !BestMotionPolicy.reduced(context)) {
+      _fade.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _fade.dispose();
+    super.dispose();
+  }
+
+  void _select(int index) {
+    final shell = widget.navigationShell;
+    if (index != shell.currentIndex) {
+      HapticFeedback.selectionClick();
+    }
+    shell.goBranch(index, initialLocation: index == shell.currentIndex);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
@@ -72,8 +113,8 @@ class ShellScreen extends ConsumerWidget {
         // debug as soon as a tab with a tappable card is opened.
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final contentWidth = constraints.maxWidth > 1120
-                ? 1120.0
+            final contentWidth = constraints.maxWidth > BestLayout.maxContentWidth
+                ? BestLayout.maxContentWidth
                 : constraints.maxWidth;
             return Align(
               alignment: Alignment.topCenter,
@@ -82,7 +123,10 @@ class ShellScreen extends ConsumerWidget {
                 height: constraints.maxHeight,
                 child: Material(
                   type: MaterialType.transparency,
-                  child: navigationShell,
+                  child: FadeTransition(
+                    opacity: _opacity,
+                    child: widget.navigationShell,
+                  ),
                 ),
               ),
             );
@@ -91,11 +135,8 @@ class ShellScreen extends ConsumerWidget {
       ),
       bottomNavigationBar: _NavigationDock(
         destinations: destinations,
-        currentIndex: navigationShell.currentIndex,
-        onSelected: (index) => navigationShell.goBranch(
-          index,
-          initialLocation: index == navigationShell.currentIndex,
-        ),
+        currentIndex: widget.navigationShell.currentIndex,
+        onSelected: _select,
       ),
     );
   }
@@ -158,6 +199,8 @@ class _NavigationDock extends StatelessWidget {
   }
 }
 
+/// One dock destination: an icon on a pill that grows when selected, and a
+/// label that always stays visible so English and Arabic both fit.
 class _NavItem extends StatelessWidget {
   const _NavItem({
     required this.destination,
@@ -172,9 +215,9 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = selected
-        ? theme.colorScheme.primary
-        : theme.colorScheme.onSurfaceVariant;
+    final scheme = theme.colorScheme;
+    final color = selected ? scheme.primary : scheme.onSurfaceVariant;
+    final duration = BestMotionPolicy.of(context, BestMotion.normal);
 
     return Semantics(
       button: true,
@@ -182,44 +225,41 @@ class _NavItem extends StatelessWidget {
       label: destination.label,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(BestRadius.lg),
         child: ExcludeSemantics(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SizedBox(
-                  height: 3,
-                  child: AnimatedContainer(
-                    duration: BestMotion.normal,
-                    curve: BestMotion.curve,
-                    width: selected ? 30 : 0,
-                    height: 2,
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? theme.colorScheme.primary
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(BestRadius.pill),
-                    ),
+                AnimatedContainer(
+                  duration: duration,
+                  curve: BestMotion.curve,
+                  width: selected ? 52 : 40,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? scheme.primary.withValues(alpha: 0.16)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(BestRadius.pill),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Icon(
-                  selected ? destination.selectedIcon : destination.icon,
-                  size: 22,
-                  color: color,
+                  child: Icon(
+                    selected ? destination.selectedIcon : destination.icon,
+                    size: 23,
+                    color: color,
+                  ),
                 ),
                 const SizedBox(height: 3),
                 SizedBox(
-                  height: 16,
+                  height: 17,
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
                       destination.label,
                       maxLines: 1,
                       style: theme.textTheme.labelSmall?.copyWith(
-                        fontSize: 11,
+                        fontSize: 11.5,
                         height: 1.2,
                         letterSpacing: 0,
                         fontWeight:

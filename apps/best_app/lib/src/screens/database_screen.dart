@@ -284,7 +284,7 @@ class _Masthead extends StatelessWidget {
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontSize: 23,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: -0.5,
+                    letterSpacing: BestType.tracking(context, -0.5),
                   ),
                 ),
                 Text(
@@ -381,8 +381,8 @@ class _SourceStrip extends StatelessWidget {
             l10n.metaSources,
             style: theme.textTheme.labelSmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
-              fontSize: 9,
-              letterSpacing: 0.6,
+              fontSize: 10,
+              letterSpacing: BestType.tracking(context, 0.6),
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -399,7 +399,7 @@ class _SourceStrip extends StatelessWidget {
                       source.shortLabel,
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
-                        fontSize: 9.5,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -490,7 +490,7 @@ class _Hero extends StatelessWidget {
                             badge,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 9.5,
+                              fontSize: 10.5,
                               fontWeight: FontWeight.w700,
                               height: 1.1,
                             ),
@@ -520,7 +520,7 @@ class _Hero extends StatelessWidget {
                         fontSize: 24,
                         fontWeight: FontWeight.w900,
                         height: 1.12,
-                        letterSpacing: -0.4,
+                        letterSpacing: BestType.tracking(context, -0.4),
                       ),
                     ),
                     if (work.nativeTitle != null &&
@@ -574,7 +574,7 @@ class _Hero extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: Colors.white.withValues(alpha: 0.64),
-                        fontSize: 10,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
@@ -811,7 +811,7 @@ class _Attribution extends StatelessWidget {
               l10n.metaAttribution,
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 9.5,
+                fontSize: 10.5,
                 height: 1.45,
                 fontWeight: FontWeight.w400,
               ),
@@ -822,7 +822,7 @@ class _Attribution extends StatelessWidget {
               style: theme.textTheme.labelSmall?.copyWith(
                 color:
                     theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.72),
-                fontSize: 9,
+                fontSize: 10,
                 height: 1.45,
                 fontWeight: FontWeight.w400,
               ),

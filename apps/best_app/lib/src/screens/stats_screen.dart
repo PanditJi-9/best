@@ -131,7 +131,7 @@ class _StreakCard extends StatelessWidget {
                 Text(
                   l10n.statsStreakTitle.toUpperCase(),
                   style: theme.textTheme.labelSmall?.copyWith(
-                    letterSpacing: 1.4,
+                    letterSpacing: BestType.tracking(context, 1.4),
                     fontWeight: FontWeight.w700,
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -141,7 +141,7 @@ class _StreakCard extends StatelessWidget {
                   l10n.streakDays(stats.streakDays),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w900,
-                    letterSpacing: -0.6,
+                    letterSpacing: BestType.tracking(context, -0.6),
                     height: 1.05,
                   ),
                 ),
@@ -278,7 +278,7 @@ class _DayBar extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.labelSmall?.copyWith(
-            fontSize: 10,
+            fontSize: 10.5,
             color: isToday
                 ? theme.colorScheme.onSurface
                 : theme.colorScheme.onSurfaceVariant,
@@ -322,7 +322,7 @@ class _StatTile extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w900,
-              letterSpacing: -0.5,
+              letterSpacing: BestType.tracking(context, -0.5),
             ),
           ),
           const SizedBox(height: 2),

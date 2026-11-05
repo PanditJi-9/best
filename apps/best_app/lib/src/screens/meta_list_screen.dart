@@ -68,7 +68,7 @@ class MetaListScreen extends ConsumerWidget {
               _subtitle(l10n),
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 9.5,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w400,
                   ),
             ),

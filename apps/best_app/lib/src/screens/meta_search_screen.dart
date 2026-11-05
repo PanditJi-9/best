@@ -244,8 +244,8 @@ class _SearchStart extends StatelessWidget {
           textAlign: TextAlign.center,
           style: theme.textTheme.labelSmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
-            fontSize: 9.5,
-            letterSpacing: 0.4,
+            fontSize: 10.5,
+            letterSpacing: BestType.tracking(context, 0.4),
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -433,7 +433,7 @@ class _ResultSectionHeader extends StatelessWidget {
             '$count',
             style: theme.textTheme.labelSmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
-              fontSize: 10,
+              fontSize: 10.5,
               fontWeight: FontWeight.w400,
             ),
           ),
@@ -508,7 +508,7 @@ class _ResultRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
-                        fontSize: 9,
+                        fontSize: 10,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
@@ -520,7 +520,7 @@ class _ResultRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
-                      fontSize: 9.5,
+                      fontSize: 10.5,
                       fontWeight: FontWeight.w400,
                     ),
                   ),

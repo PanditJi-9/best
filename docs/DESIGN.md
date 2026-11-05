@@ -1,6 +1,6 @@
 # Best — identity and structure
 
-Version 1.1.0 · "Ink & Aurora"
+Version 1.2.0 · "Ink & Aurora"
 
 Best is one shelf for manga, manhwa, manhua, webtoons, anime and Asian drama.
 The design has to do something hard: feel premium next to Mihon and HikariManga,
@@ -61,9 +61,17 @@ small display moments and the deterministic cover fallback. CJK native titles
 fall back to the system face.
 
 - Page titles are strong and compact; section titles are 17–21 px.
-- Poster titles are at least 13.5 px, with up to two lines.
+- Poster titles are 14 px, with up to two lines. Metadata is 11.5 px and body
+  copy on cards 12.5 px. Nothing outside the reader and player overlays is set
+  below 10.5 px: Arabic needs more optical size than Latin to stay legible.
 - Metadata is muted but remains readable against both surfaces.
-- Tracking is zero in Arabic. Text truncates at deliberate line boundaries.
+- **Letter spacing is zero in every theme text role.** Flutter turns off letter
+  joining as soon as `letterSpacing != 0`, which breaks the cursive connection
+  inside Arabic words. Latin tracking is applied per role through
+  `BestType.tracking(context, value)`, which returns 0 in RTL. A screen never
+  writes a bare non-zero `letterSpacing` on text that can be Arabic.
+- Text truncates at deliberate line boundaries. The app clamps the system text
+  scale to 0.9–1.35 so fixed-height rails and grid cells never clip a title.
 
 ### Space, radius, motion
 
@@ -71,7 +79,11 @@ fall back to the system face.
 - Radius: `6 / 10 / 16 / 22 / pill` (`sm / md / lg / xl / pill`). The page is
   sharper than a typical Material app; the pill is only for progress and
   status dots.
-- Motion: `140 ms` fast, `220 ms` normal, `easeOutCubic`. No spring, no bounce.
+- Motion: `140 ms` fast, `220 ms` normal, `340 ms` slow, `easeOutCubic`. No
+  spring, no bounce. Every decorative animation asks `BestMotionPolicy.reduced`
+  first and stays still when the system has animations turned off.
+- Gutter: `BestLayout.gutter` (20 dp). Rails bleed to the screen edge and carry
+  the gutter on their own first and last item.
 - Splash: `InkRipple` — the InkSparkle shader is missing in headless tests and
   some older GPUs, and a missing shader is a visible bug.
 
@@ -128,9 +140,11 @@ and supporting tools instead of crowding the main navigation.
 
 - 64 px tall plus the safe-area inset, flat, with a one-pixel outline and no
   shadow.
-- Five equal columns. The selected column gets a short 2 px blue rule above
-  its filled icon and blue label; the other four use outlined icons and muted
-  labels.
+- Five equal columns. The selected column puts its filled icon on a 52×30 blue
+  pill (16% tint) that grows from the 40 px resting width, with a blue label;
+  the other four use outlined icons and muted labels.
+- Switching tabs gives a light haptic tick and eases the new page in with a
+  220 ms fade (never a slide: tabs are peers, not steps).
 - Labels stay visible and scale down when needed so English and Arabic fit on
   small phones. Keep the selected tab accessible through `Semantics`.
 
@@ -249,8 +263,10 @@ content is centered and capped instead of stretching text and cards edge to edge
 | `ReadingCard` | `apps/best_app/lib/src/reading_card.dart` | Resume hero and compact continue row. |
 | `WorkCard` | `packages/best_ui/lib/src/work_card.dart` | Shared poster/row card with progress. |
 | `MediaCard` | `media_card.dart` | Metadata card with badge, rank numeral and optional progress. |
-| `SectionHeader`, `PageMasthead`, `EmptyState` | `sections.dart` | Numbered section; page masthead `02–05`; empty state with eyebrow + action. |
+| `SectionHeader`, `PageMasthead`, `EmptyState` | `sections.dart` | Section with an accent tick, title and a "text + chevron" action (no closing hairline); page masthead `02–05`; centred empty state with glow, eyebrow and action. |
 | `BestCover` | `cover.dart` | Deterministic gradient fallback when art is missing. |
+| `BestTapScale`, `BestReveal` | `press_scale.dart` | Press feedback (scroll-aware, driven by `InkWell.onHighlightChanged`) and a one-shot, timer-free entrance. |
+| `BestPulse`, `PosterSkeleton`, `PosterRailSkeleton`, `SliverPosterGridSkeleton`, `HeroSkeleton`, `RowSkeleton`, `RowListSkeleton` | `skeleton.dart` | Loading placeholders. One shared opacity pulse per group. |
 | `bestTheme` | `theme.dart` | One builder for both brightnesses. |
 
 `best_ui` never imports the app's localization. Every visible string is passed
@@ -260,8 +276,11 @@ in, which keeps the package reusable and testable.
 
 ## 7. States and feedback
 
-- **Loading** — a centered spinner only for the first paint of a provider.
-  Pull-to-refresh keeps the old content visible.
+- **Loading** — a skeleton with the same silhouette as the loaded content
+  (poster rail, poster grid, row list, series page) for the first paint of a
+  provider, so the layout does not jump when data arrives. A spinner is kept
+  only inside buttons and for download progress. Pull-to-refresh keeps the old
+  content visible.
 - **Error** — `EmptyState` with a plain-language title, the technical detail in
   small text, and a Retry button. No red-on-black framework banner.
 - **Empty** — icon in a restrained blue plate, title, one sentence, one clear
@@ -300,7 +319,12 @@ in, which keeps the package reusable and testable.
 - Main tab content is capped at 1120 dp and centered on wide displays. Grid
   extents are computed from the sliver viewport, so split-screen and tablets
   get useful columns without stretched covers.
-- Motion never exceeds 220 ms and never blocks input.
+- Motion never exceeds 340 ms and never blocks input.
+- `BestCover` caps image decoding to the width it is painted at (and never
+  above 1080 px), so a large source never costs full-resolution memory inside
+  a small tile. While loading it shows a still sunken surface and fades the
+  image in; it does not pulse.
+- Skeleton groups run one opacity animation each, never a shader sweep.
 
 ---
 

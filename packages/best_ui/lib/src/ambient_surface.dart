@@ -2,8 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import 'tokens.dart';
-
 /// A quiet, slowly drifting pair of radial glows behind a screen's content.
 ///
 /// Ported from the Yokai design language's `YokaiAmbientSurface`. It gives
