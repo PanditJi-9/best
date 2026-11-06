@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../actions.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../labels.dart';
+import '../navigation.dart';
 import '../providers.dart';
 
 class SeriesScreen extends ConsumerWidget {
@@ -394,6 +395,12 @@ class _SeriesBody extends ConsumerWidget {
                     if (!context.mounted) return;
                     ref.invalidate(seriesProvider(seriesKey));
                   },
+                ),
+                const SizedBox(height: BestSpace.sm),
+                _GlassCircle(
+                  tooltip: l10n.migrateTitle,
+                  icon: Icons.swap_horiz_rounded,
+                  onTap: () => context.push(Routes.migrateOf(media)),
                 ),
               ],
             ),

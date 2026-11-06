@@ -21,17 +21,42 @@ class LibraryQuery {
     this.search = '',
     this.filter = LibraryFilter.all,
     this.sort = LibrarySort.recentlyRead,
+    this.tag,
+    this.hiddenTags = const {},
+    this.includeHidden = false,
   });
 
   final String search;
   final LibraryFilter filter;
   final LibrarySort sort;
 
-  LibraryQuery copyWith({String? search, LibraryFilter? filter, LibrarySort? sort}) {
+  /// One category (stored as a tag on the work) to narrow the shelf to.
+  /// `null` means every category.
+  final String? tag;
+
+  /// Categories the person marked hidden. Works in them are left out of the
+  /// shelf while [includeHidden] is false — the "nosy people" switch.
+  final Set<String> hiddenTags;
+
+  /// The person asked to reveal hidden categories for this session.
+  final bool includeHidden;
+
+  LibraryQuery copyWith({
+    String? search,
+    LibraryFilter? filter,
+    LibrarySort? sort,
+    String? tag,
+    bool clearTag = false,
+    Set<String>? hiddenTags,
+    bool? includeHidden,
+  }) {
     return LibraryQuery(
       search: search ?? this.search,
       filter: filter ?? this.filter,
       sort: sort ?? this.sort,
+      tag: clearTag ? null : (tag ?? this.tag),
+      hiddenTags: hiddenTags ?? this.hiddenTags,
+      includeHidden: includeHidden ?? this.includeHidden,
     );
   }
 
@@ -40,10 +65,21 @@ class LibraryQuery {
       other is LibraryQuery &&
       other.search == search &&
       other.filter == filter &&
-      other.sort == sort;
+      other.sort == sort &&
+      other.tag == tag &&
+      other.includeHidden == includeHidden &&
+      other.hiddenTags.length == hiddenTags.length &&
+      other.hiddenTags.containsAll(hiddenTags);
 
   @override
-  int get hashCode => Object.hash(search, filter, sort);
+  int get hashCode => Object.hash(
+        search,
+        filter,
+        sort,
+        tag,
+        includeHidden,
+        Object.hashAllUnordered(hiddenTags),
+      );
 }
 
 /// A shelf card: the work, how far the reader is, and the last thing opened.
@@ -132,6 +168,14 @@ class LibraryPolicy {
     if (!SearchText.matches(media.displayTitle, query.search) &&
         !SearchText.matches(media.nativeTitle ?? '', query.search) &&
         !SearchText.matches(media.author ?? '', query.search)) {
+      return false;
+    }
+
+    if (query.tag != null && !media.tags.contains(query.tag)) return false;
+
+    if (!query.includeHidden &&
+        query.hiddenTags.isNotEmpty &&
+        media.tags.any(query.hiddenTags.contains)) {
       return false;
     }
 

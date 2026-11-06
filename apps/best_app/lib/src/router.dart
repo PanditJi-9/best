@@ -18,6 +18,7 @@ import 'screens/manga_screen.dart';
 import 'screens/meta_detail_screen.dart';
 import 'screens/meta_list_screen.dart';
 import 'screens/meta_search_screen.dart';
+import 'screens/migrate_screen.dart';
 import 'screens/news_screen.dart';
 import 'screens/reader_screen.dart';
 import 'screens/series_screen.dart';
@@ -171,6 +172,13 @@ GoRouter buildRouter() => GoRouter(
               sourceId: query['source'] ?? '',
               url: query['url'] ?? '',
             );
+          },
+        ),
+        GoRoute(
+          path: '/migrate',
+          builder: (context, state) {
+            final query = state.uri.queryParameters;
+            return MigrateScreen(mediaId: query['id'] ?? '');
           },
         ),
         GoRoute(

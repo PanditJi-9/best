@@ -262,6 +262,46 @@ class MemoryLibraryRepository implements LibraryRepository {
       setInLibrary(mediaId, false);
 
   @override
+  Future<void> migrateMedia({
+    required String fromMediaId,
+    required Media target,
+    required List<UnitProgress> carriedProgress,
+    bool removeOldFromLibrary = true,
+  }) async {
+    final old = _media[fromMediaId];
+    if (old == null) {
+      throw StateError('The work being migrated is not stored.');
+    }
+    if (old.id == target.id) return;
+
+    // Both sides may already carry categories: keep the union, target first,
+    // so moving a work never drops a label from either row.
+    final existingTarget = _media[target.id];
+    final tags = <String>[];
+    for (final tag in [
+      ...?existingTarget?.tags,
+      ...target.tags,
+      ...old.tags,
+    ]) {
+      final clean = tag.trim();
+      if (clean.isNotEmpty && !tags.contains(clean)) tags.add(clean);
+    }
+    final merged = target.copyWith(
+      inLibrary: old.inLibrary || target.inLibrary,
+      favorite: old.favorite || target.favorite,
+      state: target.state == ReadingState.none ? old.state : target.state,
+      tags: tags,
+      addedAt: target.addedAt > 0 ? target.addedAt : old.addedAt,
+      lastOpenedAt: math.max(old.lastOpenedAt, target.lastOpenedAt),
+    );
+    await saveMedia(merged);
+    for (final progress in carriedProgress) {
+      await saveProgress(progress);
+    }
+    if (removeOldFromLibrary) await setInLibrary(fromMediaId, false);
+  }
+
+  @override
   Future<List<DownloadTask>> downloads() async {
     final rows = _downloads.values.toList()
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));

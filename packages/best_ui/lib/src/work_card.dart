@@ -31,6 +31,8 @@ class WorkCard extends StatelessWidget {
     this.onLongPress,
     this.semanticLabel,
     this.maxTitleLines = 2,
+    this.footnote,
+    this.selected = false,
   });
 
   final String title;
@@ -39,6 +41,12 @@ class WorkCard extends StatelessWidget {
 
   /// A short label printed on the cover: the kind of work, or "New".
   final String? badge;
+
+  /// A quieter third line under the subtitle, e.g. "MangaDex · EN".
+  final String? footnote;
+
+  /// Selection mode: a stronger border and a check mark, no second card shape.
+  final bool selected;
 
   final double progress;
 
@@ -67,6 +75,8 @@ class WorkCard extends StatelessWidget {
               subtitle: subtitle,
               coverUrl: coverUrl,
               badge: badge,
+              footnote: footnote,
+              selected: selected,
               progress: progress,
               maxTitleLines: maxTitleLines,
               onTap: onTap,
@@ -77,6 +87,8 @@ class WorkCard extends StatelessWidget {
               subtitle: subtitle,
               coverUrl: coverUrl,
               badge: badge,
+              footnote: footnote,
+              selected: selected,
               progress: progress,
               progressLabel: progressLabel,
               trailing: trailing,
@@ -94,6 +106,8 @@ class _Poster extends StatelessWidget {
     required this.subtitle,
     required this.coverUrl,
     required this.badge,
+    required this.footnote,
+    required this.selected,
     required this.progress,
     required this.maxTitleLines,
     required this.onTap,
@@ -104,6 +118,8 @@ class _Poster extends StatelessWidget {
   final String? subtitle;
   final String? coverUrl;
   final String? badge;
+  final String? footnote;
+  final bool selected;
   final double progress;
   final int maxTitleLines;
   final VoidCallback? onTap;
@@ -128,7 +144,12 @@ class _Poster extends StatelessWidget {
                 DecoratedBox(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(BestRadius.md),
-                    border: Border.all(color: theme.colorScheme.outlineVariant),
+                    border: Border.all(
+                      color: selected
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.outlineVariant,
+                      width: selected ? 2 : 1,
+                    ),
                   ),
                   child: BestCover(
                     title: title,
@@ -136,6 +157,23 @@ class _Poster extends StatelessWidget {
                     radius: BestRadius.md,
                   ),
                 ),
+                if (selected)
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color:
+                            theme.colorScheme.primary.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(BestRadius.md),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.check_circle_rounded,
+                          size: 30,
+                          color: theme.colorScheme.onPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
                 if (badge != null && badge!.trim().isNotEmpty)
                   PositionedDirectional(
                     top: BestSpace.sm,
@@ -181,6 +219,18 @@ class _Poster extends StatelessWidget {
               style: BestType.meta(context),
             ),
           ],
+          if (footnote != null && footnote!.trim().isNotEmpty) ...[
+            const SizedBox(height: 1),
+            Text(
+              footnote!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: BestType.meta(context).copyWith(
+                fontSize: 10.5,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -193,6 +243,8 @@ class _Row extends StatelessWidget {
     required this.subtitle,
     required this.coverUrl,
     required this.badge,
+    required this.footnote,
+    required this.selected,
     required this.progress,
     required this.progressLabel,
     required this.trailing,
@@ -205,6 +257,8 @@ class _Row extends StatelessWidget {
   final String? subtitle;
   final String? coverUrl;
   final String? badge;
+  final String? footnote;
+  final bool selected;
   final double progress;
   final String? progressLabel;
   final Widget? trailing;
@@ -216,11 +270,18 @@ class _Row extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Material(
-      color: theme.colorScheme.surfaceContainerLow,
+      color: selected
+          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
+          : theme.colorScheme.surfaceContainerLow,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(BestRadius.md),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
+        side: BorderSide(
+          color: selected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.outlineVariant,
+          width: selected ? 1.8 : 1,
+        ),
       ),
       child: InkWell(
         onTap: onTap,
@@ -277,6 +338,18 @@ class _Row extends StatelessWidget {
                         style: BestType.meta(context),
                       ),
                     ],
+                    if (footnote != null && footnote!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        footnote!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: BestType.meta(context).copyWith(
+                          fontSize: 10.5,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                     if (progress > 0) ...[
                       const SizedBox(height: BestSpace.sm),
                       ClipRRect(
@@ -307,7 +380,17 @@ class _Row extends StatelessWidget {
               if (trailing != null) ...[
                 const SizedBox(width: BestSpace.xxs),
                 trailing!,
-              ] else
+              ] else if (selected)
+                Padding(
+                  padding:
+                      const EdgeInsetsDirectional.only(start: BestSpace.xs),
+                  child: Icon(
+                    Icons.check_circle_rounded,
+                    size: 22,
+                    color: theme.colorScheme.primary,
+                  ),
+                )
+              else
                 Padding(
                   padding:
                       const EdgeInsetsDirectional.only(start: BestSpace.xs),

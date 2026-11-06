@@ -6,28 +6,28 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 0.10.0 — Best runs Mihon's extensions itself.** The shelf, the reader,
-the video player with captions, the bilingual UI, local progress, statistics,
-JSON backup/restore, one real catalogue (MangaDex) and declarative source packs
-(format 2, including streaming packs) are implemented and covered by tests. Home
-and Browse open on the live catalogue, one search box covers every installed
-source, and a hand-picked shelf ships with the app and refreshes itself without a
-store release. 0.10.0 adds the part that was missing: **Best hosts Mihon and
-Komikku extension APKs natively, and Aniyomi anime bundles with them.** The app
-ships the real `source-api` runtime for both trees, loads an installed extension
-with its own `DexClassLoader`, and exposes the catalogue, search, details,
-chapters, pages and video streams through one small interface — no server, no
-setup, no repository to add. A starter set installs itself on first launch; five
-manga sources and four anime sources are ready before the first tap. Suwayomi
-remains as an optional alternative for readers who already run one.
+**Status: 1.2.0 — the shelf gets categories and works can move sources.**
+The shelf, the reader, the video player with captions, the bilingual UI, local
+progress, statistics, JSON backup/restore, one real catalogue (MangaDex),
+declarative source packs (format 2, including streaming packs) and the native
+Mihon/Komikku extension host (with Aniyomi anime bundles) are implemented and
+covered by tests. Home and Browse open on the live catalogue, one search box
+covers every installed source, and a hand-picked shelf ships with the app and
+refreshes itself without a store release. 1.2.0 adds **categories with names,
+hidden categories and bulk selection on the shelf**, source/language labels on
+every card, and **moving a work to another source with its reading progress**:
+chapters are matched by number (then normalised title), only matched progress
+travels, downloads stay with the old source, and nothing is written before the
+person confirms. Suwayomi remains as an optional alternative for readers who
+already run one.
 
 ## What works today
 
 - **A front door with real content.** Home is fed by every enabled source,
   merged and de-duplicated: one spotlight, the resume rail and a ranked trending
   row. The bundled guide stands in only when nothing answers, and three sample
-  films keep the player usable offline. Five tabs: Home, Library, Browse,
-  Downloads, Settings.
+  films keep the player usable offline. Five tabs: Home, Library, Database,
+  Downloads, Menu.
 - **One search, every source.** Browse opens on **All sources** and searches
   them in parallel, so a slow pack cannot hold back the catalogue.
 - **Best picks, without a store update.** A curated shelf (`assets/curated.json`)
@@ -38,11 +38,11 @@ remains as an optional alternative for readers who already run one.
 - **The Mihon/Komikku catalogue, hosted by Best.** Extensions are Android APKs
   compiled against Mihon's `source-api`; Best ships that runtime as real Kotlin
   (`tool/android/kotlin/eu/kanade/tachiyomi/`) and mounts each installed APK with
-  a `DexClassLoader` whose parent is the app's own loader. Browse lists every
-  source an extension exposes, and the reader opens its chapters. A starter set
-  (MangaDex, MangaFire, Weeb Central, MangaKatana, 3asq) installs itself on first
-  launch; Settings → **Extensions** re-runs that and reports any extension that
-  refused to load. Best still bundles no scraper: the extension is the program.
+  a `DexClassLoader` whose parent is the app's own loader. Sources → **Extension
+  directory** lists community packages, and installing one is an explicit tap;
+  nothing is installed on first launch. Browse then lists every source the
+  package exposes, and the reader opens its chapters. Best still bundles no
+  scraper: the extension is the program.
   See [docs/SOURCE-PACKS.md](docs/SOURCE-PACKS.md).
 - **Suwayomi, if you already run one.** Settings → **Suwayomi server** takes one
   address (`http://192.168.1.20:4567`) and Browse gains that server's sources
@@ -54,6 +54,15 @@ remains as an optional alternative for readers who already run one.
   not per-screen styling. See [docs/DESIGN.md](docs/DESIGN.md).
 - **A real shelf.** Add, remove, favorite, search, filter and sort. Counts and
   progress come from the local database, not from a widget's memory.
+- **Categories, hidden categories, bulk edits.** A category is a named tag, so
+  old backups restore with all of them. Hide one to clear it from the shelf,
+  reveal hidden ones from the same row, long-press a cover to select several
+  works and favorite, categorize or remove them together. Cards name the source
+  and language they came from.
+- **Move a work to another source.** Search other sources from the work's page;
+  chapters are matched by number then by normalised title, matched chapters
+  carry the reading position, unmatched ones are reported, and downloads stay
+  with the old source. Nothing is written before confirmation.
 - **A real reader.** Page-by-page reading, zoom, page restore, completion
   tracking, and progress that survives a restart.
 - **A real video player.** Episodes open a full-screen player with resume in

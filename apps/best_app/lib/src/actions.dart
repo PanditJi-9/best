@@ -102,9 +102,29 @@ Future<void> setReadingState(
 Future<void> addTag(WidgetRef ref, Media media, String tag) async {
   final clean = tag.trim();
   if (clean.isEmpty) return;
+  // A list typed on a series page is a category from that moment on, even if
+  // the work is later removed from it.
+  await ref.read(categoriesProvider.notifier).add(clean);
   final existing = media.tags;
   if (existing.contains(clean)) return;
   await ref.read(repositoryProvider).setTags(media.id, [...existing, clean]);
+}
+
+/// Adds one category to many works at once. Used by the library's selection
+/// bar; each work keeps its other categories and their order.
+Future<void> addTagToWorks(
+  WidgetRef ref,
+  Iterable<Media> works,
+  String tag,
+) async {
+  final clean = tag.trim();
+  if (clean.isEmpty) return;
+  await ref.read(categoriesProvider.notifier).add(clean);
+  final repository = ref.read(repositoryProvider);
+  for (final media in works) {
+    if (!media.inLibrary || media.tags.contains(clean)) continue;
+    await repository.setTags(media.id, [...media.tags, clean]);
+  }
 }
 
 Future<void> removeTag(WidgetRef ref, Media media, String tag) async {

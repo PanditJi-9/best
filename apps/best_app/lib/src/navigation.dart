@@ -73,6 +73,13 @@ abstract final class Routes {
   static String seriesOf(Media media) =>
       series(media.ref.sourceId, media.ref.url);
 
+  /// The migration screen is keyed by the stored row id, not by source+url:
+  /// the old source may be gone, and the entry is still what must be moved.
+  static String migrate(String mediaId) =>
+      '/migrate?${Uri(queryParameters: {'id': mediaId}).query}';
+
+  static String migrateOf(Media media) => migrate(media.id);
+
   static String readerOf(Media media, MediaUnit unit) => reader(
         sourceId: media.ref.sourceId,
         url: media.ref.url,

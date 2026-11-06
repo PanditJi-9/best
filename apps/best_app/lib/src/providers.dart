@@ -531,6 +531,12 @@ class LibraryQueryController extends Notifier<LibraryQuery> {
     if (state.sort == sort) return;
     state = state.copyWith(sort: sort);
   }
+
+  /// `null` shows every category. Selecting the active one again clears it.
+  void setTag(String? tag) {
+    if (state.tag == tag) return;
+    state = state.copyWith(tag: tag, clearTag: tag == null);
+  }
 }
 
 final NotifierProvider<LibraryQueryController, LibraryQuery>
@@ -538,6 +544,195 @@ final NotifierProvider<LibraryQueryController, LibraryQuery>
     NotifierProvider<LibraryQueryController, LibraryQuery>(
   LibraryQueryController.new,
 );
+
+/// Categories are tags with a first-class name.
+///
+/// The assignment still lives on the work (`media.tags`), so a backup made by
+/// an older Best restores every category without a schema change. This
+/// controller only keeps the names that exist even while no work uses them,
+/// plus the order the person put them in.
+class CategoriesController extends Notifier<List<String>> {
+  static const String _key = 'categories_v1';
+
+  @override
+  List<String> build() {
+    final raw = ref.watch(preferencesProvider)?.getStringList(_key) ?? const [];
+    return List.unmodifiable(_clean(raw));
+  }
+
+  Future<void> add(String name) async {
+    final clean = name.trim();
+    if (clean.isEmpty || state.contains(clean)) return;
+    await _write([...state, clean]);
+  }
+
+  /// Renames a category on every work that carries it and keeps one entry.
+  Future<void> rename(String from, String to) async {
+    final clean = to.trim();
+    if (clean.isEmpty || from == clean) return;
+    final repository = ref.read(repositoryProvider);
+    for (final media in await repository.allMedia()) {
+      if (!media.tags.contains(from)) continue;
+      final tags = [
+        for (final tag in media.tags)
+          if (tag == from) clean else tag,
+      ];
+      await repository.setTags(media.id, _dedupe(tags));
+    }
+    await _write([
+      for (final name in state)
+        if (name == from) clean else name,
+    ]);
+    await ref.read(hiddenCategoriesProvider.notifier).rename(from, clean);
+  }
+
+  /// Deletes the name and removes it from every work. Downloads and progress
+  /// are untouched: a category is a label, not a container of files.
+  Future<void> remove(String name) async {
+    final repository = ref.read(repositoryProvider);
+    for (final media in await repository.allMedia()) {
+      if (!media.tags.contains(name)) continue;
+      await repository.setTags(
+        media.id,
+        media.tags.where((tag) => tag != name).toList(growable: false),
+      );
+    }
+    await _write(state.where((entry) => entry != name).toList());
+    await ref.read(hiddenCategoriesProvider.notifier).unhide(name);
+  }
+
+  Future<void> _write(List<String> names) async {
+    final clean = _clean(names);
+    await ref.read(preferencesProvider)?.setStringList(_key, clean);
+    state = List.unmodifiable(clean);
+  }
+
+  static List<String> _clean(Iterable<String> names) =>
+      _dedupe(names.map((name) => name.trim()).where((name) => name.isNotEmpty));
+
+  static List<String> _dedupe(Iterable<String> names) {
+    final seen = <String>{};
+    return [
+      for (final name in names)
+        if (seen.add(name)) name,
+    ];
+  }
+}
+
+final NotifierProvider<CategoriesController, List<String>>
+    categoriesProvider =
+    NotifierProvider<CategoriesController, List<String>>(
+  CategoriesController.new,
+);
+
+/// Categories hidden from the shelf. Local only, like everything else here.
+class HiddenCategoriesController extends Notifier<Set<String>> {
+  static const String _key = 'hidden_categories_v1';
+
+  @override
+  Set<String> build() {
+    final raw =
+        ref.watch(preferencesProvider)?.getStringList(_key) ?? const <String>[];
+    return Set.unmodifiable(raw.where((name) => name.trim().isNotEmpty));
+  }
+
+  Future<void> setHidden(String name, bool hidden) async {
+    final next = {...state};
+    if (hidden) {
+      next.add(name);
+    } else {
+      next.remove(name);
+    }
+    await _write(next);
+  }
+
+  Future<void> rename(String from, String to) async {
+    if (!state.contains(from)) return;
+    final next = {...state}..remove(from);
+    next.add(to);
+    await _write(next);
+  }
+
+  Future<void> unhide(String name) async {
+    if (!state.contains(name)) return;
+    final next = {...state}..remove(name);
+    await _write(next);
+  }
+
+  Future<void> _write(Set<String> names) async {
+    final list = names.where((name) => name.isNotEmpty).toList()..sort();
+    await ref.read(preferencesProvider)?.setStringList(_key, list);
+    state = Set.unmodifiable(list);
+  }
+}
+
+final NotifierProvider<HiddenCategoriesController, Set<String>>
+    hiddenCategoriesProvider =
+    NotifierProvider<HiddenCategoriesController, Set<String>>(
+  HiddenCategoriesController.new,
+);
+
+/// Reveals hidden categories for this session only. A restart locks them again,
+/// which is the point of a hidden category.
+class RevealHiddenController extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool value) => state = value;
+
+  void toggle() => state = !state;
+}
+
+final NotifierProvider<RevealHiddenController, bool> revealHiddenProvider =
+    NotifierProvider<RevealHiddenController, bool>(RevealHiddenController.new);
+
+/// A category plus how many works currently carry it.
+class CategorySummary {
+  const CategorySummary({
+    required this.name,
+    required this.count,
+    required this.hidden,
+  });
+
+  final String name;
+  final int count;
+  final bool hidden;
+}
+
+/// The union of names the person created and tags already present on works, so
+/// a list typed on a series page shows up here without extra bookkeeping.
+final FutureProvider<List<CategorySummary>> libraryCategoriesProvider =
+    FutureProvider<List<CategorySummary>>((ref) async {
+  ref.watch(libraryChangesProvider);
+  final entries = await ref.watch(repositoryProvider).library();
+  final registered = ref.watch(categoriesProvider);
+  final hidden = ref.watch(hiddenCategoriesProvider);
+
+  final counts = <String, int>{};
+  final discovered = <String>[];
+  for (final entry in entries) {
+    for (final tag in entry.media.tags) {
+      final name = tag.trim();
+      if (name.isEmpty) continue;
+      if (!counts.containsKey(name)) discovered.add(name);
+      counts[name] = (counts[name] ?? 0) + 1;
+    }
+  }
+
+  final names = <String>[...registered];
+  for (final name in discovered) {
+    if (!names.contains(name)) names.add(name);
+  }
+
+  return List.unmodifiable([
+    for (final name in names)
+      CategorySummary(
+        name: name,
+        count: counts[name] ?? 0,
+        hidden: hidden.contains(name),
+      ),
+  ]);
+});
 
 /// A new event means some write landed; the shelf re-runs its query.
 final StreamProvider<void> libraryChangesProvider = StreamProvider<void>(
@@ -548,7 +743,14 @@ final FutureProvider<List<LibraryEntry>> libraryProvider =
     FutureProvider<List<LibraryEntry>>((ref) async {
   ref.watch(libraryChangesProvider);
   final repository = ref.watch(repositoryProvider);
-  return repository.library(ref.watch(libraryQueryProvider));
+  final hidden = ref.watch(hiddenCategoriesProvider);
+  final reveal = ref.watch(revealHiddenProvider);
+  final query = ref.watch(libraryQueryProvider);
+  return repository.library(
+    hidden.isEmpty || reveal
+        ? query
+        : query.copyWith(hiddenTags: hidden),
+  );
 });
 
 /// The shelf, filtered by the same text a reader types into search. It is a
@@ -1205,6 +1407,69 @@ final seriesProvider = FutureProvider.family<SeriesData, SeriesKey>((
   }
 
   return SeriesData(media: media, units: units, progress: progress);
+});
+
+/// The stored work and its chapters, without touching the network.
+///
+/// Migration must work when the old source is gone — that is often why a work
+/// is being moved — so it reads the local rows instead of asking the old
+/// adapter for details again.
+final localWorkProvider = FutureProvider.family<SeriesData, String>((
+  ref,
+  mediaId,
+) async {
+  ref.watch(libraryChangesProvider);
+  final repository = ref.watch(repositoryProvider);
+  final media = await repository.mediaById(mediaId);
+  if (media == null) {
+    throw StateError('This work is not in the local catalogue yet.');
+  }
+  final units = await repository.unitsFor(mediaId);
+  final progress = <String, UnitProgress>{};
+  for (final unit in units) {
+    final saved = await repository.progressFor(unit.id);
+    if (saved != null) progress[unit.id] = saved;
+  }
+  return SeriesData(media: media, units: units, progress: progress);
+});
+
+typedef MigrationSearchKey = ({String sourceId, String query});
+
+/// Candidate works on other sources while migrating.
+///
+/// `sourceId == '*'` means every installed source. Each source answers in
+/// parallel with its own timeout: a dead site must not hold the migration
+/// screen, and one failure is simply absent from the list.
+final migrationSearchProvider =
+    FutureProvider.family<List<Media>, MigrationSearchKey>((ref, key) async {
+  final query = key.query.trim();
+  if (query.isEmpty) return const <Media>[];
+  final registry = ref.watch(sourceRegistryProvider);
+  final all = registry.all;
+  final sources = key.sourceId == '*'
+      ? all.where((source) => source.id != DemoSource.sourceId).toList()
+      : [
+          if (registry.byId(key.sourceId) case final source?) source,
+        ];
+  final pages = await Future.wait(<Future<List<Media>>>[
+    for (final source in sources)
+      source
+          .search(query)
+          .timeout(
+            const Duration(seconds: 14),
+            onTimeout: () => const <Media>[],
+          )
+          .catchError((Object _) => const <Media>[]),
+  ]);
+
+  final merged = <Media>[];
+  final seen = <String>{};
+  for (final page in pages) {
+    for (final media in page) {
+      if (seen.add(media.id)) merged.add(media);
+    }
+  }
+  return List.unmodifiable(merged.take(48));
 });
 
 typedef UnitKey = ({String sourceId, String url, String unitUrl});

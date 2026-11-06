@@ -388,6 +388,50 @@ class SqfliteLibraryRepository implements LibraryRepository {
       setInLibrary(mediaId, false);
 
   @override
+  Future<void> migrateMedia({
+    required String fromMediaId,
+    required Media target,
+    required List<UnitProgress> carriedProgress,
+    bool removeOldFromLibrary = true,
+  }) async {
+    final old = await mediaById(fromMediaId);
+    if (old == null) {
+      throw StateError('The work being migrated is not stored.');
+    }
+    if (old.id == target.id) return;
+
+    // Metadata comes from the target; the person's own shelf data comes from
+    // the old row. A target that was already on the shelf keeps its own
+    // favourite/plan/categories too, so the union is taken instead of letting
+    // one side overwrite the other.
+    final existingTarget = await mediaById(target.id);
+    final tags = <String>[];
+    for (final tag in [
+      ...?existingTarget?.tags,
+      ...target.tags,
+      ...old.tags,
+    ]) {
+      final clean = tag.trim();
+      if (clean.isNotEmpty && !tags.contains(clean)) tags.add(clean);
+    }
+    final merged = target.copyWith(
+      inLibrary: old.inLibrary || target.inLibrary,
+      favorite: old.favorite || target.favorite,
+      state: target.state == ReadingState.none ? old.state : target.state,
+      tags: tags,
+      addedAt: target.addedAt > 0 ? target.addedAt : old.addedAt,
+      lastOpenedAt: old.lastOpenedAt > target.lastOpenedAt
+          ? old.lastOpenedAt
+          : target.lastOpenedAt,
+    );
+    await saveMedia(merged);
+    for (final progress in carriedProgress) {
+      await saveProgress(progress);
+    }
+    if (removeOldFromLibrary) await setInLibrary(fromMediaId, false);
+  }
+
+  @override
   Future<List<DownloadTask>> downloads() async {
     final rows = await _db.query('downloads', orderBy: 'updated_at DESC');
     return rows.map(_downloadFromRow).toList(growable: false);

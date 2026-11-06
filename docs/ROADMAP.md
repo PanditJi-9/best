@@ -228,11 +228,11 @@ runtime has to exist in Kotlin, in the same packages, with the same members.
   reader and downloads do not know an extension is involved. Relative covers are
   resolved, `date_upload` becomes epoch milliseconds, and page headers travel
   with the image so a referer-locked site still renders.
-- [x] **Zero setup**: a starter set of five long-lived sources installs itself on
-  first launch, idempotently, and only remembers success — a first launch without
-  a network tries again next time.
-- [x] **Settings → Extensions** shows how many sources are ready, re-runs the
-  starter set, and lists any extension that failed with its message.
+- [x] **Opt-in setup**: nothing installs on first launch. Sources → Extension
+  directory lists community packages and one tap installs the one the person
+  chose, with a publisher trust prompt.
+- [x] **Settings → Extensions** shows how many sources are ready, offers updates
+  from the same index, and lists any extension that failed with its message.
 
 Deliberately not claimed yet: Aniyomi anime extensions (a second package tree
 and a video extraction path), the preference screens some extensions expose, and
@@ -260,6 +260,31 @@ crash.
   community top five, a manhwa shelf, real news cards, search across all three
   title catalogues, and a detail page that keeps every community's score
   separate. Each provider fails independently and is named when it does.
+
+## 1.2.0 — categories and migration
+
+Ported from Komikku's library model, without a schema migration: a category is
+still a tag, so an old backup restores every one of them.
+
+- [x] **Named categories.** Create, rename and delete from the shelf or a work's
+  page; add many works at once; counts come from the stored library rows, not
+  from a widget's memory. Names survive a category with no works left, so a
+  fresh backup does not drop the vocabulary.
+- [x] **Hidden categories.** Hiding filters them out of the shelf; a per-session
+  reveal brings them back. The setting is local and is not part of a backup.
+- [x] **Bulk selection.** Long-press to select, select all, favorite, add to a
+  category, or remove from the library. Each write still goes through the
+  repository, so the shelf and stats update from the same event stream.
+- [x] **Source and language on every card**, from the installed adapter rather
+  than from a label somebody typed.
+- [x] **Source migration with progress.** Match chapters by number first and by
+  normalised title second, never pair one chapter twice, and report what did not
+  match. Only matched chapters carry position and completion; page counts are
+  clamped to the target; downloads stay with the old source. The old entry stays
+  in the library unless the person clears the checkbox. Nothing is written
+  before confirmation.
+- [ ] Range/volume migration and tracker sync when a source exposes them; the
+  current matcher deliberately refuses to guess.
 
 ## 7. Growth
 

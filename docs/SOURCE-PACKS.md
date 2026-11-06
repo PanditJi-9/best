@@ -58,14 +58,16 @@ channel.
 **What Best still does not do:** bundle a scraper, evaluate a site's JavaScript,
 or render an extension's preference screen. Those fail with a named error.
 
-### The starter set
+### The extension directory
 
-A first launch installs five long-lived sources from the maintained Mihon
-repository (`keiyoushi/extensions`) — MangaDex, MangaFire, Weeb Central,
-MangaKatana and the Arabic 3asq — matched by package name, so anything the
-repository no longer carries is skipped without failing the rest. The install is
-idempotent and only records success: a first launch on a bad network tries again
-next time. Settings → Extensions re-runs it.
+Installing is explicit. Sources → Extension directory lists community packages
+from the maintained Mihon/Aniyomi indexes, matched by package name and version
+code, and installing one is a tap (with a clear trust prompt for the
+publisher). Nothing is installed on first launch: opening the app is not
+consent to run a publisher's code. Installed packages are private to Best,
+updates come from the same index, and an update is offered only when its version
+code is newer. A failed install is reported with its message and leaves the
+previous version in place.
 
 ## Format
 

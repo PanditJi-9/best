@@ -73,6 +73,20 @@ abstract interface class LibraryRepository {
 
   Future<void> removeFromLibrary(String mediaId);
 
+  /// Moves a work to another source without losing the person's place.
+  ///
+  /// [target] is the work on the new source; its units must already be stored.
+  /// [carriedProgress] are positions translated onto the target's unit ids (see
+  /// `MigrationPlan.carryProgress`). The old row, its downloads and its history
+  /// are kept: only its shelf membership is cleared when
+  /// [removeOldFromLibrary] is true, so a migration can never destroy data.
+  Future<void> migrateMedia({
+    required String fromMediaId,
+    required Media target,
+    required List<UnitProgress> carriedProgress,
+    bool removeOldFromLibrary = true,
+  });
+
   /// Every download, newest first. The manager owns transitions; the UI only
   /// reads and asks for pause/resume/cancel.
   Future<List<DownloadTask>> downloads();
