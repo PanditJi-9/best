@@ -243,10 +243,11 @@ crash.
 
 1.0.0 is the line where the pieces stop being features and become one app.
 
-- [x] **Two reader layouts.** Paged keeps pinch-zoom; vertical joins a chapter
-  into one scroll with natural image heights, the way webtoons are drawn. The
-  choice is persisted, the toolbar toggles it without losing the page, and
-  progress is recorded in both layouts.
+- [x] **Two reader layouts.** Paged kept the page whole (1.3.0 replaces its
+  implicit zoom with explicit fit modes); vertical joins a chapter into one
+  scroll with natural image heights, the way webtoons are drawn. The choice is
+  persisted, the toolbar toggles it without losing the page, and progress is
+  recorded in both layouts.
 - [x] **Updates without a store.** About Best reads the public GitHub release
   feed, compares the installed version and build number with the latest tag, and
   offers the signed APK plus readable release notes. The automatic check is
@@ -285,6 +286,65 @@ still a tag, so an old backup restores every one of them.
   before confirmation.
 - [ ] Range/volume migration and tracker sync when a source exposes them; the
   current matcher deliberately refuses to guess.
+
+## 1.3.0 — the reader, rebuilt
+
+The reader was the weakest surface: it could page left to right or join a
+chapter into one scroll, and almost every choice reset when the chapter closed.
+1.3.0 keeps both layouts but makes the reading experience configurable and
+persistent.
+
+- [x] **Right-to-left paged manga.** The `PageView` axis reverses, the first
+  page sits on the right, and the tap zones flip with the direction. The
+  direction is stored, so a manga chapter opened later stays RTL.
+- [x] **Fit modes.** Fit screen keeps the whole page visible; fit width gives a
+  tall page a vertical scroll; original size opens a pinch-zoom/pan surface
+  instead of silently cropping the scan.
+- [x] **Tap zones.** The outer thirds turn pages, the middle toggles the
+  controls, and the forward side follows the reading direction. The behaviour
+  can be switched off for people who prefer tap-anywhere controls.
+- [x] **Immersive chrome that gets out of the way.** The reader requests
+  `immersiveSticky`, hides its bars after four seconds, and brings them back on
+  a centre tap. System UI is restored when the last reader closes, including
+  when one chapter replaces another.
+- [x] **Keep the screen on**, using the wakelock dependency the player already
+  ships, with a setting to turn it off.
+- [x] **Background and colour filter.** Black, charcoal, sepia and white
+  canvases; greyscale, invert, warm and dim filters persist across chapters.
+- [x] **Chapter navigation inside the reader.** Previous/next controls and a
+  next-chapter prompt at the end replace the route instead of stacking readers;
+  progress is saved first, and going back opens a chapter at its last page when
+  it has no saved position.
+- [x] **Retry a failed page** without leaving the reader.
+- [x] **Visual page grid.** Every page is a thumbnail; the current page is
+  outlined, the grid opens near it, and a tap jumps. A long-press bookmarks a
+  page, and the bookmarks filter shows only marked pages.
+- [x] **Persistent page bookmarks.** The toolbar bookmark control toggles the
+  current page; marks are stored per chapter in preferences.
+- [x] **Chapter search and sort** by title or number, oldest or newest first.
+- [x] **Download the current chapter from the reader**, with queued,
+  downloading, downloaded and failed states plus retry.
+- [x] **Preload adjacent pages** into the image cache, with a setting to turn it
+  off for data saving.
+- [x] **Webtoon page spacing** (none, small, large) in vertical mode.
+- [x] **Chapter flow at the edges:** forward on the last page opens the next
+  chapter; backward on the first opens the previous one at its last page.
+- [x] **Keyboard shortcuts** for page turns, mode, bookmark, grid, settings and
+  chrome.
+- [x] **Arabic and English parity.** Reader tooltips, filter labels, chapter
+  sheet, OCR messages and the OCR setting are no longer hardcoded Arabic; the
+  two ARB files hold the same 674 keys.
+- [ ] Double-page spreads, volume-aware chapter navigation and per-source
+  reader profiles. These need layout experiments on a real tablet, so they are
+  not claimed yet.
+- [ ] Volume-key page turns. Android does not deliver volume keys to Flutter
+  reliably without a native key filter, so this stays out until it can be
+  tested on a device.
+
+Verification: `dart format` and `git diff --check` pass, and the `best_domain`
+and `best_data` suites run on Dart 3.13. This environment has no Flutter
+toolchain, so `flutter analyze`, `flutter test`, the widget suite and an APK
+build were **not** run for this milestone; the release notes say so too.
 
 ## 7. Growth
 

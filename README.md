@@ -6,20 +6,26 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 1.2.0 — the shelf gets categories and works can move sources.**
+**Status: 1.3.0 — the reader becomes a real manga reader.**
 The shelf, the reader, the video player with captions, the bilingual UI, local
 progress, statistics, JSON backup/restore, one real catalogue (MangaDex),
 declarative source packs (format 2, including streaming packs) and the native
 Mihon/Komikku extension host (with Aniyomi anime bundles) are implemented and
 covered by tests. Home and Browse open on the live catalogue, one search box
 covers every installed source, and a hand-picked shelf ships with the app and
-refreshes itself without a store release. 1.2.0 adds **categories with names,
+refreshes itself without a store release. 1.2.0 added **categories with names,
 hidden categories and bulk selection on the shelf**, source/language labels on
-every card, and **moving a work to another source with its reading progress**:
-chapters are matched by number (then normalised title), only matched progress
-travels, downloads stay with the old source, and nothing is written before the
-person confirms. Suwayomi remains as an optional alternative for readers who
-already run one.
+every card, and **moving a work to another source with its reading progress**.
+1.3.0 rebuilds the reader around how manga is actually read: **right-to-left
+paged chapters**, fit-screen/fit-width/original scaling, tap zones with a
+centring control toggle, auto-hiding immersive chrome, keep-screen-on,
+black/charcoal/sepia/white backgrounds, a persisted colour filter with dimming,
+failed-page retry, and **previous/next chapter navigation** with a next-chapter
+prompt at the end. A second pass adds a **visual page grid**, **persistent page
+bookmarks**, **chapter search and sort**, **page preloading**, **webtoon
+spacing**, **chapter download from the reader**, edge-of-chapter flow and
+**keyboard shortcuts**. Every new reader string exists in Arabic and English.
+Suwayomi remains as an optional alternative for readers who already run one.
 
 ## What works today
 
@@ -63,8 +69,17 @@ already run one.
   chapters are matched by number then by normalised title, matched chapters
   carry the reading position, unmatched ones are reported, and downloads stay
   with the old source. Nothing is written before confirmation.
-- **A real reader.** Page-by-page reading, zoom, page restore, completion
-  tracking, and progress that survives a restart.
+- **A real reader.** Right-to-left manga pages or a vertical webtoon scroll,
+  fit-screen/fit-width/original scaling, RTL-aware tap zones and a centre
+  control toggle, auto-hiding immersive chrome, keep-screen-on,
+  black/charcoal/sepia/white backgrounds, a persisted colour filter with
+  dimming, pinch zoom and panning in original size, retry for failed pages,
+  page restore, completion tracking, and previous/next chapter controls. The
+  page grid jumps anywhere with thumbnails, bookmarks persist per chapter,
+  chapter search/sort handles long serials, upcoming pages preload, webtoon
+  spacing is adjustable, and the current chapter can be downloaded without
+  leaving the reader. See
+  [docs/releases/1.3.0.md](docs/releases/1.3.0.md).
 - **A real video player.** Episodes open a full-screen player with resume in
   seconds, ±10 s seeking, playback speed and fullscreen. Anime and drama are
   first-class, not a card with a placeholder. See

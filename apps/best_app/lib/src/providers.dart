@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:best_data/best_data.dart';
@@ -348,6 +349,15 @@ class AppSettings {
     this.storageCapGb = 0,
     this.suwayomiUrl,
     this.readerMode = ReaderMode.paged,
+    this.readerDirection = ReaderDirection.ltr,
+    this.readerFit = ReaderFit.screen,
+    this.readerBackground = ReaderBackground.black,
+    this.readerTapZones = true,
+    this.readerKeepAwake = true,
+    this.readerPreload = true,
+    this.readerWebtoonGap = 0,
+    this.readerFilterMode = 'none',
+    this.readerBrightness = 0,
     this.ocrTranslationEnabled = false,
     this.biometricLockEnabled = false,
   });
@@ -371,6 +381,36 @@ class AppSettings {
   /// into one scroll, which is how manhwa and webtoons are drawn.
   final ReaderMode readerMode;
 
+  /// Which way a paged chapter is read. Manga is bound right to left, so the
+  /// first page sits on the right and a forward swipe moves leftwards.
+  final ReaderDirection readerDirection;
+
+  /// How a paged page fills the viewport. Vertical mode always fits the width.
+  final ReaderFit readerFit;
+
+  /// The canvas behind a page. Black is the classic reader; sepia and white
+  /// help in daylight, charcoal softens the contrast of pure black.
+  final ReaderBackground readerBackground;
+
+  /// Tapping the left or right side turns a page; the middle toggles chrome.
+  /// Off, any tap only toggles chrome.
+  final bool readerTapZones;
+
+  /// Keep the display awake while a chapter is open.
+  final bool readerKeepAwake;
+
+  /// Warm the image cache for the pages around the one being read.
+  final bool readerPreload;
+
+  /// Extra space between pages in vertical/webtoon mode, in logical pixels.
+  final int readerWebtoonGap;
+
+  /// Persisted reader filter and dim level. The filter itself lives in
+  /// `widgets/reader_color_filter.dart`; storing its name keeps this provider
+  /// free of widget imports.
+  final String readerFilterMode;
+  final int readerBrightness;
+
   /// Real-time offline OCR and translation overlay on manga pages.
   final bool ocrTranslationEnabled;
 
@@ -386,6 +426,15 @@ class AppSettings {
     String? suwayomiUrl,
     bool clearSuwayomi = false,
     ReaderMode? readerMode,
+    ReaderDirection? readerDirection,
+    ReaderFit? readerFit,
+    ReaderBackground? readerBackground,
+    bool? readerTapZones,
+    bool? readerKeepAwake,
+    bool? readerPreload,
+    int? readerWebtoonGap,
+    String? readerFilterMode,
+    int? readerBrightness,
     bool? ocrTranslationEnabled,
     bool? biometricLockEnabled,
   }) {
@@ -396,6 +445,15 @@ class AppSettings {
       storageCapGb: storageCapGb ?? this.storageCapGb,
       suwayomiUrl: clearSuwayomi ? null : (suwayomiUrl ?? this.suwayomiUrl),
       readerMode: readerMode ?? this.readerMode,
+      readerDirection: readerDirection ?? this.readerDirection,
+      readerFit: readerFit ?? this.readerFit,
+      readerBackground: readerBackground ?? this.readerBackground,
+      readerTapZones: readerTapZones ?? this.readerTapZones,
+      readerKeepAwake: readerKeepAwake ?? this.readerKeepAwake,
+      readerPreload: readerPreload ?? this.readerPreload,
+      readerWebtoonGap: readerWebtoonGap ?? this.readerWebtoonGap,
+      readerFilterMode: readerFilterMode ?? this.readerFilterMode,
+      readerBrightness: readerBrightness ?? this.readerBrightness,
       ocrTranslationEnabled:
           ocrTranslationEnabled ?? this.ocrTranslationEnabled,
       biometricLockEnabled: biometricLockEnabled ?? this.biometricLockEnabled,
@@ -416,6 +474,47 @@ enum ReaderMode {
   }
 }
 
+enum ReaderDirection {
+  ltr,
+  rtl;
+
+  static ReaderDirection fromName(String? name) {
+    for (final direction in values) {
+      if (direction.name == name) return direction;
+    }
+    return ReaderDirection.ltr;
+  }
+
+  bool get isRtl => this == ReaderDirection.rtl;
+}
+
+enum ReaderFit {
+  screen,
+  width,
+  original;
+
+  static ReaderFit fromName(String? name) {
+    for (final fit in values) {
+      if (fit.name == name) return fit;
+    }
+    return ReaderFit.screen;
+  }
+}
+
+enum ReaderBackground {
+  black,
+  charcoal,
+  sepia,
+  white;
+
+  static ReaderBackground fromName(String? name) {
+    for (final background in values) {
+      if (background.name == name) return background;
+    }
+    return ReaderBackground.black;
+  }
+}
+
 class SettingsController extends Notifier<AppSettings> {
   static const String _languageKey = 'language';
   static const String _themeKey = 'theme';
@@ -423,6 +522,15 @@ class SettingsController extends Notifier<AppSettings> {
   static const String _storageCapKey = 'storage_cap_gb';
   static const String _suwayomiKey = 'suwayomi_url';
   static const String _readerModeKey = 'reader_mode';
+  static const String _readerDirectionKey = 'reader_direction';
+  static const String _readerFitKey = 'reader_fit';
+  static const String _readerBackgroundKey = 'reader_background';
+  static const String _readerTapZonesKey = 'reader_tap_zones';
+  static const String _readerKeepAwakeKey = 'reader_keep_awake';
+  static const String _readerPreloadKey = 'reader_preload';
+  static const String _readerWebtoonGapKey = 'reader_webtoon_gap';
+  static const String _readerFilterModeKey = 'reader_filter_mode';
+  static const String _readerBrightnessKey = 'reader_brightness';
   static const String _ocrTranslationKey = 'ocr_translation_enabled';
   static const String _biometricLockKey = 'biometric_lock_enabled';
 
@@ -438,10 +546,24 @@ class SettingsController extends Notifier<AppSettings> {
       readerMode: ReaderMode.fromName(
         preferences?.getString(_readerModeKey),
       ),
-      ocrTranslationEnabled:
-          preferences?.getBool(_ocrTranslationKey) ?? false,
-      biometricLockEnabled:
-          preferences?.getBool(_biometricLockKey) ?? false,
+      readerDirection: ReaderDirection.fromName(
+        preferences?.getString(_readerDirectionKey),
+      ),
+      readerFit: ReaderFit.fromName(
+        preferences?.getString(_readerFitKey),
+      ),
+      readerBackground: ReaderBackground.fromName(
+        preferences?.getString(_readerBackgroundKey),
+      ),
+      readerTapZones: preferences?.getBool(_readerTapZonesKey) ?? true,
+      readerKeepAwake: preferences?.getBool(_readerKeepAwakeKey) ?? true,
+      readerPreload: preferences?.getBool(_readerPreloadKey) ?? true,
+      readerWebtoonGap:
+          (preferences?.getInt(_readerWebtoonGapKey) ?? 0).clamp(0, 32).toInt(),
+      readerFilterMode: preferences?.getString(_readerFilterModeKey) ?? 'none',
+      readerBrightness: preferences?.getInt(_readerBrightnessKey) ?? 0,
+      ocrTranslationEnabled: preferences?.getBool(_ocrTranslationKey) ?? false,
+      biometricLockEnabled: preferences?.getBool(_biometricLockKey) ?? false,
     );
   }
 
@@ -476,6 +598,73 @@ class SettingsController extends Notifier<AppSettings> {
     state = state.copyWith(readerMode: mode);
   }
 
+  void setReaderDirection(ReaderDirection direction) {
+    unawaited(
+      ref
+          .read(preferencesProvider)
+          ?.setString(_readerDirectionKey, direction.name),
+    );
+    state = state.copyWith(readerDirection: direction);
+  }
+
+  void setReaderFit(ReaderFit fit) {
+    unawaited(
+      ref.read(preferencesProvider)?.setString(_readerFitKey, fit.name),
+    );
+    state = state.copyWith(readerFit: fit);
+  }
+
+  void setReaderBackground(ReaderBackground background) {
+    unawaited(
+      ref
+          .read(preferencesProvider)
+          ?.setString(_readerBackgroundKey, background.name),
+    );
+    state = state.copyWith(readerBackground: background);
+  }
+
+  void setReaderTapZones(bool value) {
+    unawaited(
+      ref.read(preferencesProvider)?.setBool(_readerTapZonesKey, value),
+    );
+    state = state.copyWith(readerTapZones: value);
+  }
+
+  void setReaderKeepAwake(bool value) {
+    unawaited(
+      ref.read(preferencesProvider)?.setBool(_readerKeepAwakeKey, value),
+    );
+    state = state.copyWith(readerKeepAwake: value);
+  }
+
+  void setReaderPreload(bool value) {
+    unawaited(ref.read(preferencesProvider)?.setBool(_readerPreloadKey, value));
+    state = state.copyWith(readerPreload: value);
+  }
+
+  void setReaderWebtoonGap(int value) {
+    final gap = value.clamp(0, 32).toInt();
+    unawaited(ref.read(preferencesProvider)?.setInt(_readerWebtoonGapKey, gap));
+    state = state.copyWith(readerWebtoonGap: gap);
+  }
+
+  /// Persists the filter name and dim level together so a sheet that changes
+  /// both never writes one and loses the other.
+  void setReaderFilter({String? mode, int? brightness}) {
+    final preferences = ref.read(preferencesProvider);
+    var next = state;
+    if (mode != null) {
+      unawaited(preferences?.setString(_readerFilterModeKey, mode));
+      next = next.copyWith(readerFilterMode: mode);
+    }
+    if (brightness != null) {
+      final clamped = brightness.clamp(-75, 0).toInt();
+      unawaited(preferences?.setInt(_readerBrightnessKey, clamped));
+      next = next.copyWith(readerBrightness: clamped);
+    }
+    state = next;
+  }
+
   void setOcrTranslationEnabled(bool value) {
     unawaited(
         ref.read(preferencesProvider)?.setBool(_ocrTranslationKey, value));
@@ -483,8 +672,7 @@ class SettingsController extends Notifier<AppSettings> {
   }
 
   void setBiometricLockEnabled(bool value) {
-    unawaited(
-        ref.read(preferencesProvider)?.setBool(_biometricLockKey, value));
+    unawaited(ref.read(preferencesProvider)?.setBool(_biometricLockKey, value));
     state = state.copyWith(biometricLockEnabled: value);
   }
 
@@ -512,6 +700,68 @@ class SettingsController extends Notifier<AppSettings> {
 
 final NotifierProvider<SettingsController, AppSettings> settingsProvider =
     NotifierProvider<SettingsController, AppSettings>(SettingsController.new);
+
+/// Pages the person marked while reading, keyed by unit id.
+///
+/// A bookmark belongs to a chapter, not to the work: page 7 of chapter 3 and
+/// page 7 of chapter 4 are different places. The map is small (only chapters
+/// with marks), stored as JSON in preferences, and written on every toggle so a
+/// process death cannot lose it.
+class ReaderBookmarksController extends Notifier<Map<String, List<int>>> {
+  static const String _key = 'reader_bookmarks_v1';
+
+  @override
+  Map<String, List<int>> build() {
+    final raw = ref.watch(preferencesProvider)?.getString(_key);
+    if (raw == null || raw.isEmpty) return const <String, List<int>>{};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return const <String, List<int>>{};
+      final result = <String, List<int>>{};
+      decoded.forEach((dynamic key, dynamic value) {
+        if (key is! String || value is! List) return;
+        final pages = value
+            .whereType<num>()
+            .map((number) => number.toInt())
+            .where((page) => page >= 0)
+            .toSet()
+            .toList()
+          ..sort();
+        if (pages.isNotEmpty) result[key] = List<int>.unmodifiable(pages);
+      });
+      return Map<String, List<int>>.unmodifiable(result);
+    } catch (_) {
+      // A corrupt preference must not lock the reader; start with no marks.
+      return const <String, List<int>>{};
+    }
+  }
+
+  List<int> pagesFor(String unitId) => state[unitId] ?? const <int>[];
+
+  bool isBookmarked(String unitId, int page) => pagesFor(unitId).contains(page);
+
+  void toggle(String unitId, int page) {
+    if (page < 0) return;
+    final next = <String, List<int>>{...state};
+    final pages = <int>{...pagesFor(unitId)};
+    if (!pages.add(page)) pages.remove(page);
+    if (pages.isEmpty) {
+      next.remove(unitId);
+    } else {
+      final sorted = pages.toList()..sort();
+      next[unitId] = List<int>.unmodifiable(sorted);
+    }
+    state = Map<String, List<int>>.unmodifiable(next);
+    unawaited(
+        ref.read(preferencesProvider)?.setString(_key, jsonEncode(state)));
+  }
+}
+
+final NotifierProvider<ReaderBookmarksController, Map<String, List<int>>>
+    readerBookmarksProvider =
+    NotifierProvider<ReaderBookmarksController, Map<String, List<int>>>(
+  ReaderBookmarksController.new,
+);
 
 class LibraryQueryController extends Notifier<LibraryQuery> {
   @override
@@ -607,8 +857,8 @@ class CategoriesController extends Notifier<List<String>> {
     state = List.unmodifiable(clean);
   }
 
-  static List<String> _clean(Iterable<String> names) =>
-      _dedupe(names.map((name) => name.trim()).where((name) => name.isNotEmpty));
+  static List<String> _clean(Iterable<String> names) => _dedupe(
+      names.map((name) => name.trim()).where((name) => name.isNotEmpty));
 
   static List<String> _dedupe(Iterable<String> names) {
     final seen = <String>{};
@@ -619,8 +869,7 @@ class CategoriesController extends Notifier<List<String>> {
   }
 }
 
-final NotifierProvider<CategoriesController, List<String>>
-    categoriesProvider =
+final NotifierProvider<CategoriesController, List<String>> categoriesProvider =
     NotifierProvider<CategoriesController, List<String>>(
   CategoriesController.new,
 );
@@ -747,9 +996,7 @@ final FutureProvider<List<LibraryEntry>> libraryProvider =
   final reveal = ref.watch(revealHiddenProvider);
   final query = ref.watch(libraryQueryProvider);
   return repository.library(
-    hidden.isEmpty || reveal
-        ? query
-        : query.copyWith(hiddenTags: hidden),
+    hidden.isEmpty || reveal ? query : query.copyWith(hiddenTags: hidden),
   );
 });
 
@@ -858,6 +1105,16 @@ final FutureProvider<List<DownloadTask>> downloadsProvider =
     FutureProvider<List<DownloadTask>>((ref) async {
   ref.watch(libraryChangesProvider);
   return ref.watch(repositoryProvider).downloads();
+});
+
+/// The download row for one unit, refreshed as the manager writes each page.
+/// The reader uses it to show whether the current chapter is available offline.
+final downloadForProvider = FutureProvider.family<DownloadTask?, String>((
+  ref,
+  unitId,
+) async {
+  ref.watch(libraryChangesProvider);
+  return ref.watch(repositoryProvider).downloadFor(unitId);
 });
 
 typedef BrowseKey = ({String sourceId, String query});

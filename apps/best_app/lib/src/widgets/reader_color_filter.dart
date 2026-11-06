@@ -1,6 +1,8 @@
 import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
 
+import '../l10n/generated/app_localizations.dart';
+
 /// Reader colour filter modes, ported from Yokai / Komikku's ColorFilterPage.
 ///
 /// These filters apply as a [ColorFiltered] or [BackdropFilter] overlay on top
@@ -73,8 +75,8 @@ class ReaderColorFilterOverlay extends StatelessWidget {
 
     // Apply brightness dimmer first (negative offset = dim).
     if (filter.customBrightnessOffset < 0) {
-      final dimAlpha = (filter.customBrightnessOffset.abs() / 100.0)
-          .clamp(0.0, 0.75);
+      final dimAlpha =
+          (filter.customBrightnessOffset.abs() / 100.0).clamp(0.0, 0.75);
       result = Stack(
         children: [
           result,
@@ -159,11 +161,15 @@ class _ReaderColorFilterSheetState extends State<ReaderColorFilterSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
 
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
-          BestSpace.xl, BestSpace.lg, BestSpace.xl, BestSpace.xl,
+          BestSpace.xl,
+          BestSpace.lg,
+          BestSpace.xl,
+          BestSpace.xl,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -171,7 +177,7 @@ class _ReaderColorFilterSheetState extends State<ReaderColorFilterSheet> {
           children: [
             // Title
             Text(
-              'فلتر القراءة',
+              l10n.readerColorFilter,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w700,
                 fontFamily: BestFontFamily.heading,
@@ -185,22 +191,22 @@ class _ReaderColorFilterSheetState extends State<ReaderColorFilterSheet> {
               runSpacing: BestSpace.sm,
               children: [
                 _filterChip(
-                  'بدون فلتر',
+                  l10n.readerFilterNone,
                   Icons.filter_none_rounded,
                   ReaderColorFilterMode.none,
                 ),
                 _filterChip(
-                  'تدرج رمادي',
+                  l10n.readerFilterGreyscale,
                   Icons.gradient_rounded,
                   ReaderColorFilterMode.greyscale,
                 ),
                 _filterChip(
-                  'عكس الألوان',
+                  l10n.readerFilterInvert,
                   Icons.invert_colors_rounded,
                   ReaderColorFilterMode.invert,
                 ),
                 _filterChip(
-                  'ضوء دافئ',
+                  l10n.readerFilterWarm,
                   Icons.wb_sunny_rounded,
                   ReaderColorFilterMode.custom,
                 ),
@@ -210,7 +216,7 @@ class _ReaderColorFilterSheetState extends State<ReaderColorFilterSheet> {
 
             // Brightness slider
             Text(
-              'تعتيم الشاشة',
+              l10n.readerBrightness,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

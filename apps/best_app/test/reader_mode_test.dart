@@ -36,6 +36,75 @@ void main() {
     expect(preferences.getString('reader_mode'), 'paged');
   });
 
+  test('reader direction, fit, background and filter persist', () async {
+    final preferences = await _preferences(<String, Object>{});
+    final container = ProviderContainer(
+      overrides: [preferencesProvider.overrideWithValue(preferences)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(settingsProvider.notifier);
+    notifier.setReaderDirection(ReaderDirection.rtl);
+    notifier.setReaderFit(ReaderFit.width);
+    notifier.setReaderBackground(ReaderBackground.sepia);
+    notifier.setReaderTapZones(false);
+    notifier.setReaderFilter(mode: 'invert', brightness: -40);
+    notifier.setReaderPreload(false);
+    notifier.setReaderWebtoonGap(16);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(preferences.getString('reader_direction'), 'rtl');
+    expect(preferences.getString('reader_fit'), 'width');
+    expect(preferences.getString('reader_background'), 'sepia');
+    expect(preferences.getBool('reader_tap_zones'), isFalse);
+    expect(preferences.getString('reader_filter_mode'), 'invert');
+    expect(preferences.getInt('reader_brightness'), -40);
+    expect(preferences.getBool('reader_preload'), isFalse);
+    expect(preferences.getInt('reader_webtoon_gap'), 16);
+
+    final reloaded = ProviderContainer(
+      overrides: [preferencesProvider.overrideWithValue(preferences)],
+    );
+    addTearDown(reloaded.dispose);
+    final settings = reloaded.read(settingsProvider);
+    expect(settings.readerDirection, ReaderDirection.rtl);
+    expect(settings.readerFit, ReaderFit.width);
+    expect(settings.readerBackground, ReaderBackground.sepia);
+    expect(settings.readerTapZones, isFalse);
+    expect(settings.readerFilterMode, 'invert');
+    expect(settings.readerBrightness, -40);
+    expect(settings.readerPreload, isFalse);
+    expect(settings.readerWebtoonGap, 16);
+  });
+
+  test('bookmarks persist per chapter and can be removed', () async {
+    final preferences = await _preferences(<String, Object>{});
+    final container = ProviderContainer(
+      overrides: [preferencesProvider.overrideWithValue(preferences)],
+    );
+    addTearDown(container.dispose);
+
+    final bookmarks = container.read(readerBookmarksProvider.notifier);
+    bookmarks.toggle('unit-a', 5);
+    bookmarks.toggle('unit-a', 2);
+    bookmarks.toggle('unit-b', 0);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(readerBookmarksProvider)['unit-a'], <int>[2, 5]);
+    expect(preferences.getString('reader_bookmarks_v1'), isNotNull);
+
+    final reloaded = ProviderContainer(
+      overrides: [preferencesProvider.overrideWithValue(preferences)],
+    );
+    addTearDown(reloaded.dispose);
+    expect(reloaded.read(readerBookmarksProvider)['unit-a'], <int>[2, 5]);
+    expect(reloaded.read(readerBookmarksProvider)['unit-b'], <int>[0]);
+
+    reloaded.read(readerBookmarksProvider.notifier).toggle('unit-a', 2);
+    await Future<void>.delayed(Duration.zero);
+    expect(reloaded.read(readerBookmarksProvider)['unit-a'], <int>[5]);
+  });
+
   test('an unknown stored mode falls back to paged', () async {
     final preferences = await _preferences(
       <String, Object>{'reader_mode': 'diagonal'},

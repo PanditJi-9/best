@@ -156,16 +156,15 @@ class SettingsScreen extends ConsumerWidget {
                       onChanged: (bool value) => ref
                           .read(settingsProvider.notifier)
                           .setOcrTranslationEnabled(value),
-                      secondary:
-                          const Icon(Icons.translate_rounded, size: 19),
+                      secondary: const Icon(Icons.translate_rounded, size: 19),
                       title: Text(
-                        'ترجمة المانجا التلقائية (OCR)',
+                        l10n.readerOcrTitle,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                       subtitle: Text(
-                        'التعرف على فقاعات الحوار وترجمتها فورياً إلى العربية محلياً بدون إنترنت',
+                        l10n.readerOcrBody,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -304,8 +303,7 @@ class SettingsScreen extends ConsumerWidget {
                           .read(settingsProvider.notifier)
                           .setBiometricLockEnabled(value);
                     },
-                    secondary:
-                        const Icon(Icons.fingerprint_rounded, size: 19),
+                    secondary: const Icon(Icons.fingerprint_rounded, size: 19),
                     title: Text(
                       'قفل التطبيق بالبصمة',
                       style: theme.textTheme.bodyMedium?.copyWith(
@@ -470,7 +468,8 @@ class SettingsScreen extends ConsumerWidget {
                                     style:
                                         theme.textTheme.titleMedium?.copyWith(
                                       fontWeight: FontWeight.w900,
-                                      letterSpacing: BestType.tracking(context, -0.3),
+                                      letterSpacing:
+                                          BestType.tracking(context, -0.3),
                                     ),
                                   ),
                                   Text(
