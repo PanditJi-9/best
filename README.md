@@ -6,14 +6,16 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 1.4.0 in development — reading styles per work and two-page spreads.**
-1.3.0 passed Flutter analysis, widget tests and signed-APK generation in
-[CI](https://github.com/PanditJi-9/best/actions/runs/42248335144). The next slice
+**Status: 1.4.0 build 24 in development — resilient downloads and faster chapter access.**
+Build 23 passed Flutter analysis, tests and signed-APK generation in
+[CI](https://github.com/PanditJi-9/best/actions/runs/42281703029). This candidate
 adds opt-in per-work reading preferences, adaptive two-page layouts, cover
 alignment and deliberate chapter-edge swipes. It preserves source page numbers
 for progress and bookmarks. This pass also adds tablet work pages, pinned
 chapter search/filter/sort, consistent continuation, safe partial/offline
-reading and portable reader state in backups. No 1.4.0 release has been published.
+reading and portable reader state in backups. Build 24 adds local file checks,
+repair-only downloads and a current-chapter/episode picker. See
+[the build-24 notes](docs/releases/1.4.0-build24.md). No 1.4.0 release has been published.
 
 The shelf, the reader, the video player with captions, the bilingual UI, local
 progress, statistics, JSON backup/restore, one real catalogue (MangaDex),
@@ -37,11 +39,11 @@ Suwayomi remains as an optional alternative for readers who already run one.
 
 ## What works today
 
-- **A front door with real content.** Home is fed by every enabled source,
-  merged and de-duplicated: one spotlight, the resume rail and a ranked trending
-  row. The bundled guide stands in only when nothing answers, and three sample
-  films keep the player usable offline. Five tabs: Home, Library, Database,
-  Downloads, Menu.
+- **A front door with real content.** Home offers latest, popular, rated and
+  personalized source feeds, with saved continuation in the same poster grid.
+  Search and source management remain direct controls. The guide is available
+  from Menu; its sample videos require a connection. Five tabs: Home, Database,
+  Library, Downloads, Menu.
 - **One search, every source.** Browse opens on **All sources** and searches
   them in parallel, so a slow pack cannot hold back the catalogue.
 - **Best picks, without a store update.** A curated shelf (`assets/curated.json`)
@@ -93,7 +95,8 @@ Suwayomi remains as an optional alternative for readers who already run one.
   cover. Portrait phones and pan/fit-width modes keep one page. See
   [docs/releases/1.4.0.md](docs/releases/1.4.0.md).
 - **A real video player.** Episodes open a full-screen player with resume in
-  seconds, ±10 s seeking, playback speed and fullscreen. Anime and drama are
+  seconds, ±10 s seeking, playback speed, fullscreen and an episode picker that
+  pauses while choosing and resumes only if playback was already running. Anime and drama are
   first-class, not a card with a placeholder. See
   [docs/PLAYBACK.md](docs/PLAYBACK.md).
 - **Arabic and English from day one.** Full RTL, localized strings, and a

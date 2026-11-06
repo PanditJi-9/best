@@ -5,6 +5,31 @@
 /// because the row is written before the next page is fetched.
 enum DownloadStatus { queued, running, paused, done, failed }
 
+/// A file check, not an image-decoding or source-availability claim. Page
+/// indexes remain zero-based, matching reader progress and bookmarks.
+class DownloadIntegrityReport {
+  const DownloadIntegrityReport({
+    required this.total,
+    required this.available,
+    this.verified = 0,
+    this.missing = const [],
+    this.changed = const [],
+    this.busy = false,
+  });
+
+  final int total;
+  final int available;
+  final int verified;
+  final List<int> missing;
+  final List<int> changed;
+  final bool busy;
+
+  bool get hasProblems => missing.isNotEmpty || changed.isNotEmpty;
+  bool get isComplete =>
+      !busy && total > 0 && available == total && !hasProblems;
+  bool get checksummed => isComplete && verified == total;
+}
+
 class DownloadTask {
   const DownloadTask({
     required this.unitId,

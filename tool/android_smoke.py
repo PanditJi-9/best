@@ -8,6 +8,8 @@ change to the shelf layout does not silently turn the gate into a no-op.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 import re
 import subprocess
 import sys
@@ -16,6 +18,16 @@ import xml.etree.ElementTree as ET
 
 PACKAGE = "app.best.best_app"
 ACTIVITY = f"{PACKAGE}/.MainActivity"
+
+# Derive these from the version being built. Home is catalogue-first now, not a
+# masthead subtitle that disappeared several releases ago. Tabs plus a visible
+# app title prove the actual home surface, not just the persistent bottom bar.
+_l10n = Path(__file__).resolve().parents[1] / "apps/best_app/lib/src/l10n"
+HOME_MARKERS = tuple(
+    tuple(labels[key] for key in ("appName", "homeLatest", "homePopular"))
+    for labels in (json.loads((_l10n / f"app_{locale}.arb").read_text())
+                   for locale in ("en", "ar"))
+)
 
 
 def adb(*args: str, check: bool = True) -> str:
@@ -105,6 +117,22 @@ def debug_texts(root: ET.Element) -> None:
         desc = (node.get("content-desc") or "").strip()
         if text or desc:
             print(f"  text={text!r} desc={desc!r} bounds={node.get('bounds')}")
+
+
+def home_is_visible(root: ET.Element) -> bool:
+    return any(all(find(root, label) is not None for label in markers)
+               for markers in HOME_MARKERS)
+
+
+def wait_for_home(timeout: float = 40) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        root = dump()
+        if home_is_visible(root):
+            return
+        time.sleep(1.5)
+    debug_texts(root)
+    raise SystemExit("the home catalogue did not render")
 
 
 def center(node: ET.Element) -> tuple[int, int]:
@@ -273,9 +301,9 @@ def _run() -> int:
 
     # The workflow also screenshots the home screen, but it can catch an
     # emulator dialog. Take it again once the app is actually on screen. The
-    # masthead subtitle is the stable marker: the headline itself is the app
-    # name and also appears in the tab bar.
-    wait_for("Your smart reading room", timeout=40)
+    # The app name and catalogue tabs stay available without a source response.
+    # A removed marketing subtitle must not prevent the guide playback gate.
+    wait_for_home(timeout=40)
     dismiss_anr()
     screenshot("screenshot.png")
 

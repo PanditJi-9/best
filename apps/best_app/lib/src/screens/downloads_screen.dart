@@ -9,6 +9,7 @@ import '../labels.dart';
 import '../navigation.dart';
 import '../network.dart';
 import '../providers.dart';
+import '../widgets/download_integrity_dialog.dart';
 
 class DownloadsScreen extends ConsumerStatefulWidget {
   const DownloadsScreen({super.key});
@@ -17,18 +18,56 @@ class DownloadsScreen extends ConsumerStatefulWidget {
   ConsumerState<DownloadsScreen> createState() => _DownloadsScreenState();
 }
 
-enum _DownloadFilter { all, ready, queue }
+enum _DownloadFilter { all, ready, failed, queue }
 
 class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   _DownloadFilter _filter = _DownloadFilter.all;
+  final _search = TextEditingController();
+  final Set<String> _busyTasks = {};
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _clearSearch() {
+    _search.clear();
+    setState(() {
+      _query = '';
+      _filter = _DownloadFilter.all;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final downloads = ref.watch(downloadsProvider);
     final current = downloads.value ?? const <DownloadTask>[];
-    final finished = current.where((task) => task.isFinished).toList();
-    final active = current.where((task) => !task.isFinished).toList();
+    final query = SearchText.normalize(_query).trim();
+    final numberQuery = query.replaceFirst(
+      RegExp(r'^(?:chapter|chap\.?|ch\.?|الفصل|فصل)\s*'),
+      '',
+    );
+    final visible = current.where((task) {
+      final matches = query.isEmpty ||
+          SearchText.matches('${task.mediaTitle} ${task.unitTitle}', query) ||
+          (numberQuery != query &&
+              numberQuery.isNotEmpty &&
+              SearchText.matches(task.unitTitle, numberQuery));
+      if (!matches) return false;
+      return switch (_filter) {
+        _DownloadFilter.all => true,
+        _DownloadFilter.ready => task.isFinished,
+        _DownloadFilter.queue => !task.isFinished,
+        _DownloadFilter.failed => task.isFailed,
+      };
+    }).toList();
+    final finished = visible.where((task) => task.isFinished).toList();
+    final active = visible.where((task) => !task.isFinished).toList();
+    final allFinished = current.where((task) => task.isFinished).length;
+    final allFailed = current.where((task) => task.isFailed).length;
     final totalBytes = current.fold<int>(0, (sum, task) => sum + task.bytes);
     final settings = ref.watch(settingsProvider);
     final waitingForWifi = settings.wifiOnly &&
@@ -66,12 +105,38 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                 if (finished.isNotEmpty)
                   IconButton(
                     tooltip: l10n.downloadClearFinished,
-                    onPressed: () => _clearFinished(context, ref, current),
+                    onPressed: () => _clearFinished(context, ref, finished),
                     icon: const Icon(Icons.delete_sweep_outlined),
                   ),
               ],
             ),
           ),
+          if (current.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  BestLayout.gutter, BestSpace.md, BestLayout.gutter, 0),
+              child: TextField(
+                key: const ValueKey('downloads-search'),
+                controller: _search,
+                textInputAction: TextInputAction.search,
+                onChanged: (value) => setState(() => _query = value),
+                decoration: InputDecoration(
+                  hintText: l10n.downloadsSearch,
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: MaterialLocalizations.of(context)
+                              .closeButtonTooltip,
+                          onPressed: () {
+                            _search.clear();
+                            setState(() => _query = '');
+                          },
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                ),
+              ),
+            ),
           if (current.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
@@ -88,9 +153,11 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                           label: Text(switch (filter) {
                             _DownloadFilter.all => l10n.filterAll,
                             _DownloadFilter.ready =>
-                              '${l10n.offlineLabel} · ${finished.length}',
+                              '${l10n.offlineLabel} · $allFinished',
                             _DownloadFilter.queue =>
-                              '${l10n.downloadsInProgress} · ${active.length}',
+                              '${l10n.downloadsInProgress} · ${current.length - allFinished}',
+                            _DownloadFilter.failed =>
+                              '${l10n.downloadsFailedFilter} · $allFailed',
                           }),
                         ),
                       ),
@@ -133,40 +200,50 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
                   children: [
-                    if ((_filter == _DownloadFilter.ready &&
-                            finished.isEmpty) ||
-                        (_filter == _DownloadFilter.queue && active.isEmpty))
+                    if (visible.isEmpty)
                       EmptyState(
                         icon: Icons.filter_list_rounded,
                         title: l10n.downloadFilterEmpty,
                         body: l10n.downloadFilterEmptyBody,
                         action: TextButton(
-                          onPressed: () =>
-                              setState(() => _filter = _DownloadFilter.all),
-                          child: Text(l10n.filterAll),
+                          onPressed: _clearSearch,
+                          child: Text(l10n.downloadsClearSearch),
                         ),
                       ),
                     if (_filter != _DownloadFilter.ready &&
-                        active.isNotEmpty &&
+                        active.any((task) => task.isActive) &&
                         waitingForWifi)
                       _WifiBanner(text: l10n.wifiWaiting),
                     if (_filter != _DownloadFilter.ready &&
                         active.isNotEmpty) ...[
-                      SectionHeader(title: l10n.downloadsInProgress),
+                      SectionHeader(
+                          title: _filter == _DownloadFilter.failed
+                              ? l10n.downloadsFailedFilter
+                              : l10n.downloadsInProgress),
                       for (final task in active)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 10),
                           child: _DownloadTile(
+                            key: ValueKey('download-${task.unitId}'),
                             task: task,
-                            onPause: () => ref
-                                .read(downloadManagerProvider)
-                                .pause(task.unitId),
-                            onResume: () => ref
-                                .read(downloadManagerProvider)
-                                .resume(task.unitId),
-                            onRetry: () => ref
-                                .read(downloadManagerProvider)
-                                .retry(task.unitId),
+                            busy: _busyTasks.contains(task.unitId),
+                            onPause: () => _change(
+                                task,
+                                () => ref
+                                    .read(downloadManagerProvider)
+                                    .pause(task.unitId)),
+                            onResume: () => _change(
+                                task,
+                                () => ref
+                                    .read(downloadManagerProvider)
+                                    .resume(task.unitId)),
+                            onRetry: () => _change(
+                                task,
+                                () => ref
+                                    .read(downloadManagerProvider)
+                                    .retry(task.unitId)),
+                            onCheck: () =>
+                                showDownloadIntegrityDialog(context, task),
                             onDelete: () => _delete(context, ref, task),
                             onOpen: null,
                           ),
@@ -189,16 +266,26 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                           Padding(
                             padding: const EdgeInsets.only(bottom: 10),
                             child: _DownloadTile(
+                              key: ValueKey('download-${task.unitId}'),
                               task: task,
-                              onPause: () => ref
-                                  .read(downloadManagerProvider)
-                                  .pause(task.unitId),
-                              onResume: () => ref
-                                  .read(downloadManagerProvider)
-                                  .resume(task.unitId),
-                              onRetry: () => ref
-                                  .read(downloadManagerProvider)
-                                  .retry(task.unitId),
+                              busy: _busyTasks.contains(task.unitId),
+                              onPause: () => _change(
+                                  task,
+                                  () => ref
+                                      .read(downloadManagerProvider)
+                                      .pause(task.unitId)),
+                              onResume: () => _change(
+                                  task,
+                                  () => ref
+                                      .read(downloadManagerProvider)
+                                      .resume(task.unitId)),
+                              onRetry: () => _change(
+                                  task,
+                                  () => ref
+                                      .read(downloadManagerProvider)
+                                      .retry(task.unitId)),
+                              onCheck: () =>
+                                  showDownloadIntegrityDialog(context, task),
                               onDelete: () => _delete(context, ref, task),
                               onOpen: () => context.push(
                                 Routes.reader(
@@ -221,6 +308,22 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _change(
+      DownloadTask task, Future<void> Function() action) async {
+    if (!_busyTasks.add(task.unitId)) return;
+    setState(() {});
+    try {
+      await action();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(AppLocalizations.of(context).downloadFailed)));
+      }
+    } finally {
+      if (mounted) setState(() => _busyTasks.remove(task.unitId));
+    }
   }
 
   Future<void> _clearFinished(
@@ -248,7 +351,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
     final manager = ref.read(downloadManagerProvider);
     for (final task in finished) {
       await manager.cancel(task.unitId);
@@ -270,7 +373,8 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(l10n.downloadDeleteTitle),
-        content: Text(l10n.downloadDeleteBody),
+        content: Text(
+            l10n.downloadDeleteShown(tasks.length, tasks.first.mediaTitle)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -283,7 +387,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
     final manager = ref.read(downloadManagerProvider);
     for (final task in tasks) {
       await manager.cancel(task.unitId);
@@ -317,7 +421,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
     await ref.read(downloadManagerProvider).cancel(task.unitId);
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -362,20 +466,25 @@ class _OfflineNote extends StatelessWidget {
 
 class _DownloadTile extends StatelessWidget {
   const _DownloadTile({
+    super.key,
     required this.task,
+    required this.busy,
     required this.onPause,
     required this.onResume,
     required this.onRetry,
     required this.onDelete,
     required this.onOpen,
+    required this.onCheck,
   });
 
   final DownloadTask task;
+  final bool busy;
   final VoidCallback onPause;
   final VoidCallback onResume;
   final VoidCallback onRetry;
   final VoidCallback onDelete;
   final VoidCallback? onOpen;
+  final VoidCallback onCheck;
 
   @override
   Widget build(BuildContext context) {
@@ -444,7 +553,7 @@ class _DownloadTile extends StatelessWidget {
                     const SizedBox(height: 9),
                     if (failed)
                       Text(
-                        task.error ?? l10n.downloadFailed,
+                        downloadFailureLabel(l10n, task.error),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
@@ -484,10 +593,13 @@ class _DownloadTile extends StatelessWidget {
               const SizedBox(width: 2),
               _Actions(
                 task: task,
+                busy: busy,
                 onPause: onPause,
                 onResume: onResume,
                 onRetry: onRetry,
                 onDelete: onDelete,
+                onCheck: onCheck,
+                onOpen: onOpen,
               ),
             ],
           ),
@@ -556,22 +668,27 @@ class _StatusIcon extends StatelessWidget {
 class _Actions extends StatelessWidget {
   const _Actions({
     required this.task,
+    required this.busy,
     required this.onPause,
     required this.onResume,
     required this.onRetry,
     required this.onDelete,
+    required this.onCheck,
+    required this.onOpen,
   });
 
   final DownloadTask task;
+  final bool busy;
   final VoidCallback onPause;
   final VoidCallback onResume;
   final VoidCallback onRetry;
   final VoidCallback onDelete;
+  final VoidCallback onCheck;
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -579,53 +696,54 @@ class _Actions extends StatelessWidget {
         if (task.isFinished)
           IconButton(
             tooltip: l10n.downloadOpen,
-            onPressed: () => _open(context),
+            onPressed: busy ? null : onOpen,
             icon: const Icon(Icons.menu_book_outlined, size: 20),
           )
         else if (task.isFailed)
           IconButton(
             tooltip: l10n.downloadRetry,
-            onPressed: onRetry,
+            onPressed: busy ? null : onRetry,
             icon: const Icon(Icons.refresh_rounded, size: 20),
           )
         else if (task.isPaused)
           IconButton(
             tooltip: l10n.downloadResume,
-            onPressed: onResume,
+            onPressed: busy ? null : onResume,
             icon: const Icon(Icons.play_arrow_rounded, size: 22),
           )
         else
           IconButton(
             tooltip: l10n.downloadPause,
-            onPressed: onPause,
+            onPressed: busy ? null : onPause,
             icon: const Icon(Icons.pause_rounded, size: 20),
           ),
-        IconButton(
-          tooltip: l10n.downloadDelete,
-          onPressed: onDelete,
-          icon: Icon(
-            Icons.delete_outline,
-            size: 20,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+        PopupMenuButton<_DownloadAction>(
+          enabled: !busy,
+          tooltip: l10n.more,
+          onSelected: (action) {
+            switch (action) {
+              case _DownloadAction.check:
+                onCheck();
+              case _DownloadAction.delete:
+                onDelete();
+            }
+          },
+          itemBuilder: (_) => [
+            if (!task.isActive)
+              PopupMenuItem(
+                  value: _DownloadAction.check,
+                  child: Text(l10n.downloadCheck)),
+            PopupMenuItem(
+                value: _DownloadAction.delete,
+                child: Text(l10n.downloadDelete)),
+          ],
         ),
       ],
     );
   }
-
-  void _open(BuildContext context) {
-    // The tile's InkWell handles taps on the row; the button is here so the
-    // action stays discoverable next to delete.
-    final router = GoRouter.of(context);
-    router.push(
-      Routes.reader(
-        sourceId: task.sourceId,
-        url: task.mediaUrl,
-        unitUrl: task.unitUrl,
-      ),
-    );
-  }
 }
+
+enum _DownloadAction { check, delete }
 
 /// The work's own header above its finished chapters: how much it costs on
 /// disk, and one control to reclaim it.

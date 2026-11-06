@@ -41,6 +41,19 @@ class SmokeToolsTest(unittest.TestCase):
     def test_absent_label_returns_none(self):
         self.assertIsNone(smoke.find_any(hierarchy("Library"), "Browse"))
 
+    def test_home_evidence_matches_current_ui_in_both_languages_not_old_copy(self):
+        for markers in smoke.HOME_MARKERS:
+            self.assertTrue(smoke.home_is_visible(hierarchy(*markers)))
+            self.assertFalse(smoke.home_is_visible(hierarchy(*markers[1:])))
+        self.assertFalse(smoke.home_is_visible(hierarchy("Home", "Best")))
+        self.assertFalse(smoke.home_is_visible(hierarchy("Your smart reading room")))
+
+    def test_home_wait_checks_real_content_before_running_playback(self):
+        screens = [hierarchy("Home", "Menu"), hierarchy(*smoke.HOME_MARKERS[0])]
+        with patch.object(smoke, "dump", side_effect=screens), \
+                patch.object(smoke.time, "sleep"):
+            smoke.wait_for_home()
+
     @patch.object(smoke.time, "sleep")
     @patch.object(smoke, "adb", return_value="Physical size: 320x640")
     @patch.object(smoke, "tap")

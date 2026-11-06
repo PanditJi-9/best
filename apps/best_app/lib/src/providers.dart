@@ -76,7 +76,10 @@ final Provider<DownloadManager> downloadManagerProvider =
     Provider<DownloadManager>((ref) {
   final manager = DownloadManager(
     repository: ref.watch(repositoryProvider),
-    registry: ref.watch(sourceRegistryProvider),
+    registry: SourceRegistry(
+      () => ref.read(sourceRegistryProvider).all,
+      fallback: (id) => ref.read(sourceRegistryProvider).byId(id),
+    ),
     client: ref.watch(httpClientProvider),
     root: ref.watch(downloadRootProvider),
   );
@@ -2027,8 +2030,16 @@ final readerProvider = FutureProvider.family<ReaderData, ReaderKey>((
   final source = resolved.source;
 
   final task = await repository.downloadFor(unit.id);
+  final savedProgress = await repository.progressFor(unit.id);
+  final storedTotal = task != null && task.total > 0
+      ? task.total
+      : (unit.pageCount > 0 ? unit.pageCount : (savedProgress?.total ?? 0));
   if (task != null && task.isFinished && task.directory != null) {
-    final local = await downloadedPages(task.directory!);
+    final expected = storedTotal;
+    final local = await downloadedPages(
+      task.directory!,
+      expectedCount: expected > 0 ? expected : null,
+    );
     if (local.isNotEmpty) {
       return ReaderData(
         media: media,
@@ -2037,8 +2048,8 @@ final readerProvider = FutureProvider.family<ReaderData, ReaderKey>((
         progress: await repository.progressFor(unit.id),
         units: resolved.units,
         offline: true,
-        partial: task.total > local.length,
-        totalPages: task.total > 0 ? task.total : null,
+        partial: task.total <= 0 || expected > local.length,
+        totalPages: expected > 0 ? expected : null,
       );
     }
   }
@@ -2051,7 +2062,11 @@ final readerProvider = FutureProvider.family<ReaderData, ReaderKey>((
     // A paused or partially written download is still better than an error
     // page when the network is the thing that failed.
     if (task?.directory == null) rethrow;
-    final local = await downloadedPages(task!.directory!);
+    final expected = storedTotal;
+    final local = await downloadedPages(
+      task!.directory!,
+      expectedCount: expected > 0 ? expected : null,
+    );
     if (local.isEmpty) rethrow;
     return ReaderData(
       media: media,
@@ -2061,9 +2076,7 @@ final readerProvider = FutureProvider.family<ReaderData, ReaderKey>((
       units: resolved.units,
       offline: true,
       partial: true,
-      totalPages: task.total > 0
-          ? task.total
-          : (unit.pageCount > 0 ? unit.pageCount : null),
+      totalPages: expected > 0 ? expected : null,
     );
   }
 
@@ -2083,12 +2096,14 @@ class WatchData {
     required this.stream,
     required this.progress,
     this.sample = false,
+    this.units = const [],
   });
 
   final Media media;
   final MediaUnit unit;
   final VideoResource stream;
   final UnitProgress? progress;
+  final List<MediaUnit> units;
 
   /// True for the bundled guide, whose episodes are public-domain sample films
   /// rather than licensed content. The player says so instead of pretending.
@@ -2131,6 +2146,7 @@ final watchProvider = FutureProvider.family<WatchData, WatchKey>((
     stream: stream,
     progress: await repository.progressFor(resolved.unit.id),
     sample: source.id == DemoSource.sourceId,
+    units: resolved.units,
   );
 });
 

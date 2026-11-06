@@ -5,6 +5,7 @@ import 'package:best_domain/best_domain.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 
+import 'integrity.dart';
 import 'local_pages.dart';
 
 /// A failure worth showing under a download row, without a stack trace.
@@ -12,6 +13,14 @@ class DownloadException implements Exception {
   const DownloadException(this.message);
 
   final String message;
+
+  static const storedPagesChanged =
+      'Stored pages are missing, empty or changed.';
+  static const sourceIncomplete =
+      'The source returned fewer pages than the stored chapter.';
+  static const sourceMissing = 'The source for this download is not installed.';
+  static const countUnknown = 'The expected page count is unknown.';
+  static const removedMessage = 'This download was removed.';
 
   @override
   String toString() => message;
@@ -41,6 +50,7 @@ class DownloadManager {
 
   Future<void>? _active;
   bool _disposed = false;
+  bool _needsDrain = false;
 
   /// The app's network rule (for example "Wi-Fi only"). The queue asks before
   /// starting a unit, so a metered connection pauses instead of burning data;
@@ -51,10 +61,32 @@ class DownloadManager {
   /// finishes, so the offline store never grows past the limit a person set.
   int Function() storageCap = () => 0;
 
-  /// A cancelled unit can still be mid-request. The set closes the window
-  /// between deleting the row and the request returning, so a late page can
-  /// never recreate the row it was deleted from.
-  final Set<String> _cancelled = {};
+  /// Mutations and file commits for one chapter are serialized. A generation
+  /// changes immediately on cancellation, before waiting for IO: an old request
+  /// cannot recreate a deleted row, or delete/write a newly requeued chapter.
+  final Map<String, Future<void>> _locks = {};
+  final Map<String, int> _generations = {};
+
+  int _generation(String unitId) => _generations[unitId] ?? 0;
+
+  bool _isCurrent(String unitId, int generation) =>
+      !_disposed && _generation(unitId) == generation;
+
+  Future<T> _exclusive<T>(String unitId, Future<T> Function() action) async {
+    final previous = _locks[unitId];
+    final release = Completer<void>();
+    _locks[unitId] = release.future;
+    try {
+      if (previous != null) await previous;
+      return await action();
+    } finally {
+      release.complete();
+      if (identical(_locks[unitId], release.future)) {
+        unawaited(
+            _locks.remove(unitId)); // Already completed; release this key.
+      }
+    }
+  }
 
   /// Called once per app launch: anything the process left `running` becomes
   /// queued again, and the queue starts where it stopped.
@@ -62,19 +94,24 @@ class DownloadManager {
     final tasks = await _repository.downloads();
     final now = _now();
     for (final task in tasks) {
-      if (task.isFinished && task.bytes == 0 && task.directory != null) {
-        final bytes = await directoryBytes(task.directory!);
-        if (bytes > 0) {
-          await _repository.saveDownload(task.copyWith(bytes: bytes));
+      final generation = _generation(task.unitId);
+      await _exclusive<void>(task.unitId, () async {
+        if (!_isCurrent(task.unitId, generation)) return;
+        final current = await _repository.downloadFor(task.unitId);
+        if (current == null) return;
+        if (current.isFinished &&
+            current.bytes == 0 &&
+            current.directory != null) {
+          final bytes = await directoryBytes(current.directory!);
+          if (_isCurrent(task.unitId, generation) && bytes > 0) {
+            await _repository.saveDownload(current.copyWith(bytes: bytes));
+          }
+        } else if (current.isActive) {
+          await _repository.saveDownload(
+            current.copyWith(status: DownloadStatus.queued, updatedAt: now),
+          );
         }
-        continue;
-      }
-      if (task.status == DownloadStatus.running ||
-          task.status == DownloadStatus.queued) {
-        await _repository.saveDownload(
-          task.copyWith(status: DownloadStatus.queued, updatedAt: now),
-        );
-      }
+      });
     }
     await pump();
   }
@@ -82,64 +119,167 @@ class DownloadManager {
   /// Queues a unit and returns immediately. The row is written before the first
   /// request, so the Downloads screen can show it without waiting for bytes.
   Future<DownloadTask> enqueue(Media media, MediaUnit unit) async {
-    _cancelled.remove(unit.id);
-    final existing = await _repository.downloadFor(unit.id);
-    if (existing != null && (existing.isFinished || existing.isActive)) {
-      return existing;
-    }
-
-    final task = DownloadTask(
-      unitId: unit.id,
-      mediaId: media.id,
-      sourceId: media.ref.sourceId,
-      mediaUrl: media.ref.url,
-      unitUrl: unit.url,
-      mediaTitle: media.displayTitle,
-      unitTitle: unit.displayTitle,
-      total: unit.pageCount > 0 ? unit.pageCount : (existing?.total ?? 0),
-      completed: existing?.completed ?? 0,
-      bytes: existing?.bytes ?? 0,
-      status: DownloadStatus.queued,
-      directory: existing?.directory,
-      updatedAt: _now(),
-    );
-    await _repository.saveDownload(task);
-    _schedule();
+    final generation = _generation(unit.id);
+    final task = await _exclusive<DownloadTask>(unit.id, () async {
+      if (!_isCurrent(unit.id, generation)) {
+        throw const DownloadException('This download was removed.');
+      }
+      var existing = await _repository.downloadFor(unit.id);
+      if (existing != null && existing.isActive) return existing;
+      if (existing != null && existing.isFinished) {
+        final check = await inspectStoredDownload(
+          existing,
+          verifyHashes: false,
+          shouldContinue: () => _isCurrent(unit.id, generation),
+        );
+        if (check.isComplete) return existing;
+        existing = existing.copyWith(completed: check.available);
+      }
+      if (!_isCurrent(unit.id, generation)) {
+        throw const DownloadException('This download was removed.');
+      }
+      final task = DownloadTask(
+        unitId: unit.id,
+        mediaId: media.id,
+        sourceId: media.ref.sourceId,
+        mediaUrl: media.ref.url,
+        unitUrl: unit.url,
+        mediaTitle: media.displayTitle,
+        unitTitle: unit.displayTitle,
+        total: existing?.directory != null
+            ? existing!.total
+            : (unit.pageCount > 0 ? unit.pageCount : (existing?.total ?? 0)),
+        completed: existing?.completed ?? 0,
+        bytes: existing?.bytes ?? 0,
+        status: DownloadStatus.queued,
+        directory: existing?.directory,
+        updatedAt: _now(),
+      );
+      await _repository.saveDownload(task);
+      return task;
+    });
+    if (task.isActive) _schedule();
     return task;
   }
 
   Future<void> pause(String unitId) async {
-    final task = await _repository.downloadFor(unitId);
-    if (task == null || task.isFinished) return;
-    await _repository.saveDownload(
-      task.copyWith(status: DownloadStatus.paused, updatedAt: _now()),
-    );
+    final generation = _generation(unitId);
+    await _exclusive<void>(unitId, () async {
+      if (!_isCurrent(unitId, generation)) return;
+      final task = await _repository.downloadFor(unitId);
+      if (task == null || task.isFinished || task.isPaused) return;
+      await _repository.saveDownload(
+        task.copyWith(status: DownloadStatus.paused, updatedAt: _now()),
+      );
+    });
   }
 
   Future<void> resume(String unitId) async {
-    final task = await _repository.downloadFor(unitId);
-    if (task == null || task.isFinished || task.isActive) return;
-    await _repository.saveDownload(
-      task.copyWith(
+    final generation = _generation(unitId);
+    final queued = await _exclusive<bool>(unitId, () async {
+      if (!_isCurrent(unitId, generation)) return false;
+      final task = await _repository.downloadFor(unitId);
+      if (task == null || task.isFinished || task.isActive) return false;
+      await _repository.saveDownload(task.copyWith(
         status: DownloadStatus.queued,
         clearError: true,
         updatedAt: _now(),
-      ),
-    );
-    _schedule();
+      ));
+      return true;
+    });
+    if (queued) _schedule();
   }
 
   Future<void> retry(String unitId) => resume(unitId);
 
+  Future<DownloadIntegrityReport> checkStored(String unitId) async {
+    final generation = _generation(unitId);
+    return _exclusive<DownloadIntegrityReport>(unitId, () async {
+      final task = await _repository.downloadFor(unitId);
+      if (task == null || !_isCurrent(unitId, generation)) {
+        throw const DownloadException('This download was removed.');
+      }
+      final report = await inspectStoredDownload(
+        task,
+        shouldContinue: () => _isCurrent(unitId, generation),
+      );
+      if (!_isCurrent(unitId, generation)) {
+        throw const DownloadException('This download was removed.');
+      }
+      if (!report.busy && task.isFinished && !report.isComplete) {
+        final bytes =
+            task.directory == null ? 0 : await directoryBytes(task.directory!);
+        if (_isCurrent(unitId, generation)) {
+          await _repository.saveDownload(task.copyWith(
+            status: DownloadStatus.failed,
+            error: report.total <= 0
+                ? DownloadException.countUnknown
+                : DownloadException.storedPagesChanged,
+            completed: report.available,
+            bytes: bytes,
+            updatedAt: _now(),
+          ));
+        }
+      }
+      if (!_isCurrent(unitId, generation)) {
+        throw const DownloadException('This download was removed.');
+      }
+      return report;
+    });
+  }
+
+  /// A repair queues the existing directory. Good pages stay; only absent,
+  /// empty or checksum-mismatched pages are fetched again. Network/storage
+  /// policy is the same as any user-initiated download.
+  Future<DownloadIntegrityReport> repair(String unitId) async {
+    final generation = _generation(unitId);
+    var queued = false;
+    final report = await _exclusive<DownloadIntegrityReport>(unitId, () async {
+      final task = await _repository.downloadFor(unitId);
+      if (task == null || !_isCurrent(unitId, generation)) {
+        throw const DownloadException('This download was removed.');
+      }
+      final report = await inspectStoredDownload(
+        task,
+        shouldContinue: () => _isCurrent(unitId, generation),
+      );
+      if (!_isCurrent(unitId, generation)) {
+        throw const DownloadException('This download was removed.');
+      }
+      if (report.busy || (report.isComplete && task.isFinished)) return report;
+      if (!report.isComplete && _registry.byId(task.sourceId) == null) {
+        throw SourceNotInstalled(task.sourceId);
+      }
+      final bytes =
+          task.directory == null ? 0 : await directoryBytes(task.directory!);
+      if (!_isCurrent(unitId, generation)) {
+        throw const DownloadException('This download was removed.');
+      }
+      queued = !report.isComplete;
+      await _repository.saveDownload(task.copyWith(
+        status: queued ? DownloadStatus.queued : DownloadStatus.done,
+        clearError: true,
+        completed: report.available,
+        bytes: bytes,
+        updatedAt: _now(),
+      ));
+      return report;
+    });
+    if (queued) _schedule();
+    return report;
+  }
+
   /// Removes the row first and the bytes second: a half-deleted directory is
   /// recoverable, a row pointing at missing pages is not.
   Future<void> cancel(String unitId) async {
-    final task = await _repository.downloadFor(unitId);
-    if (task == null) return;
-    _cancelled.add(unitId);
-    await _repository.deleteDownload(unitId);
-    final directory = task.directory;
-    if (directory != null) await _deleteDirectory(Directory(directory));
+    _generations[unitId] = _generation(unitId) + 1;
+    await _exclusive<void>(unitId, () async {
+      final task = await _repository.downloadFor(unitId);
+      if (task == null) return;
+      await _repository.deleteDownload(unitId);
+      final directory = task.directory;
+      if (directory != null) await _deleteDirectory(Directory(directory));
+    });
   }
 
   /// Bytes stored per work, finished downloads only. The Downloads screen
@@ -171,9 +311,20 @@ class DownloadManager {
     var removed = 0;
     for (final task in finished) {
       if (total <= capBytes) break;
-      await cancel(task.unitId);
-      total -= task.bytes;
-      removed++;
+      final bytes = await _exclusive<int?>(task.unitId, () async {
+        final current = await _repository.downloadFor(task.unitId);
+        if (current == null || !current.isFinished) return null;
+        _generations[task.unitId] = _generation(task.unitId) + 1;
+        await _repository.deleteDownload(task.unitId);
+        if (current.directory != null) {
+          await _deleteDirectory(Directory(current.directory!));
+        }
+        return current.bytes;
+      });
+      if (bytes != null) {
+        total -= bytes;
+        removed++;
+      }
     }
     return removed;
   }
@@ -183,7 +334,13 @@ class DownloadManager {
   Future<void> pump() {
     final active = _active;
     if (active != null) return active;
-    final future = _drain().whenComplete(() => _active = null);
+    _needsDrain = false;
+    final future = _drain().whenComplete(() {
+      _active = null;
+      // Enqueue can overlap the drain's last empty-queue read. Do not lose that
+      // wakeup simply because a caller shared the drain that just ended.
+      if (_needsDrain && !_disposed && mayDownload()) _schedule();
+    });
     _active = future;
     return future;
   }
@@ -193,6 +350,7 @@ class DownloadManager {
   }
 
   void _schedule() {
+    _needsDrain = true;
     if (!mayDownload()) return;
     // A failed queue is reported per task; it must not become an unhandled
     // async error in a screen that already moved on.
@@ -214,27 +372,30 @@ class DownloadManager {
   }
 
   Future<void> _run(String unitId) async {
-    if (_cancelled.contains(unitId)) return;
-    var task = await _repository.downloadFor(unitId);
-    if (task == null || task.status != DownloadStatus.queued) return;
+    final generation = _generation(unitId);
+    final task = await _exclusive<DownloadTask?>(unitId, () async {
+      if (!_isCurrent(unitId, generation)) return null;
+      final current = await _repository.downloadFor(unitId);
+      if (current == null || current.status != DownloadStatus.queued) {
+        return null;
+      }
+      final running = current.copyWith(
+        status: DownloadStatus.running,
+        clearError: true,
+        updatedAt: _now(),
+      );
+      await _repository.saveDownload(running);
+      return running;
+    });
+    if (task == null) return;
 
-    task = task.copyWith(
-      status: DownloadStatus.running,
-      clearError: true,
-      updatedAt: _now(),
-    );
-    await _repository.saveDownload(task);
-
-    Directory? directory;
     try {
       final source = _registry.byId(task.sourceId);
-      if (source == null) {
-        throw const DownloadException(
-            'The source for this download is not installed.');
-      }
+      if (source == null) throw SourceNotInstalled(task.sourceId);
 
       final unit = await _unitFor(task);
-      final resources = await source.resources(unit);
+      final resources =
+          await source.resources(unit).timeout(const Duration(seconds: 30));
       final pages = <ImageResource>[];
       for (final resource in resources) {
         if (resource is ImageResource) pages.add(resource);
@@ -243,113 +404,143 @@ class DownloadManager {
         throw const DownloadException('This unit has no downloadable pages.');
       }
 
-      if (_cancelled.contains(unitId)) return;
-      final beforePages = await _repository.downloadFor(unitId);
-      if (beforePages == null) return;
-      if (beforePages.status == DownloadStatus.paused ||
-          beforePages.status == DownloadStatus.failed) {
-        return;
-      }
-
-      directory = Directory(p.join(_root.path, _folderName(unitId)));
-      await directory.create(recursive: true);
-
-      task = task.copyWith(
-        total: pages.length,
-        directory: directory.path,
-        updatedAt: _now(),
-      );
-      await _repository.saveDownload(task);
-
-      var completed = 0;
-      var written = await directoryBytes(directory.path);
-      for (var index = 0; index < pages.length; index++) {
-        if (_disposed) return;
-        if (_cancelled.contains(unitId)) return;
-        var current = await _repository.downloadFor(unitId);
-        if (current == null) {
-          await _deleteDirectory(directory);
-          return;
+      final stored = await _exclusive<_StoredDownload?>(unitId, () async {
+        if (!_isCurrent(unitId, generation)) return null;
+        final current = await _repository.downloadFor(unitId);
+        if (current == null || current.isPaused || current.isFailed) {
+          return null;
         }
-        if (current.status == DownloadStatus.paused ||
-            current.status == DownloadStatus.failed) {
-          return;
+        // Once a source supplied a count and directory, a short later response
+        // cannot turn an interrupted/repairing chapter into a smaller "done" one.
+        final total = current.directory != null && current.total > pages.length
+            ? current.total
+            : pages.length;
+        final directory = Directory(
+          current.directory ?? p.join(_root.path, _folderName(unitId)),
+        );
+        await directory.create(recursive: true);
+        final snapshot = current.copyWith(
+          status: DownloadStatus.paused,
+          total: total,
+          directory: directory.path,
+        );
+        final report = await inspectStoredDownload(
+          snapshot,
+          shouldContinue: () => _isCurrent(unitId, generation),
+        );
+        if (!_isCurrent(unitId, generation)) return null;
+        final damaged = {...report.missing, ...report.changed};
+        for (var index = 0; index < total; index++) {
+          if (!_isCurrent(unitId, generation)) return null;
+          if (damaged.contains(index)) continue;
+          final file = File(p.join(directory.path, downloadedPageName(index)));
+          if (!await File('${file.path}.sha256').exists()) {
+            // Adopt a baseline for legacy bytes, without redownloading or
+            // claiming that their content was ever authenticated by the source.
+            await writePageChecksum(file);
+          }
         }
-
-        final file = File(p.join(directory.path, _pageName(index)));
-        if (await file.exists() && await file.length() > 0) {
-          completed++;
-          continue;
-        }
-
-        final bytes = await _fetch(pages[index]);
-        if (_cancelled.contains(unitId)) return;
-        current = await _repository.downloadFor(unitId);
-        if (current == null) {
-          await _deleteDirectory(directory);
-          return;
-        }
-        if (current.status == DownloadStatus.paused) {
-          // The request cannot be cancelled mid-flight, so the page that just
-          // arrived is kept and counted. Resuming skips it.
-          await _write(file, bytes);
-          await _repository.saveDownload(
-            current.copyWith(
-              completed: completed + 1,
-              total: pages.length,
-              bytes: written + bytes.length,
-              directory: directory.path,
-              updatedAt: _now(),
-            ),
-          );
-          return;
-        }
-        if (current.status == DownloadStatus.failed) return;
-
-        await _write(file, bytes);
-        completed++;
-        written += bytes.length;
+        final bytes = await directoryBytes(directory.path);
+        if (!_isCurrent(unitId, generation)) return null;
         await _repository.saveDownload(
           current.copyWith(
-            completed: completed,
-            total: pages.length,
-            bytes: written,
+            total: total,
+            completed: report.available,
+            bytes: bytes,
             status: DownloadStatus.running,
             directory: directory.path,
             updatedAt: _now(),
           ),
         );
+        return _StoredDownload(directory, report, bytes);
+      });
+      if (stored == null) return;
+
+      var completed = stored.report.available;
+      var written = stored.bytes;
+      final repairIndexes = [...stored.report.missing, ...stored.report.changed]
+        ..sort();
+      for (final index in repairIndexes) {
+        final mayFetch = await _exclusive<bool>(unitId, () async {
+          if (!_isCurrent(unitId, generation)) return false;
+          final current = await _repository.downloadFor(unitId);
+          return current != null && current.isActive;
+        });
+        if (!mayFetch) return;
+        if (index >= pages.length) {
+          throw const DownloadException(DownloadException.sourceIncomplete);
+        }
+        final bytes = await _fetch(
+          pages[index],
+          source: source,
+          shouldContinue: () => _isCurrent(unitId, generation),
+        );
+        final keepRunning = await _exclusive<bool>(unitId, () async {
+          if (!_isCurrent(unitId, generation)) return false;
+          final current = await _repository.downloadFor(unitId);
+          if (current == null || current.isFailed) return false;
+          final file =
+              File(p.join(stored.directory.path, downloadedPageName(index)));
+          final oldSize = await file.exists() ? await file.length() : 0;
+          await _write(file, bytes);
+          await writePageChecksum(file, bytes: bytes);
+          if (!_isCurrent(unitId, generation)) return false;
+          completed++;
+          written += bytes.length - oldSize;
+          // A pause during the request keeps its finished page. Never overwrite
+          // that pause using the task snapshot taken before awaiting the bytes.
+          await _repository.saveDownload(current.copyWith(
+            completed: completed,
+            total: stored.report.total,
+            bytes: written,
+            status: current.isPaused
+                ? DownloadStatus.paused
+                : DownloadStatus.running,
+            directory: stored.directory.path,
+            updatedAt: _now(),
+          ));
+          return !current.isPaused;
+        });
+        if (!keepRunning) return;
       }
 
-      if (_cancelled.contains(unitId)) return;
-      final current = await _repository.downloadFor(unitId);
-      if (current == null) return;
-      await _repository.saveDownload(
-        current.copyWith(
-          total: pages.length,
-          completed: pages.length,
-          bytes: written,
-          status: DownloadStatus.done,
-          clearError: true,
-          directory: directory.path,
+      final done = await _exclusive<bool>(unitId, () async {
+        if (!_isCurrent(unitId, generation)) return false;
+        final current = await _repository.downloadFor(unitId);
+        if (current == null || !current.isActive) return false;
+        final report = await inspectStoredDownload(
+          current.copyWith(status: DownloadStatus.paused),
+          shouldContinue: () => _isCurrent(unitId, generation),
+        );
+        final bytes = await directoryBytes(stored.directory.path);
+        if (!_isCurrent(unitId, generation)) return false;
+        await _repository.saveDownload(current.copyWith(
+          completed: report.available,
+          bytes: bytes,
+          status:
+              report.isComplete ? DownloadStatus.done : DownloadStatus.failed,
+          clearError: report.isComplete,
+          error:
+              report.isComplete ? null : DownloadException.storedPagesChanged,
           updatedAt: _now(),
-        ),
-      );
+        ));
+        return report.isComplete;
+      });
       final cap = storageCap();
-      if (cap > 0) {
+      if (done && cap > 0 && !_disposed) {
         unawaited(evictIfNeeded(capBytes: cap).catchError((Object _) => 0));
       }
     } catch (error) {
-      if (_cancelled.contains(unitId)) return;
-      final current = await _repository.downloadFor(unitId);
-      if (current == null || current.status == DownloadStatus.paused) return;
-      await _repository.saveDownload(
-        current.copyWith(
+      await _exclusive<void>(unitId, () async {
+        if (!_isCurrent(unitId, generation)) return;
+        final current = await _repository.downloadFor(unitId);
+        if (current == null || !current.isActive) return;
+        await _repository.saveDownload(current.copyWith(
           status: DownloadStatus.failed,
           error: _describe(error),
           updatedAt: _now(),
-        ),
-      );
+        ));
+      });
     }
   }
 
@@ -369,7 +560,11 @@ class DownloadManager {
     );
   }
 
-  Future<List<int>> _fetch(ImageResource resource) async {
+  Future<List<int>> _fetch(
+    ImageResource resource, {
+    SourceAdapter? source,
+    bool Function()? shouldContinue,
+  }) async {
     final uri = Uri.tryParse(resource.url);
     if (uri == null || !uri.hasScheme) {
       throw const DownloadException('The page address is not valid.');
@@ -377,7 +572,21 @@ class DownloadManager {
 
     Object? lastError;
     for (var attempt = 0; attempt < 2; attempt++) {
+      if (shouldContinue != null && !shouldContinue()) {
+        throw const DownloadException('This download was removed.');
+      }
       try {
+        if (source case final PageBytesSource byteSource) {
+          final bytes = await byteSource
+              .pageBytes(resource)
+              .timeout(const Duration(seconds: 25));
+          if (bytes != null) {
+            if (bytes.isEmpty) {
+              throw const DownloadException('The page came back empty.');
+            }
+            return bytes;
+          }
+        }
         final response = await _client
             .get(uri, headers: resource.headers)
             .timeout(const Duration(seconds: 25));
@@ -390,7 +599,7 @@ class DownloadManager {
         return response.bodyBytes;
       } catch (error) {
         lastError = error;
-        if (attempt == 0) {
+        if (attempt == 0 && (shouldContinue == null || shouldContinue())) {
           await Future<void>.delayed(const Duration(milliseconds: 400));
         }
       }
@@ -418,6 +627,7 @@ class DownloadManager {
 
   static String _describe(Object error) {
     if (error is DownloadException) return error.message;
+    if (error is SourceNotInstalled) return DownloadException.sourceMissing;
     if (error is HttpException) return error.message;
     return 'The download stopped: $error';
   }
@@ -440,7 +650,12 @@ class DownloadManager {
     }
     return hash;
   }
+}
 
-  static String _pageName(int index) =>
-      'page_${(index + 1).toString().padLeft(4, '0')}.img';
+class _StoredDownload {
+  const _StoredDownload(this.directory, this.report, this.bytes);
+
+  final Directory directory;
+  final DownloadIntegrityReport report;
+  final int bytes;
 }

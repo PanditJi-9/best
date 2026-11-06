@@ -628,7 +628,8 @@ class SourceSetting {
 }
 
 /// A [SourceAdapter] over one extension source.
-class ExtensionSourceAdapter implements SourceAdapter, LatestSource {
+class ExtensionSourceAdapter
+    implements SourceAdapter, LatestSource, PageBytesSource {
   ExtensionSourceAdapter({required this.host, required this.info});
 
   final ExtensionHost host;
@@ -667,6 +668,10 @@ class ExtensionSourceAdapter implements SourceAdapter, LatestSource {
   Future<List<MediaResource>> resources(MediaUnit unit) => info.isAnime
       ? host.videos(info.sourceId, unit)
       : host.pages(info.sourceId, unit);
+
+  @override
+  Future<List<int>?> pageBytes(ImageResource page) =>
+      host.imageBytes(info.sourceId, page.url, headers: page.headers);
 }
 
 /// One entry in an extension repository's index.

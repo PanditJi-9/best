@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:best_app/src/l10n/generated/app_localizations.dart';
 import 'package:best_app/src/providers.dart';
 import 'package:best_app/src/screens/reader_screen.dart';
+import 'package:best_app/src/widgets/reader_hud.dart';
 import 'package:best_app/src/widgets/reader_page_grid.dart';
 import 'package:best_data/best_data.dart';
 import 'package:best_domain/best_domain.dart';
@@ -39,6 +40,8 @@ Future<_Fixture> _openReader(
   double textScale = 1,
   bool partial = false,
   int? expectedPages,
+  int? completedPages,
+  int? savedTotal,
   bool fromStart = false,
   bool completed = false,
 }) async {
@@ -71,7 +74,7 @@ Future<_Fixture> _openReader(
     await repository.saveProgress(UnitProgress(
       unitId: units[initialChapter - 1].id,
       position: initialPage,
-      total: expectedPages ?? pages,
+      total: savedTotal ?? expectedPages ?? pages,
       completed: completed,
       updatedAt: 1,
     ));
@@ -83,18 +86,21 @@ Future<_Fixture> _openReader(
     preferencesProvider.overrideWithValue(store),
     readerProvider.overrideWith((ref, key) async {
       requests.add(key.unitUrl);
+      final repaired = completedPages != null &&
+          requests.where((url) => url == key.unitUrl).length > 1;
+      final available = repaired ? completedPages : pages;
       final unit = units.firstWhere((unit) => unit.url == key.unitUrl);
       return ReaderData(
         media: media,
         unit: unit,
         units: units,
         resources: [
-          for (var page = 0; page < pages; page++)
+          for (var page = 0; page < available; page++)
             SyntheticPage(page, 'Scan ${page + 1}'),
         ],
         progress: await repository.progressFor(unit.id),
         offline: offline,
-        partial: partial,
+        partial: partial && !repaired,
         totalPages: expectedPages,
       );
     }),
@@ -491,5 +497,129 @@ void main() {
     final saved = await fixture.repository.progressFor(fixture.units.first.id);
     expect(saved!.position, 1);
     expect(saved.completed, isTrue);
+  });
+
+  for (final mode in ['paged', 'vertical', 'paired']) {
+    testWidgets(
+        'finishing a partial download restores the saved page in $mode mode',
+        (tester) async {
+      final fixture = await _openReader(tester,
+          size: mode == 'paired' ? const Size(1100, 700) : const Size(390, 844),
+          pages: 2,
+          initialPage: 8,
+          expectedPages: 20,
+          completedPages: 20,
+          partial: true,
+          preferences: {
+            'reader_mode': mode == 'paired' ? 'paged' : mode,
+            if (mode == 'paired') ...{
+              'reader_spread_mode': 'doublePage',
+              'reader_cover_alone': false,
+            },
+          });
+      final unit = fixture.units.first;
+      final task = DownloadTask(
+          unitId: unit.id,
+          mediaId: fixture.media.id,
+          sourceId: fixture.media.ref.sourceId,
+          mediaUrl: fixture.media.ref.url,
+          unitUrl: unit.url,
+          mediaTitle: fixture.media.title,
+          unitTitle: unit.title,
+          total: 20,
+          completed: 2,
+          status: DownloadStatus.paused);
+      await fixture.repository.saveDownload(task);
+      await tester.pump();
+      await fixture.container.read(downloadForProvider(unit.id).future);
+      await tester.pumpAndSettle();
+      await fixture.repository.saveDownload(
+          task.copyWith(status: DownloadStatus.done, completed: 20));
+      await tester.pump();
+      await fixture.container.read(downloadForProvider(unit.id).future);
+      await tester.pumpAndSettle();
+      expect(find.text(mode == 'paired' ? 'Pages 9–10 of 20' : 'Page 9 of 20'),
+          findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 400));
+      final progress = (await fixture.repository.progressFor(unit.id))!;
+      expect(progress.position, 8);
+      expect(progress.completed, isFalse);
+      final activity = await fixture.repository.activity();
+      expect(activity.fold<int>(0, (total, day) => total + day.pages), 0);
+      expect(fixture.requests, ['chapter-1', 'chapter-1']);
+      await tester.sendKeyEvent(mode == 'vertical'
+          ? LogicalKeyboardKey.arrowDown
+          : LogicalKeyboardKey.arrowRight);
+      await tester.pumpAndSettle();
+      final afterTurning = await fixture.repository.activity();
+      expect(afterTurning.fold<int>(0, (total, day) => total + day.pages),
+          mode == 'paired' ? 2 : 1);
+    });
+  }
+
+  for (final mode in ['paged', 'vertical']) {
+    testWidgets(
+        'unknown partial totals stay unknown in the $mode reader and page grid',
+        (tester) async {
+      final fixture = await _openReader(tester,
+          pages: 2,
+          partial: true,
+          initialPage: 8,
+          savedTotal: 0,
+          language: mode == 'vertical' ? 'ar' : 'en',
+          size:
+              mode == 'vertical' ? const Size(320, 640) : const Size(390, 844),
+          textScale: mode == 'vertical' ? 1.35 : 1,
+          preferences: {'reader_mode': mode});
+      final l10n =
+          AppLocalizations.of(tester.element(find.byType(ReaderScreen)));
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pumpAndSettle();
+      expect(find.text(l10n.readerSavedPage(1)), findsOneWidget);
+      if (mode == 'vertical') {
+        expect(tester.widget<ReaderHud>(find.byType(ReaderHud)).total, isNull);
+      }
+      await tester.pump(const Duration(milliseconds: 400));
+      final unit = fixture.units.first;
+      final saved = (await fixture.repository.progressFor(unit.id))!;
+      expect(saved.position, 8);
+      expect(saved.total, 0);
+      expect(saved.completed, isFalse);
+      fixture.container
+          .read(readerBookmarksProvider.notifier)
+          .toggle(unit.id, 8);
+      await tester.tap(find.byTooltip(l10n.readerPageGrid));
+      await tester.pumpAndSettle();
+      expect(
+          tester
+              .widget<ReaderPageGridSheet>(find.byType(ReaderPageGridSheet))
+              .totalPages,
+          0);
+      expect(_sheetText(l10n.readerSavedPage(1)), findsOneWidget);
+      expect(_sheetText(l10n.pageOf(1, 2)), findsNothing);
+      await _capture(tester, fixture, 'unknown-total-grid-$mode');
+      await tester.tap(_sheetChip('${l10n.readerBookmarks} · 1'));
+      await tester.pumpAndSettle();
+      expect(_sheetText(l10n.readerBookmarksEmpty), findsNothing);
+      expect(_sheetText(l10n.readerBookmarksUnavailable), findsOneWidget);
+      expect(fixture.container.read(readerBookmarksProvider)[unit.id], [8]);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+      'an explicit backward chapter hop opens at the end, not an old partial position',
+      (tester) async {
+    final fixture = await _openReader(tester, initialChapter: 2);
+    await fixture.repository.saveProgress(UnitProgress(
+        unitId: fixture.units.first.id,
+        position: 2,
+        total: 8,
+        started: true,
+        updatedAt: 1));
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pumpAndSettle();
+    expect(find.text('Page 8 of 8'), findsOneWidget);
+    expect(fixture.requests, ['chapter-2', 'chapter-1']);
   });
 }

@@ -15,6 +15,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../labels.dart';
 import '../navigation.dart';
 import '../providers.dart';
+import '../widgets/chapter_list_sheet.dart';
 
 /// The video surface for an episode.
 ///
@@ -124,6 +125,7 @@ class _WatchView extends ConsumerStatefulWidget {
 }
 
 class _WatchViewState extends ConsumerState<_WatchView> {
+  late final LibraryRepository _repository;
   VideoPlayerController? _controller;
   bool _ready = false;
   String? _error;
@@ -131,6 +133,8 @@ class _WatchViewState extends ConsumerState<_WatchView> {
   bool _fullscreen = false;
   bool _awake = false;
   bool _saving = false;
+  bool _episodeSheetOpen = false;
+  bool _openingEpisode = false;
   bool _completedSaved = false;
   int _lastSavedSecond = -1;
 
@@ -156,6 +160,7 @@ class _WatchViewState extends ConsumerState<_WatchView> {
   @override
   void initState() {
     super.initState();
+    _repository = ref.read(repositoryProvider);
     _completedSaved = _wasCompleted;
     unawaited(_open());
   }
@@ -324,13 +329,13 @@ class _WatchViewState extends ConsumerState<_WatchView> {
         final minutes = _watchedSeconds ~/ 60;
         _watchedSeconds -= minutes * 60;
         unawaited(
-          ref.read(repositoryProvider).recordActivity(minutes: minutes),
+          _repository.recordActivity(minutes: minutes),
         );
       }
     }
     _saving = true;
     unawaited(
-      ref.read(repositoryProvider).saveProgress(row).whenComplete(() {
+      _repository.saveProgress(row).whenComplete(() {
         _saving = false;
       }),
     );
@@ -354,7 +359,7 @@ class _WatchViewState extends ConsumerState<_WatchView> {
       completed: _wasCompleted,
     );
     if (row == null) return;
-    unawaited(ref.read(repositoryProvider).saveProgress(row));
+    unawaited(_repository.saveProgress(row));
   }
 
   Future<void> _keepAwake(bool enabled) async {
@@ -370,6 +375,7 @@ class _WatchViewState extends ConsumerState<_WatchView> {
 
   void _scheduleHide() {
     _hideTimer?.cancel();
+    if (_episodeSheetOpen || ModalRoute.of(context)?.isCurrent == false) return;
     _hideTimer = Timer(const Duration(seconds: 3), () {
       if (!mounted) return;
       if (_controller?.value.isPlaying ?? false) {
@@ -451,6 +457,77 @@ class _WatchViewState extends ConsumerState<_WatchView> {
       return;
     }
     _leave(context);
+  }
+
+  Future<void> _showEpisodes() async {
+    if (_episodeSheetOpen || _openingEpisode || widget.data.units.isEmpty) {
+      return;
+    }
+    final controller = _controller;
+    if (controller == null) return;
+    final wasPlaying = controller.value.isPlaying;
+    _episodeSheetOpen = true;
+    _hideTimer?.cancel();
+    try {
+      if (wasPlaying) await controller.pause();
+      if (!mounted) return;
+      _saveFinal();
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: false,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.vertical(top: Radius.circular(BestRadius.sheet)),
+        ),
+        builder: (sheetContext) => ChapterListSheet(
+          units: widget.data.units,
+          currentUnitId: widget.data.unit.id,
+          workTitle: widget.data.media.displayTitle,
+          onSelected: (unit) {
+            Navigator.of(sheetContext).pop();
+            _openEpisode(unit);
+          },
+        ),
+      );
+    } catch (_) {
+      // A player command failure must not leave a hidden modal or lock controls.
+    } finally {
+      _episodeSheetOpen = false;
+      if (mounted && !_openingEpisode) {
+        if (wasPlaying &&
+            identical(controller, _controller) &&
+            ModalRoute.of(context)?.isCurrent != false &&
+            (WidgetsBinding.instance.lifecycleState == null ||
+                WidgetsBinding.instance.lifecycleState ==
+                    AppLifecycleState.resumed)) {
+          try {
+            await controller.play();
+          } catch (_) {/* The player reports its error. */}
+        }
+        if (mounted) _showControls();
+      }
+    }
+  }
+
+  void _openEpisode(MediaUnit unit) {
+    if (!mounted || _openingEpisode || unit.id == widget.data.unit.id) return;
+    _openingEpisode = true;
+    _saveFinal();
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      router.pushReplacement(Routes.watchOf(widget.data.media, unit));
+    } else {
+      Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+        builder: (_) => WatchScreen(
+          sourceId: widget.data.media.ref.sourceId,
+          url: widget.data.media.ref.url,
+          unitUrl: unit.url,
+        ),
+      ));
+    }
   }
 
   @override
@@ -622,43 +699,55 @@ class _WatchViewState extends ConsumerState<_WatchView> {
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.data.media.displayTitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            widget.data.unit.displayTitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white60,
-                              fontSize: 12,
-                            ),
-                          ),
-                          if (widget.data.sample) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              l10n.sampleStream,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white38,
-                                fontSize: 10,
-                                letterSpacing: 0,
+                      child: Tooltip(
+                        message: l10n.episodes,
+                        child: InkWell(
+                          key: const ValueKey('watch-episode-picker'),
+                          onTap:
+                              widget.data.units.isEmpty ? null : _showEpisodes,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.data.media.displayTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                            ),
-                          ],
-                        ],
+                              const SizedBox(height: 2),
+                              Row(children: [
+                                Flexible(
+                                    child: Text(
+                                  widget.data.unit.displayTitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      color: Colors.white60, fontSize: 12),
+                                )),
+                                if (widget.data.units.isNotEmpty)
+                                  const Icon(Icons.keyboard_arrow_down_rounded,
+                                      size: 18, color: Colors.white60),
+                              ]),
+                              if (widget.data.sample) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  l10n.sampleStream,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white38,
+                                    fontSize: 10,
+                                    letterSpacing: 0,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),

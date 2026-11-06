@@ -28,13 +28,29 @@ class MangaSmokeTest(unittest.TestCase):
     def test_reader_requires_a_positive_real_page_count_not_series_labels(self):
         self.assertIsNone(manga.reader_pages(hierarchy("Real title", "Start reading")))
         self.assertEqual(manga.reader_pages(hierarchy("Page 1 of 23")), 23)
-        self.assertEqual(manga.reader_pages(hierarchy("Page 1 of 0")), 0)
+        self.assertIsNone(manga.reader_pages(hierarchy("Page 1 of 0")))
+        self.assertIsNone(manga.reader_pages(hierarchy("Page 0 of 23")))
+        self.assertIsNone(manga.reader_pages(hierarchy("Page 24 of 23")))
+        self.assertEqual(manga.reader_pages(hierarchy("Pages 2–3 of 23")), 23)
 
     def test_page_counter_alone_is_not_image_decode_proof(self):
         self.assertEqual(manga.page_image_state(hierarchy("Page 1 of 23")), "pending")
         self.assertEqual(manga.page_image_state(hierarchy("Page image")), "ready")
         self.assertEqual(
             manga.page_image_state(hierarchy("This page did not load")), "failed")
+        self.assertEqual(manga.page_image_state(hierarchy(
+            "Page image", "This page did not load")), "failed")
+
+    def test_hidden_chrome_is_revealed_without_substituting_a_counter_for_a_decoded_page(self):
+        hidden = hierarchy("Page image")
+        revealed = hierarchy("Real title", "Page 1 of 23", "Page image", "Vertical")
+        with patch.object(manga, "tap") as tap, \
+                patch.object(manga, "dump", return_value=revealed):
+            self.assertIs(manga.reveal_reader_controls(hidden), revealed)
+        tap.assert_called_once_with(hidden[0], wait=0.2)
+        with patch.object(manga, "tap") as tap:
+            self.assertEqual(manga.reveal_reader_controls(hierarchy("Loading"))[0].get("content-desc"), "Loading")
+        tap.assert_not_called()
 
     def test_runtime_contract_failures_are_not_mislabelled_as_site_outages(self):
         lines = ["W/BestExtensions: UncaughtExceptionInterceptor must be present in default client",

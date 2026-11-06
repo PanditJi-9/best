@@ -139,6 +139,9 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   bool _openingUnit = false;
   bool _refreshingPartial = false;
   bool _unfinishedDownloadSeen = false;
+  bool _restoreActivityBaseline = false;
+  bool _restoringVerticalPosition = false;
+  int _verticalRestoreRevision = 0;
   bool _dragStartedAtStart = false;
   bool _dragStartedAtEnd = false;
   double _edgeDrag = 0;
@@ -254,7 +257,9 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
         resources: _resources,
         unitId: widget.data.unit.id,
         current: _index,
-        totalPages: _chapterTotal,
+        totalPages: widget.data.partial && widget.data.totalPages == null
+            ? 0
+            : _chapterTotal,
         initialBookmarksOnly: bookmarksOnly,
         onSelected: (index) {
           Navigator.of(sheetContext).pop();
@@ -334,6 +339,8 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: false,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius:
@@ -625,10 +632,12 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
       _index = 0;
     } else if (widget.fromStart) {
       _index = 0;
+    } else if (widget.startAtEnd) {
+      _index = total - 1;
     } else if (saved != null) {
       _index = saved.clamp(0, total - 1);
     } else {
-      _index = widget.startAtEnd ? total - 1 : 0;
+      _index = 0;
     }
     _furthest = _index;
     _verticalPositions.itemPositions.addListener(_onVerticalPositions);
@@ -653,8 +662,36 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     final total = _resources.length;
     if (total == 0) {
       _index = 0;
-    } else if (oldWidget.data.partial && !widget.data.partial) {
+      _restoreActivityBaseline = false;
+      _restoringVerticalPosition = false;
+      _verticalRestoreRevision++;
+    } else if ((oldWidget.data.partial && !widget.data.partial) ||
+        _restoringVerticalPosition) {
       _index = (widget.data.progress?.position ?? _index).clamp(0, total - 1);
+      _furthest = _furthest < _index ? _index : _furthest;
+      _restoreActivityBaseline = true;
+      // A longer item list retains its old offset. Ignore stale prefix
+      // positions until the saved-page jump has been laid out.
+      if (_readerSettings.readerMode == ReaderMode.vertical) {
+        _restoringVerticalPosition = true;
+        final revision = ++_verticalRestoreRevision;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || revision != _verticalRestoreRevision) return;
+          if (_verticalController.isAttached) {
+            _verticalController.jumpTo(index: _index);
+          }
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted || revision != _verticalRestoreRevision) return;
+            _restoringVerticalPosition = false;
+            _onVerticalPositions();
+            _scheduleChromeHide();
+          });
+          WidgetsBinding.instance.scheduleFrame();
+        });
+      } else {
+        _restoringVerticalPosition = false;
+        _verticalRestoreRevision++;
+      }
     } else {
       _index = _index.clamp(0, total - 1);
     }
@@ -707,7 +744,11 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   /// reached when the reader can actually see it, not when its first pixel
   /// enters from below.
   void _onVerticalPositions() {
-    if (!mounted || _readerSettings.readerMode != ReaderMode.vertical) return;
+    if (!mounted ||
+        _restoringVerticalPosition ||
+        _readerSettings.readerMode != ReaderMode.vertical) {
+      return;
+    }
     final total = _resources.length;
     if (total == 0) return;
     final positions = _verticalPositions.itemPositions.value
@@ -754,7 +795,9 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
         UnitProgress(
           unitId: widget.data.unit.id,
           position: position,
-          total: _chapterTotal,
+          total: widget.data.partial && widget.data.totalPages == null
+              ? (widget.data.progress?.total ?? 0)
+              : _chapterTotal,
           completed: _atEnd,
           started: true,
           updatedAt: DateTime.now().millisecondsSinceEpoch,
@@ -798,6 +841,15 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                 coverAlone: settings.readerCoverAlone,
               )
             : null;
+    if (_restoreActivityBaseline) {
+      // The restored scan can land in a pair. Its visible neighbour belongs to
+      // the restoration baseline too, not to a new reading gesture.
+      final restoredLastPage = next?.lastVisiblePage(_index) ?? _index;
+      if (restoredLastPage > _furthest) {
+        _furthest = restoredLastPage;
+      }
+      _restoreActivityBaseline = false;
+    }
     if (next == _pagedLayout &&
         settings.readerDirection == _pagedDirection &&
         (next == null || _pagedController != null)) {
@@ -910,6 +962,9 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 
   String _pagePositionLabel(AppLocalizations l10n) {
+    if (widget.data.partial && widget.data.totalPages == null) {
+      return l10n.readerSavedPage(_index + 1);
+    }
     final pages = _pagedLayout?.pagesForView(_pagedLayout!.viewForPage(_index));
     if (pages != null && pages.length == 2) {
       return l10n.readerSpreadPageOf(
@@ -981,57 +1036,61 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                     ),
                   ),
                 ),
-                title: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap:
-                      widget.data.units.isNotEmpty ? _showChaptersSheet : null,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              unit.displayTitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                          if (widget.data.units.isNotEmpty) ...[
-                            const SizedBox(width: 4),
-                            const Icon(Icons.keyboard_arrow_down_rounded,
-                                size: 18, color: Colors.white70),
-                          ],
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          if (widget.data.offline) ...[
-                            Tooltip(
-                              message: l10n.offlineBadge,
-                              child: const Icon(
-                                Icons.offline_pin_rounded,
-                                size: 14,
-                                color: BestColors.jade,
+                title: Tooltip(
+                  message: l10n.chapters,
+                  child: InkWell(
+                    key: const ValueKey('reader-chapter-picker'),
+                    onTap: widget.data.units.isNotEmpty
+                        ? _showChaptersSheet
+                        : null,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                unit.displayTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 15, fontWeight: FontWeight.w700),
                               ),
                             ),
-                            const SizedBox(width: BestSpace.xs),
+                            if (widget.data.units.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              const Icon(Icons.keyboard_arrow_down_rounded,
+                                  size: 18, color: Colors.white70),
+                            ],
                           ],
-                          Expanded(
-                            child: Text(
-                              widget.data.media.displayTitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 11, color: Colors.white70),
+                        ),
+                        Row(
+                          children: [
+                            if (widget.data.offline) ...[
+                              Tooltip(
+                                message: l10n.offlineBadge,
+                                child: const Icon(
+                                  Icons.offline_pin_rounded,
+                                  size: 14,
+                                  color: BestColors.jade,
+                                ),
+                              ),
+                              const SizedBox(width: BestSpace.xs),
+                            ],
+                            Expanded(
+                              child: Text(
+                                widget.data.media.displayTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 11, color: Colors.white70),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 actions: [
@@ -1155,7 +1214,10 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                     child: ReaderHud(
                       chapterTitle: unit.displayTitle,
                       page: _index + 1,
-                      total: _chapterTotal,
+                      total:
+                          widget.data.partial && widget.data.totalPages == null
+                              ? null
+                              : _chapterTotal,
                       isVerticalMode: mode == ReaderMode.vertical,
                     ),
                   ),
@@ -1200,6 +1262,13 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                                   ),
                                 ),
                               if (_atEnd) ...[
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                      bottom: BestSpace.sm),
+                                  child: Text(l10n.readerFinished,
+                                      style: const TextStyle(
+                                          color: Colors.white70, fontSize: 11)),
+                                ),
                                 if (_nextUnit != null)
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 10),
@@ -1248,9 +1317,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                                   ],
                                   Expanded(
                                     child: Text(
-                                      _atEnd
-                                          ? l10n.readerFinished
-                                          : _pagePositionLabel(l10n),
+                                      _pagePositionLabel(l10n),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
@@ -1755,7 +1822,7 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.resource != widget.resource ||
         oldWidget.sourceId != widget.sourceId) {
-      _attempt = 0;
+      _attempt++;
       _bytes = null;
       _loadSignedImage();
     }
@@ -1763,6 +1830,12 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
 
   void _loadSignedImage() {
     final resource = widget.resource;
+    if (resource is FileResource) {
+      // A repair replaces bytes at the same path. FileImage's cache key does
+      // not include modification time or contents; reopen the actual scan.
+      PaintingBinding.instance.imageCache.evict(FileImage(File(resource.path)));
+      return;
+    }
     final source = extensionSourceIdOf(widget.sourceId);
     if (resource is ImageResource && source != null) {
       _bytes = ref
@@ -1807,13 +1880,7 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
     setState(() {
       _attempt++;
       _bytes = null;
-      final resource = widget.resource;
-      final source = extensionSourceIdOf(widget.sourceId);
-      if (resource is ImageResource && source != null) {
-        _bytes = ref
-            .read(extensionHostProvider)
-            .imageBytes(source, resource.url, headers: resource.headers);
-      }
+      _loadSignedImage();
     });
   }
 
@@ -1929,6 +1996,7 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
               key: ValueKey('file-$path-$_attempt'),
               width: _imageWidth,
               fit: _imageFit,
+              frameBuilder: _pageFrame,
               errorBuilder: (
                 BuildContext context,
                 Object error,

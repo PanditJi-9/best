@@ -24,7 +24,9 @@ class ReaderHud extends StatefulWidget {
 
   final String chapterTitle;
   final int page;
-  final int total;
+
+  /// Null means the chapter total is unknown, not the cached prefix length.
+  final int? total;
   final bool isVerticalMode;
 
   @override
@@ -43,7 +45,7 @@ class _ReaderHudState extends State<ReaderHud> {
     super.didUpdateWidget(old);
     // Show the HUD whenever the page changes in vertical mode.
     if (widget.isVerticalMode &&
-        widget.total > 0 &&
+        (widget.total == null || widget.total! > 0) &&
         (widget.page != old.page || widget.total != old.total)) {
       _show();
     }
@@ -70,7 +72,8 @@ class _ReaderHudState extends State<ReaderHud> {
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.isVerticalMode || widget.total <= 0) {
+    if (!widget.isVerticalMode ||
+        (widget.total != null && widget.total! <= 0)) {
       return const SizedBox.shrink();
     }
 
@@ -120,7 +123,8 @@ class _ReaderHudState extends State<ReaderHud> {
                       ),
                       const SizedBox(width: BestSpace.sm),
                       Text(
-                        '${widget.page} / ${widget.total}',
+                        '${widget.page} / ${widget.total ?? '?'}',
+                        textDirection: TextDirection.ltr,
                         style: theme.textTheme.labelMedium?.copyWith(
                           fontFamily: BestFontFamily.mono,
                           fontWeight: FontWeight.w500,

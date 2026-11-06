@@ -33,6 +33,9 @@ class ReaderPageGridSheet extends ConsumerStatefulWidget {
   /// Opened from the "bookmarks" tool, so start filtered instead of asking the
   /// person to find the filter chip.
   final bool initialBookmarksOnly;
+
+  /// Zero explicitly means unknown. Null uses the available resource count for
+  /// callers displaying a complete chapter.
   final int? totalPages;
 
   @override
@@ -106,10 +109,12 @@ class _ReaderPageGridSheetState extends ConsumerState<ReaderPageGridSheet> {
                           ),
                         ),
                         Text(
-                          l10n.pageOf(
-                            (widget.current + 1).clamp(1, displayTotal),
-                            displayTotal,
-                          ),
+                          displayTotal > 0
+                              ? l10n.pageOf(
+                                  (widget.current + 1).clamp(1, displayTotal),
+                                  displayTotal,
+                                )
+                              : l10n.readerSavedPage(widget.current + 1),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -178,7 +183,10 @@ class _ReaderPageGridSheetState extends ConsumerState<ReaderPageGridSheet> {
             const BestHairlineRule(),
             Expanded(
               child: visible.isEmpty
-                  ? _EmptyBookmarks(message: l10n.readerBookmarksEmpty)
+                  ? _EmptyBookmarks(
+                      message: bookmarks.isEmpty
+                          ? l10n.readerBookmarksEmpty
+                          : l10n.readerBookmarksUnavailable)
                   : GridView.builder(
                       controller: scrollController,
                       padding: const EdgeInsets.fromLTRB(
@@ -276,7 +284,9 @@ class _PageTile extends StatelessWidget {
     return Semantics(
       button: true,
       selected: current,
-      label: l10n.pageOf(index + 1, total),
+      label: total > 0
+          ? l10n.pageOf(index + 1, total)
+          : l10n.readerSavedPage(index + 1),
       child: Material(
         color: theme.colorScheme.surfaceContainerHigh,
         clipBehavior: Clip.antiAlias,

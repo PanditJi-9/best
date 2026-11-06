@@ -216,6 +216,9 @@ content is centered and capped instead of stretching text and cards edge to edge
   the subtitle rather than competing with phone-width controls.
 - Mode, bookmark and settings remain direct controls. Wide screens also show
   OCR directly; the same OCR switch stays in settings on every viewport.
+- Tapping the unit title opens the complete chapter picker at the current
+  chapter. Numeric search accepts Arabic/Persian digits; finding current clears
+  the search without reloading the chapter.
 - Fit-screen scans page normally; fit-width scrolls tall scans; original size
   has explicit pinch/pan. A vertical webtoon strip keeps natural page heights.
 - Two-page layouts require fit-screen and at least 600 dp of width. Adaptive
@@ -232,22 +235,33 @@ content is centered and capped instead of stretching text and cards edge to edge
 - Partial downloads never count a prefix as the whole chapter. They retain the
   expected total and later saved position, warn clearly, and block automatic
   next-chapter flow until the full chapter is available.
+- Unknown totals stay unknown in the footer, vertical HUD and page grid.
+  Bookmarks outside the available prefix stay saved; their empty state explains
+  page availability instead of falsely claiming no bookmarks exist.
 
 ### Watch — episodes
 
 - `video_player` (ExoPlayer/Media3) with wakelock.
 - Auto-hiding controls, center play/pause, 10-second skip, speed sheet,
   fullscreen, replay at the end.
+- The title opens an episode picker, not a chapter-labelled list. Playback
+  pauses while choosing; dismissal resumes only an episode that was already
+  playing. A chosen episode replaces the route and releases the old player.
 - Progress in seconds; resume at ≥3 s; finished at 95% or the last 5 s.
 - Errors show the localized playback message, not a raw exception.
 
 ### Downloads — what is offline
 
-- Masthead `04`: title + storage line, clear-finished action.
-- `StatStrip`: offline / in progress / storage.
+- Title and on-device image bytes, with search and All / Offline / Failed /
+  In progress filters kept above the scrolling list.
 - Section "In progress" (queued, running, paused, failed) and "Ready offline"
-  (done). Each tile: status tile, media + unit, progress or error, pause/resume/
-  retry/delete, open.
+  (done). Each tile shows the work, chapter, status and useful pause/resume/retry
+  or open action. Its secondary menu offers local file checks and deletion.
+- Check saved pages reports missing, empty or byte-changed files; it does not
+  claim image decoding or source authenticity. Repair is a separate explicit
+  action and preserves intact files and reader state.
+- Finished-download cleanup applies only to the shown selection and confirms
+  the affected count. Search and filters do not alter stored rows.
 - Empty state: explanation + a Browse button.
 - The queue lives in the shell, so leaving the tab never pauses a download.
 

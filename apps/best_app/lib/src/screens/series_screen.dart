@@ -10,6 +10,7 @@ import '../labels.dart';
 import '../navigation.dart';
 import '../providers.dart';
 import '../progress_label.dart';
+import '../widgets/chapter_list_sheet.dart';
 
 class SeriesScreen extends ConsumerWidget {
   const SeriesScreen({super.key, required this.sourceId, required this.url});
@@ -660,6 +661,13 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
                     ),
             ),
           )),
+          IconButton(
+            key: const ValueKey('series-chapter-picker'),
+            tooltip: media.kind.isReading ? l10n.chapters : l10n.episodes,
+            onPressed:
+                units.isEmpty ? null : () => _showUnitPicker(media, units),
+            icon: const Icon(Icons.format_list_numbered_rounded),
+          ),
           PopupMenuButton<UnitSort>(
             tooltip: l10n.seriesSort,
             initialValue: _sort,
@@ -702,6 +710,34 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
           ]),
         ),
       ]),
+    );
+  }
+
+  void _showUnitPicker(Media media, List<MediaUnit> units) {
+    FocusScope.of(context).unfocus();
+    final continuation = UnitNavigation.continuation(units, data.progress);
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: false,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(BestRadius.sheet)),
+      ),
+      builder: (sheetContext) => ChapterListSheet(
+        units: units,
+        workTitle: media.displayTitle,
+        initialUnitId: continuation?.unit.id,
+        currentUnitId: continuation?.kind == UnitContinuationKind.resume
+            ? continuation!.unit.id
+            : '',
+        onSelected: (unit) {
+          Navigator.of(sheetContext).pop();
+          openUnit(context, ref, media, unit);
+        },
+      ),
     );
   }
 

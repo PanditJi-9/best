@@ -87,7 +87,7 @@ void main() {
     // widget/render tests and the Android image smoke gate.
     for (var page = 0; page < 10; page++) {
       await File(
-              '${directory.path}/page_${page.toString().padLeft(4, '0')}.img')
+              '${directory.path}/page_${(page + 1).toString().padLeft(4, '0')}.img')
           .writeAsBytes([1]);
     }
     await repository.saveDownload(task(directory).copyWith(completed: 10));
@@ -113,7 +113,7 @@ void main() {
       () async {
     final (repository, container, directory) =
         await setup([_UnavailableSource()]);
-    await File('${directory.path}/page_0000.img').writeAsBytes([1]);
+    await File('${directory.path}/page_0001.img').writeAsBytes([1]);
     await repository.saveDownload(
         task(directory, status: DownloadStatus.paused).copyWith(completed: 1));
     final reader = await container.read(readerProvider(key).future);
@@ -127,11 +127,56 @@ void main() {
       'a finished task with missing files is shown as partial rather than fabricated completion',
       () async {
     final (repository, container, directory) = await setup([]);
-    await File('${directory.path}/page_0000.img').writeAsBytes([1]);
+    await File('${directory.path}/page_0001.img').writeAsBytes([1]);
     await repository.saveDownload(task(directory));
     final reader = await container.read(readerProvider(key).future);
     expect(reader.partial, isTrue);
     expect(reader.totalPages, 10);
     expect(reader.resources, hasLength(1));
+  });
+
+  test('a gap never moves a later file into the missing page identity',
+      () async {
+    final (repository, container, directory) = await setup([]);
+    for (final number in [1, 3, 10]) {
+      await File(
+              '${directory.path}/page_${number.toString().padLeft(4, '0')}.img')
+          .writeAsBytes([number]);
+    }
+    await repository.saveDownload(task(directory).copyWith(completed: 3));
+    await repository.saveProgress(UnitProgress(
+        unitId: unit.id, position: 8, total: 10, started: true, updatedAt: 1));
+    final reader = await container.read(readerProvider(key).future);
+    expect(reader.resources, hasLength(1));
+    expect((reader.resources.single as FileResource).path,
+        endsWith('page_0001.img'));
+    expect(reader.progress!.position, 8);
+    expect(reader.partial, isTrue);
+    expect(await File('${directory.path}/page_0003.img').exists(), isTrue);
+  });
+
+  test('known task totals cap cached pages without deleting extras', () async {
+    final (repository, container, directory) = await setup([]);
+    await File('${directory.path}/page_0001.img').writeAsBytes([1]);
+    await File('${directory.path}/page_0002.img').writeAsBytes([2]);
+    await repository
+        .saveDownload(task(directory).copyWith(total: 1, completed: 1));
+    final reader = await container.read(readerProvider(key).future);
+    expect(reader.resources, hasLength(1));
+    expect(reader.totalPages, 1);
+    expect(reader.partial, isFalse);
+    expect(await File('${directory.path}/page_0002.img').exists(), isTrue);
+  });
+
+  test(
+      'a legacy zero task count falls back to known chapter metadata, not prefix completion',
+      () async {
+    final (repository, container, directory) = await setup([]);
+    await File('${directory.path}/page_0001.img').writeAsBytes([1]);
+    await repository
+        .saveDownload(task(directory).copyWith(total: 0, completed: 1));
+    final reader = await container.read(readerProvider(key).future);
+    expect(reader.partial, isTrue);
+    expect(reader.totalPages, 10);
   });
 }

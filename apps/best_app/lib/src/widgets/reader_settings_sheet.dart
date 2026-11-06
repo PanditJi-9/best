@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/generated/app_localizations.dart';
 import '../providers.dart';
+import 'reader_download_tile.dart';
 
 /// Everything that changes how a chapter is read, in one place.
 ///
@@ -41,7 +42,6 @@ class ReaderSettingsSheet extends ConsumerWidget {
     );
     final bookmarks =
         ref.watch(readerBookmarksProvider)[unit.id] ?? const <int>[];
-    final download = ref.watch(downloadForProvider(unit.id)).value;
 
     return SafeArea(
       top: false,
@@ -170,7 +170,7 @@ class ReaderSettingsSheet extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: BestSpace.sm),
-            _downloadTile(context, ref, theme, l10n, download),
+            ReaderDownloadTile(media: media, unit: unit),
             _section(theme, l10n.readerModeTitle),
             Wrap(
               spacing: BestSpace.sm,
@@ -493,109 +493,6 @@ class ReaderSettingsSheet extends ConsumerWidget {
         overflow: TextOverflow.ellipsis,
       ),
     );
-  }
-
-  Widget _downloadTile(
-    BuildContext context,
-    WidgetRef ref,
-    ThemeData theme,
-    AppLocalizations l10n,
-    DownloadTask? task,
-  ) {
-    final done = task?.isFinished ?? false;
-    final active = task?.isActive ?? false;
-    final failed = task?.isFailed ?? false;
-    final status = done
-        ? l10n.readerDownloaded
-        : active
-            ? (task!.status == DownloadStatus.queued
-                ? l10n.readerDownloadQueued
-                : l10n.readerDownloading)
-            : failed
-                ? l10n.readerDownloadFailed
-                : l10n.readerDownload;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(BestRadius.md),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          BestSpace.md,
-          BestSpace.sm,
-          BestSpace.sm,
-          BestSpace.sm,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              done
-                  ? Icons.offline_pin_rounded
-                  : active
-                      ? Icons.download_rounded
-                      : Icons.download_for_offline_outlined,
-              size: 22,
-              color: done ? theme.colorScheme.primary : null,
-            ),
-            const SizedBox(width: BestSpace.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.readerDownload,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    status,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (active)
-              Padding(
-                padding: const EdgeInsetsDirectional.only(end: BestSpace.sm),
-                child: SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    value: task != null && task.progress > 0
-                        ? task.progress
-                        : null,
-                  ),
-                ),
-              )
-            else if (!done)
-              TextButton(
-                onPressed: () => _downloadChapter(context, ref),
-                child: Text(failed ? l10n.retry : l10n.readerDownload),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _downloadChapter(BuildContext context, WidgetRef ref) async {
-    try {
-      await ref.read(downloadManagerProvider).enqueue(media, unit);
-      if (!context.mounted) return;
-      ref.invalidate(downloadForProvider(unit.id));
-    } catch (_) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).readerDownloadFailed),
-        ),
-      );
-    }
   }
 
   Widget _tip(ThemeData theme, IconData icon, String text) {

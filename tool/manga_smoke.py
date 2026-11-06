@@ -41,9 +41,11 @@ def manga_card(root):
 def reader_pages(root) -> int | None:
     for node in nodes(root):
         text = (node.get("text") or "") + " " + (node.get("content-desc") or "")
-        match = re.search(r"\bPage \d+ of (\d+)\b", text)
+        match = re.search(r"\bPages? (\d+)(?:[–-](\d+))? of (\d+)\b", text)
         if match:
-            return int(match.group(1))
+            first, last, total = match.groups()
+            if 0 < int(first) <= int(last or first) <= int(total):
+                return int(total)
     return None
 
 
@@ -55,14 +57,33 @@ FAILED_LABELS = ("this page did not load", "لم تُحمَّل هذه الصف�
 
 
 def page_image_state(root) -> str:
+    ready = False
     for node in nodes(root):
         text = ((node.get("text") or "") + " " +
                 (node.get("content-desc") or "")).lower()
         if any(label in text for label in FAILED_LABELS):
             return "failed"
         if any(label in text for label in READY_LABELS):
-            return "ready"
-    return "pending"
+            ready = True
+    return "ready" if ready else "pending"
+
+
+def reveal_reader_controls(root):
+    """A decoded page can be full-screen after the four-second chrome timer.
+
+    Tap only the page's centre, never a page-turn zone or a chapter button.
+    Keep the original page-count/title/decoded-image gates after revealing it.
+    """
+    if reader_pages(root) is not None:
+        return root
+    image = next((node for node in nodes(root)
+                  if any(label in ((node.get("text") or "") + " " +
+                                    (node.get("content-desc") or "")).lower()
+                         for label in READY_LABELS)), None)
+    if image is not None:
+        tap(image, wait=0.2)
+        return dump()
+    return root
 
 
 def runtime_contract_errors(log: str) -> list[str]:
@@ -131,6 +152,7 @@ def check_source(name: str, report: dict) -> None:
         error = error_on_screen(root)
         if error:
             raise RuntimeError(f"{name} pages: {error}")
+        root = reveal_reader_controls(root)
         count = reader_pages(root)
         if count is not None and count > 0 and find_any(root, report["title"]) is not None:
             state = "pending"
@@ -146,34 +168,42 @@ def check_source(name: str, report: dict) -> None:
                 raise RuntimeError(f"{name} reader: the page image did not load")
             if state == "pending":
                 raise RuntimeError(f"{name} reader: no page image appeared")
-            report.update(reader=True, page_count=count)
+            report.update(decoded=True, page_count=count)
 
             # 1.0.0 added a second layout. Prove the same chapter survives the
             # switch: the page counter must stay and the image must remain
             # decoded, not collapse into a blank scroll.
+            root = reveal_reader_controls(root)
             mode = find_any(root, "Vertical")
             if mode is None:
                 mode = find_any(root, "عمودي")
             if mode is None:
                 raise RuntimeError(f"{name} reader: the layout button did not render")
-            tap(mode, wait=5)
-            root = dump()
-            if reader_pages(root) is None:
-                raise RuntimeError(f"{name} reader: vertical layout lost the page counter")
+            tap(mode, wait=1)
+            root = reveal_reader_controls(dump())
             state = page_image_state(root)
+            image_deadline = time.monotonic() + 30
+            while state == "pending" and time.monotonic() < image_deadline:
+                time.sleep(1)
+                root = reveal_reader_controls(dump())
+                state = page_image_state(root)
             if state != "ready":
                 raise RuntimeError(
                     f"{name} reader: vertical layout image state was {state}")
+            if reader_pages(root) != count or find_any(root, report["title"]) is None:
+                raise RuntimeError(f"{name} reader: vertical layout lost the page counter")
             screenshot(f"manga-{name}-reader-vertical.png")
-            report["vertical"] = True
+            report.update(reader=True, vertical=True)
             paged = find_any(root, "Paged")
             if paged is None:
                 paged = find_any(root, "صفحات")
             if paged is not None:
-                tap(paged, wait=3)
+                tap(paged, wait=1)
             return
         time.sleep(2)
     debug_texts(root)
+    Path(f"manga-{name}-reader.xml").write_text(ET.tostring(root, encoding="unicode"))
+    screenshot(f"manga-{name}-reader.png")
     raise RuntimeError(f"{name} reader did not expose real chapter pages")
 
 

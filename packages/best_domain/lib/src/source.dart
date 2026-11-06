@@ -95,6 +95,13 @@ abstract interface class LatestSource {
   Future<List<Media>> latest({int page = 1});
 }
 
+/// Sources whose pages need a signing/cookie-aware client may supply bytes to
+/// the offline engine. Null declines the request (for example on a platform
+/// without that host); ordinary sources keep the shared HTTP path.
+abstract interface class PageBytesSource {
+  Future<List<int>?> pageBytes(ImageResource page);
+}
+
 /// Resolves a source by id and lists what is installed.
 ///
 /// The list is supplied through a callback, not captured once: installing or

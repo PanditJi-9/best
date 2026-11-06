@@ -149,8 +149,7 @@ void main() {
     );
     await host.chapters(42, media);
     expect(calls.last.method, 'chapters');
-    expect(calls.last.arguments,
-        {'sourceId': 42, 'url': '775', 'memo': memo});
+    expect(calls.last.arguments, {'sourceId': 42, 'url': '775', 'memo': memo});
 
     final fresh = await host.details(42, media);
     expect(calls.last.method, 'details');
@@ -218,5 +217,37 @@ void main() {
 
   test('a reader without a host falls back instead of failing', () async {
     expect(await host.imageBytes(42, 'https://cdn.test/1.jpg'), isNull);
+  });
+
+  test(
+      'the offline adapter uses the signed image boundary with the original headers',
+      () async {
+    final calls = <MethodCall>[];
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      return Uint8List.fromList([4, 3, 2, 1]);
+    });
+    final source = ExtensionSourceAdapter(
+        host: host,
+        info: ExtensionSourceInfo.fromMap({
+          'sourceId': 42,
+          'name': 'Test manga',
+          'lang': 'en',
+          'kind': 'manga',
+        }));
+    expect(source, isA<PageBytesSource>());
+    expect(
+        await source.pageBytes(
+            const ImageResource('https://cdn.test/signed.jpg', headers: {
+          'Referer': 'https://site.test/chapter',
+          'X-Test': 'page'
+        })),
+        [4, 3, 2, 1]);
+    expect(calls.single.method, 'imageBytes');
+    expect(calls.single.arguments, {
+      'sourceId': 42,
+      'url': 'https://cdn.test/signed.jpg',
+      'headers': {'Referer': 'https://site.test/chapter', 'X-Test': 'page'},
+    });
   });
 }

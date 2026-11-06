@@ -56,6 +56,7 @@ class _Source implements SourceAdapter {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() async {
+    WidgetController.hitTestWarningShouldBeFatal = true;
     for (final font in [
       (
         BestFonts.text,
@@ -271,10 +272,17 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Chapter 1'), findsWidgets);
       await image(tester, 'downloads-$locale');
-      await tester.tap(find.text('${l10n.downloadsInProgress} · 0'));
+      final queueFilter = find.text('${l10n.downloadsInProgress} · 0');
+      await tester.ensureVisible(queueFilter);
+      await tester.pumpAndSettle();
+      await tester.tap(queueFilter);
       await tester.pumpAndSettle();
       expect(find.text(l10n.downloadFilterEmpty), findsOneWidget);
       expect((await repository.downloads()).single.isFinished, isTrue);
+      await image(tester, 'downloads-filter-empty-$locale');
+      await tester.tap(find.text(l10n.downloadsClearSearch));
+      await tester.pumpAndSettle();
+      expect(find.text('Chapter 1'), findsWidgets);
       await tester.tap(find.text(l10n.navMenu).last);
       await tester.pumpAndSettle();
       expect(find.text(l10n.openGuide).hitTestable(), findsOneWidget);
