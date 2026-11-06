@@ -168,6 +168,28 @@ class AndroidApksTest(unittest.TestCase):
                                      aapt2="aapt2 fixture", apksigner="apksigner fixture")
         self.assertEqual(report["certificateSha256"], certificate)
 
+    def test_aapt2_compile_sdk_codename_cannot_overwrite_the_package_name(self):
+        certificate = "a" * 64
+        badging = (f"package: name='{apks.PACKAGE}' versionCode='24' versionName='1.4.0' "
+                   "platformBuildVersionName='16' compileSdkVersion='36' "
+                   "compileSdkVersionCodename='16'\n")
+        signing = f"V2 Signer: certificate SHA-256 digest: {certificate}\n"
+        with patch.object(apks.subprocess, "run", side_effect=[Mock(stdout=badging), Mock(stdout=signing)]):
+            report = apks.verify_apk(self.source / "app-universal-release.apk", "universal",
+                                     ("1.4.0", 24), certificate,
+                                     aapt2="aapt2 fixture", apksigner="apksigner fixture")
+        self.assertEqual(report["certificateSha256"], certificate)
+
+    def test_unrelated_codename_must_not_disguise_a_wrong_package(self):
+        badging = ("package: name='other.app' versionCode='24' versionName='1.4.0' "
+                   f"compileSdkVersionCodename='{apks.PACKAGE}'\n")
+        with patch.object(apks.subprocess, "run", return_value=Mock(stdout=badging)) as run:
+            with self.assertRaisesRegex(ValueError, "other.app"):
+                apks.verify_apk(self.source / "app-universal-release.apk", "universal",
+                                ("1.4.0", 24), "a" * 64,
+                                aapt2="aapt2 fixture", apksigner="apksigner fixture")
+        run.assert_called_once()
+
     def test_native_configuration_preserves_update_identity_and_runtime_names(self):
         properties = (TOOL / "android/gradle.properties").read_text()
         self.assertIn("force-version-code-ignoring-abi=true", properties)

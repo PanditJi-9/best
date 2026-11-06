@@ -151,9 +151,12 @@ def verify_apk(apk: Path, label: str, version: tuple[str, int],
     badging = subprocess.run([aapt2, "dump", "badging", str(apk)],
                              check=True, capture_output=True, text=True).stdout
     package_line = next((line for line in badging.splitlines() if line.startswith("package: ")), "")
-    identity = dict(re.findall(r"(name|versionCode|versionName)='([^']*)'", package_line))
-    if identity != {"name": PACKAGE, "versionName": version[0], "versionCode": str(version[1])}:
-        raise ValueError(f"{apk.name}: package/version identity does not match this build")
+    # Match whole attribute tokens. Recent aapt2 also emits
+    # compileSdkVersionCodename='16'; its trailing "name" is not the package name.
+    identity = dict(re.findall(r"(?:^|\s)(name|versionCode|versionName)='([^']*)'", package_line))
+    expected_identity = {"name": PACKAGE, "versionName": version[0], "versionCode": str(version[1])}
+    if identity != expected_identity:
+        raise ValueError(f"{apk.name}: package/version identity {identity} does not match {expected_identity}")
     signed = subprocess.run([apksigner, "verify", "--print-certs", str(apk)],
                             check=True, capture_output=True, text=True).stdout
     fingerprints = re.findall(
