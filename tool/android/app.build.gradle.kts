@@ -34,6 +34,22 @@ android {
         versionName = flutter.versionName
     }
 
+    // --split-per-abi builds the three supported ABIs once. Add the universal
+    // output to that same assembly instead of compiling the app a second time.
+    splits {
+        abi {
+            isUniversalApk = true
+        }
+    }
+
+    // Some third-party AARs carry 32-bit Intel libraries, but Flutter release
+    // builds do not support x86. Do not falsely advertise it in the universal APK.
+    packaging {
+        jniLibs {
+            excludes += "lib/x86/**"
+        }
+    }
+
     sourceSets.getByName("test").java.srcDir(
         rootProject.projectDir.resolve("../../../tool/android/tests"),
     )

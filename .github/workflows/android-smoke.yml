@@ -24,6 +24,9 @@ jobs:
     name: Install and open the release APK
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
 
@@ -37,10 +40,47 @@ jobs:
           channel: stable
           cache: true
 
+      # CI already checks widgets, the runtime JVM ABI and the signature. Only
+      # reuse its complete successful build for this exact checkout, never a
+      # release from another commit or an APK with an unknown test outcome.
+      - name: Find a successful CI APK for this exact commit
+        id: ci-apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml \
+            --commit "$GITHUB_SHA" --status success --limit 1 \
+            --json databaseId --jq '.[0].databaseId // empty')
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Reuse the verified universal APK
+        id: download-ci-apk
+        if: steps.ci-apk.outputs.run_id != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: best-release-apk
+          run-id: ${{ steps.ci-apk.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: apps/best_app/build/app/outputs/flutter-apk
+
+      - name: Cache Gradle for a fallback build
+        if: steps.download-ci-apk.outcome != 'success'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: smoke-gradle-${{ runner.os }}-${{ hashFiles('tool/android/*.gradle.kts', 'tool/android/gradle.properties', 'apps/best_app/pubspec.lock') }}
+          restore-keys: |
+            smoke-gradle-${{ runner.os }}-
+
       - name: Generate the Android platform
+        if: steps.download-ci-apk.outcome != 'success'
         run: sh tool/bootstrap_android.sh
 
       - name: Configure release signing
+        if: steps.download-ci-apk.outcome != 'success'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -58,22 +98,24 @@ jobs:
           df -h /
 
       - name: Build the release APK
+        if: steps.download-ci-apk.outcome != 'success'
         working-directory: apps/best_app
         run: |
           flutter pub get
           flutter gen-l10n
-          flutter build apk --release
+          flutter build apk --release --no-pub
 
       # AGP 9 creates only debug unit tests by default. Explicitly retain the
       # release test variant so this gate checks the runtime we actually ship.
       - name: Extension runtime JVM compatibility tests
+        if: steps.download-ci-apk.outcome != 'success'
         working-directory: apps/best_app/android
         run: |
           bash ./gradlew :app:testReleaseUnitTest --no-daemon -Pandroid.onlyEnableUnitTestForTheTestedBuildType=false
           test -f ../build/app/test-results/testReleaseUnitTest/TEST-app.best.best_app.ext.RuntimeAbiTest.xml
 
       - name: Keep runtime test reports
-        if: always()
+        if: always() && steps.download-ci-apk.outcome != 'success'
         uses: actions/upload-artifact@v4
         with:
           name: runtime-abi-tests
@@ -81,6 +123,11 @@ jobs:
             apps/best_app/build/app/test-results/testReleaseUnitTest/
             apps/best_app/build/app/reports/tests/testReleaseUnitTest/
           if-no-files-found: warn
+
+      - name: Verify the APK that will actually run
+        run: >-
+          python3 tool/android_apks.py verify --universal-only
+          --directory apps/best_app/build/app/outputs/flutter-apk
 
       - name: Enable KVM
         run: |

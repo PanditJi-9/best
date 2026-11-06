@@ -158,16 +158,18 @@ cd ../../rust/best_core && cargo test
 cd ../../apps/best_app
 sh ../../tool/bootstrap_android.sh   # creates android/ once
 flutter pub get
-flutter analyze
-flutter test
-flutter build apk --release
+flutter gen-l10n
+flutter analyze --no-pub
+flutter test --no-pub
+python3 ../../tool/android_apks.py build  # ARM64, ARM32, x86_64 + Universal, once
 ```
 
 The `CI` workflow runs these steps on pushes to `main` and on pull requests,
-and uploads `app-release.apk` as a downloadable artifact. It uses the
-memory-safe Gradle profile from `tool/android/gradle.properties` (3G Gradle,
-2G Kotlin), so the runner does not spend its budget on an 8G heap it never
-needs.
+and uploads four standalone APK alternatives: ARM64, ARM32, x86_64 and
+Universal. They come from one assembly, share the same update identity, and
+each manifest/ABI/signature is checked before upload. Gradle caching, bounded
+parallel work and the memory-safe 3G/2G profile avoid unnecessary compilation.
+See [Android builds](docs/ANDROID-BUILDS.md) for files and build-time boundaries.
 
 Tagged builds are signed with a release key stored in Actions secrets
 (`tool/configure_signing.sh`); a local build without that secret stays
@@ -179,16 +181,19 @@ crashes before the first frame on a subset of GPU drivers — see
 
 `.github/workflows/ci.yml` runs five gates on every push: a ranged probe of
 every demo stream in the bundled guide, domain tests, data tests, Rust tests and
-formatting, then Flutter analyze, widget tests and a release APK. The APK is
-uploaded as the `best-release-apk` artifact, and a `v*` tag publishes it to
-Releases. The stream probe exists because a hard-coded demo URL that starts
+formatting, then Flutter analyze, widget tests and four release APKs. Universal
+keeps the `best-release-apk` artifact name; the three smaller variants append
+their ABI names. A `v*` tag publishes all four to Releases. The stream probe
+exists because a hard-coded demo URL that starts
 answering 403 turns the first-run play button into an error screen; it fails in
 seconds instead of after an emulator boot.
 
 `.github/workflows/android-smoke.yml` is the on-demand launch gate: it boots an
 API 30 emulator, installs the release APK, starts it, dumps the visible text and
-a screenshot, and fails if the process is gone. A green build is not proof that
-the app opens; this job is.
+a screenshot, and fails if the process is gone. It reuses successful CI output
+only for the exact same commit, avoiding another compile/JVM pass; otherwise it
+builds and tests afresh. A green build is not proof that the app opens; this job
+is.
 
 ## Design rules
 
