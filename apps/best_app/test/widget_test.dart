@@ -238,9 +238,9 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
 
-    // The series page uses its own glass back control over the hero instead of
-    // an app bar, so tap the control a reader would tap.
-    await tester.tap(find.byTooltip('Back to series'));
+    // Work details now use the standard app-bar back action. It returns to the
+    // shelf, not to another "series" screen.
+    await tester.pageBack();
     await tester.pumpAndSettle();
 
     // Settings lives in the Menu tab, one tap from any space.

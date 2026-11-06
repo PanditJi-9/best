@@ -25,12 +25,15 @@ class LibraryBackup {
   static String encode(
     LibrarySnapshot snapshot, {
     List<String> sources = const [],
+    List<String> categories = const [],
+    ReaderStateSnapshot reader = const ReaderStateSnapshot(),
   }) {
     final document = <String, Object?>{
       'format': format,
       'version': version,
-      'exportedAt':
-          snapshot.exportedAt > 0 ? snapshot.exportedAt : DateTime.now().millisecondsSinceEpoch,
+      'exportedAt': snapshot.exportedAt > 0
+          ? snapshot.exportedAt
+          : DateTime.now().millisecondsSinceEpoch,
       'media': [
         for (final work in snapshot.media)
           <String, Object?>{
@@ -75,6 +78,7 @@ class LibraryBackup {
             'position': row.position,
             'total': row.total,
             'completed': row.completed,
+            'started': row.started,
             'updatedAt': row.updatedAt,
           },
       ],
@@ -88,6 +92,8 @@ class LibraryBackup {
           },
       ],
       'sources': sources,
+      if (categories.isNotEmpty) 'categories': categories,
+      if (!reader.isEmpty) 'reader': reader.toJson(),
     };
     return const JsonEncoder.withIndent('  ').convert(document);
   }
@@ -124,9 +130,17 @@ class LibraryBackup {
       progress: _rows(parsed['progress'], _progress),
       activity: _rows(parsed['activity'], _activity),
     );
+    final ReaderStateSnapshot reader;
+    try {
+      reader = ReaderStateSnapshot.fromJson(parsed['reader']);
+    } on FormatException catch (error) {
+      throw BackupException(error.message);
+    }
     return BackupDocument(
       snapshot: snapshot,
       sources: _strings(parsed['sources']),
+      categories: _strings(parsed['categories']),
+      reader: reader,
     );
   }
 
@@ -138,7 +152,9 @@ class LibraryBackup {
 
   static List<T> _rows<T>(Object? raw, T Function(Map<String, Object?>) parse) {
     if (raw == null) return const [];
-    if (raw is! List) throw const BackupException('A backup section is not a list.');
+    if (raw is! List) {
+      throw const BackupException('A backup section is not a list.');
+    }
     final result = <T>[];
     for (final row in raw) {
       if (row is! Map<String, Object?>) {
@@ -195,6 +211,7 @@ class LibraryBackup {
       position: _int(row['position']),
       total: _int(row['total']),
       completed: row['completed'] == true,
+      started: row['started'] == true,
       updatedAt: _int(row['updatedAt']),
     );
   }
@@ -216,10 +233,12 @@ class LibraryBackup {
   static String? _optionalString(Object? raw) =>
       raw is String && raw.trim().isNotEmpty ? raw : null;
 
-  static int _int(Object? raw) => raw is int ? raw : (raw is num ? raw.toInt() : 0);
+  static int _int(Object? raw) =>
+      raw is int ? raw : (raw is num ? raw.toInt() : 0);
 
-  static double _number(Object? raw) =>
-      raw is num ? raw.toDouble() : (raw is String ? double.tryParse(raw) ?? 0 : 0);
+  static double _number(Object? raw) => raw is num
+      ? raw.toDouble()
+      : (raw is String ? double.tryParse(raw) ?? 0 : 0);
 
   static List<String> _strings(Object? raw) {
     if (raw is! List) return const [];
@@ -250,12 +269,23 @@ class LibraryBackup {
 
 /// A parsed backup: the shelf, plus the packs the shelf was built with.
 class BackupDocument {
-  const BackupDocument({required this.snapshot, this.sources = const []});
+  const BackupDocument({
+    required this.snapshot,
+    this.sources = const [],
+    this.categories = const [],
+    this.reader = const ReaderStateSnapshot(),
+  });
 
   final LibrarySnapshot snapshot;
   final List<String> sources;
+  final List<String> categories;
+  final ReaderStateSnapshot reader;
 
-  bool get isEmpty => snapshot.isEmpty && sources.isEmpty;
+  bool get isEmpty =>
+      snapshot.isEmpty &&
+      sources.isEmpty &&
+      categories.isEmpty &&
+      reader.isEmpty;
 }
 
 class BackupException implements Exception {

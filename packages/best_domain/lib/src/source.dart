@@ -1,6 +1,18 @@
 import 'media.dart';
 import 'units.dart';
 
+/// A missing adapter is recoverable through the source directory, not retries
+/// against a server that was never contacted. Stored pages can still be read.
+class SourceNotInstalled extends StateError {
+  SourceNotInstalled(this.sourceId)
+      : super('This source is not installed: $sourceId');
+
+  final String sourceId;
+
+  @override
+  String toString() => 'This source is not installed: $sourceId';
+}
+
 /// One addressable page or stream.
 sealed class MediaResource {
   const MediaResource();

@@ -12,10 +12,22 @@ import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'download/background_download_client.dart';
+import 'backup/backup_file_sharer.dart';
+import 'backup/backup_file_store.dart';
 import 'extension_host.dart';
 import 'network.dart';
 import 'ocr/ocr_client.dart';
 import 'security/biometric_client.dart';
+
+// Keep existing settings-only imports source-compatible after moving these
+// framework-free choices into the domain layer.
+export 'package:best_domain/best_domain.dart'
+    show
+        ReaderMode,
+        ReaderDirection,
+        ReaderFit,
+        ReaderBackground,
+        ReaderSpreadMode;
 
 /// Replaced in `main()` after the database is open. A provider that throws
 /// until it is overridden is better than a nullable global that fails later.
@@ -26,6 +38,12 @@ final Provider<LibraryRepository> repositoryProvider =
 
 final Provider<BiometricClient> biometricClientProvider =
     Provider<BiometricClient>((ref) => const BiometricClient());
+
+final backupFileSharerProvider =
+    Provider<BackupFileSharer>((ref) => const BackupFileSharer());
+
+final backupFileStoreProvider =
+    Provider<BackupFileStore>((ref) => const BackupFileStore());
 
 final Provider<OcrClient> ocrClientProvider = Provider<OcrClient>((ref) {
   return OcrClient(repository: ref.watch(repositoryProvider));
@@ -358,6 +376,8 @@ class AppSettings {
     this.readerWebtoonGap = 0,
     this.readerFilterMode = 'none',
     this.readerBrightness = 0,
+    this.readerSpreadMode = ReaderSpreadMode.single,
+    this.readerCoverAlone = true,
     this.ocrTranslationEnabled = false,
     this.biometricLockEnabled = false,
   });
@@ -411,6 +431,35 @@ class AppSettings {
   final String readerFilterMode;
   final int readerBrightness;
 
+  final ReaderSpreadMode readerSpreadMode;
+  final bool readerCoverAlone;
+
+  ReaderPreferences get readerPreferences => ReaderPreferences(
+        mode: readerMode,
+        direction: readerDirection,
+        fit: readerFit,
+        background: readerBackground,
+        tapZones: readerTapZones,
+        webtoonGap: readerWebtoonGap,
+        filterMode: readerFilterMode,
+        brightness: readerBrightness,
+        spreadMode: readerSpreadMode,
+        coverAlone: readerCoverAlone,
+      );
+
+  AppSettings withReaderPreferences(ReaderPreferences preferences) => copyWith(
+        readerMode: preferences.mode,
+        readerDirection: preferences.direction,
+        readerFit: preferences.fit,
+        readerBackground: preferences.background,
+        readerTapZones: preferences.tapZones,
+        readerWebtoonGap: preferences.webtoonGap,
+        readerFilterMode: preferences.filterMode,
+        readerBrightness: preferences.brightness,
+        readerSpreadMode: preferences.spreadMode,
+        readerCoverAlone: preferences.coverAlone,
+      );
+
   /// Real-time offline OCR and translation overlay on manga pages.
   final bool ocrTranslationEnabled;
 
@@ -435,6 +484,8 @@ class AppSettings {
     int? readerWebtoonGap,
     String? readerFilterMode,
     int? readerBrightness,
+    ReaderSpreadMode? readerSpreadMode,
+    bool? readerCoverAlone,
     bool? ocrTranslationEnabled,
     bool? biometricLockEnabled,
   }) {
@@ -454,64 +505,12 @@ class AppSettings {
       readerWebtoonGap: readerWebtoonGap ?? this.readerWebtoonGap,
       readerFilterMode: readerFilterMode ?? this.readerFilterMode,
       readerBrightness: readerBrightness ?? this.readerBrightness,
+      readerSpreadMode: readerSpreadMode ?? this.readerSpreadMode,
+      readerCoverAlone: readerCoverAlone ?? this.readerCoverAlone,
       ocrTranslationEnabled:
           ocrTranslationEnabled ?? this.ocrTranslationEnabled,
       biometricLockEnabled: biometricLockEnabled ?? this.biometricLockEnabled,
     );
-  }
-}
-
-/// The two ways to move through a chapter.
-enum ReaderMode {
-  paged,
-  vertical;
-
-  static ReaderMode fromName(String? name) {
-    for (final mode in values) {
-      if (mode.name == name) return mode;
-    }
-    return ReaderMode.paged;
-  }
-}
-
-enum ReaderDirection {
-  ltr,
-  rtl;
-
-  static ReaderDirection fromName(String? name) {
-    for (final direction in values) {
-      if (direction.name == name) return direction;
-    }
-    return ReaderDirection.ltr;
-  }
-
-  bool get isRtl => this == ReaderDirection.rtl;
-}
-
-enum ReaderFit {
-  screen,
-  width,
-  original;
-
-  static ReaderFit fromName(String? name) {
-    for (final fit in values) {
-      if (fit.name == name) return fit;
-    }
-    return ReaderFit.screen;
-  }
-}
-
-enum ReaderBackground {
-  black,
-  charcoal,
-  sepia,
-  white;
-
-  static ReaderBackground fromName(String? name) {
-    for (final background in values) {
-      if (background.name == name) return background;
-    }
-    return ReaderBackground.black;
   }
 }
 
@@ -531,6 +530,8 @@ class SettingsController extends Notifier<AppSettings> {
   static const String _readerWebtoonGapKey = 'reader_webtoon_gap';
   static const String _readerFilterModeKey = 'reader_filter_mode';
   static const String _readerBrightnessKey = 'reader_brightness';
+  static const String _readerSpreadModeKey = 'reader_spread_mode';
+  static const String _readerCoverAloneKey = 'reader_cover_alone';
   static const String _ocrTranslationKey = 'ocr_translation_enabled';
   static const String _biometricLockKey = 'biometric_lock_enabled';
 
@@ -562,6 +563,10 @@ class SettingsController extends Notifier<AppSettings> {
           (preferences?.getInt(_readerWebtoonGapKey) ?? 0).clamp(0, 32).toInt(),
       readerFilterMode: preferences?.getString(_readerFilterModeKey) ?? 'none',
       readerBrightness: preferences?.getInt(_readerBrightnessKey) ?? 0,
+      readerSpreadMode: ReaderSpreadMode.fromName(
+        preferences?.getString(_readerSpreadModeKey),
+      ),
+      readerCoverAlone: preferences?.getBool(_readerCoverAloneKey) ?? true,
       ocrTranslationEnabled: preferences?.getBool(_ocrTranslationKey) ?? false,
       biometricLockEnabled: preferences?.getBool(_biometricLockKey) ?? false,
     );
@@ -648,6 +653,69 @@ class SettingsController extends Notifier<AppSettings> {
     state = state.copyWith(readerWebtoonGap: gap);
   }
 
+  /// Applies presentation defaults without touching locale, downloads, OCR or
+  /// security. The original preference keys keep existing installations intact.
+  void setReaderPreferences(ReaderPreferences value) {
+    final next = value.copyWith();
+    state = state.withReaderPreferences(next);
+    unawaited(_persistReaderPreferences(next));
+  }
+
+  bool get hasReaderPreferences {
+    final preferences = ref.read(preferencesProvider);
+    if (preferences == null) {
+      return state.readerPreferences != const ReaderPreferences();
+    }
+    return const [
+      _readerModeKey,
+      _readerDirectionKey,
+      _readerFitKey,
+      _readerBackgroundKey,
+      _readerTapZonesKey,
+      _readerWebtoonGapKey,
+      _readerFilterModeKey,
+      _readerBrightnessKey,
+      _readerSpreadModeKey,
+      _readerCoverAloneKey,
+    ].any(preferences.containsKey);
+  }
+
+  Future<void> restoreReaderDefaultsIfUnset(ReaderPreferences value) async {
+    if (hasReaderPreferences) return;
+    final next = value.copyWith();
+    state = state.withReaderPreferences(next);
+    await _persistReaderPreferences(next);
+  }
+
+  Future<void> _persistReaderPreferences(ReaderPreferences next) async {
+    final preferences = ref.read(preferencesProvider);
+    if (preferences == null) return;
+    final entries = <String, Object>{
+      _readerModeKey: next.mode.name,
+      _readerDirectionKey: next.direction.name,
+      _readerFitKey: next.fit.name,
+      _readerBackgroundKey: next.background.name,
+      _readerTapZonesKey: next.tapZones,
+      _readerWebtoonGapKey: next.webtoonGap,
+      _readerFilterModeKey: next.filterMode,
+      _readerBrightnessKey: next.brightness,
+      _readerSpreadModeKey: next.spreadMode.name,
+      _readerCoverAloneKey: next.coverAlone,
+    };
+    final writes = <Future<bool>>[];
+    for (final entry in entries.entries) {
+      switch (entry.value) {
+        case final String value:
+          writes.add(preferences.setString(entry.key, value));
+        case final bool value:
+          writes.add(preferences.setBool(entry.key, value));
+        case final int value:
+          writes.add(preferences.setInt(entry.key, value));
+      }
+    }
+    await Future.wait(writes);
+  }
+
   /// Persists the filter name and dim level together so a sheet that changes
   /// both never writes one and loses the other.
   void setReaderFilter({String? mode, int? brightness}) {
@@ -701,6 +769,127 @@ class SettingsController extends Notifier<AppSettings> {
 final NotifierProvider<SettingsController, AppSettings> settingsProvider =
     NotifierProvider<SettingsController, AppSettings>(SettingsController.new);
 
+/// Opt-in work profiles, not chapter profiles: all chapters of the same work
+/// share one layout, while another source edition keeps its own identity.
+class ReaderProfilesController
+    extends Notifier<Map<String, ReaderPreferences>> {
+  static const String _key = 'reader_profiles_v1';
+
+  @override
+  Map<String, ReaderPreferences> build() {
+    final raw = ref.watch(preferencesProvider)?.getString(_key);
+    if (raw == null || raw.isEmpty) return const {};
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is! Map<String, Object?>) return const {};
+      final profiles = <String, ReaderPreferences>{};
+      for (final entry in decoded.entries) {
+        final Object? value = entry.value;
+        if (entry.key.isEmpty || value is! Map<String, Object?>) continue;
+        profiles[entry.key] = ReaderPreferences.fromJson(value);
+      }
+      return Map.unmodifiable(profiles);
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  void save(String mediaId, ReaderPreferences preferences) {
+    if (mediaId.isEmpty || state[mediaId] == preferences) return;
+    unawaited(_write({...state, mediaId: preferences.copyWith()}));
+  }
+
+  void reset(String mediaId) {
+    if (!state.containsKey(mediaId)) return;
+    unawaited(_write({...state}..remove(mediaId)));
+  }
+
+  Future<void> merge(Map<String, ReaderPreferences> imported) async {
+    if (imported.isEmpty) return;
+    await _write({...imported, ...state});
+  }
+
+  Future<void> _write(Map<String, ReaderPreferences> profiles) async {
+    state = Map.unmodifiable(profiles);
+    final encoded =
+        profiles.map((id, profile) => MapEntry(id, profile.toJson()));
+    await ref.read(preferencesProvider)?.setString(_key, jsonEncode(encoded));
+  }
+}
+
+final readerProfilesProvider =
+    NotifierProvider<ReaderProfilesController, Map<String, ReaderPreferences>>(
+  ReaderProfilesController.new,
+);
+
+/// Presentation comes from the selected work; device-wide policy always comes
+/// from AppSettings. Merely opening a work never creates or overwrites a profile.
+final readerSettingsForProvider =
+    Provider.family<AppSettings, String>((ref, id) {
+  final defaults = ref.watch(settingsProvider);
+  final profile =
+      ref.watch(readerProfilesProvider.select((profiles) => profiles[id]));
+  return profile == null ? defaults : defaults.withReaderPreferences(profile);
+});
+
+class ReaderSettingsController {
+  ReaderSettingsController(this._ref, this.mediaId);
+
+  final Ref _ref;
+  final String mediaId;
+
+  void rememberForWork(bool value) {
+    final controller = _ref.read(readerProfilesProvider.notifier);
+    if (value) {
+      controller.save(mediaId,
+          _ref.read(readerSettingsForProvider(mediaId)).readerPreferences);
+    } else {
+      controller.reset(mediaId);
+    }
+  }
+
+  void _update(ReaderPreferences Function(ReaderPreferences) edit) {
+    final current =
+        _ref.read(readerSettingsForProvider(mediaId)).readerPreferences;
+    final next = edit(current);
+    if (_ref.read(readerProfilesProvider).containsKey(mediaId)) {
+      _ref.read(readerProfilesProvider.notifier).save(mediaId, next);
+    } else {
+      _ref.read(settingsProvider.notifier).setReaderPreferences(next);
+    }
+  }
+
+  void setReaderMode(ReaderMode value) =>
+      _update((p) => p.copyWith(mode: value));
+  void setReaderDirection(ReaderDirection value) =>
+      _update((p) => p.copyWith(direction: value));
+  void setReaderFit(ReaderFit value) => _update((p) => p.copyWith(fit: value));
+  void setReaderBackground(ReaderBackground value) =>
+      _update((p) => p.copyWith(background: value));
+  void setReaderTapZones(bool value) =>
+      _update((p) => p.copyWith(tapZones: value));
+  void setReaderWebtoonGap(int value) =>
+      _update((p) => p.copyWith(webtoonGap: value));
+  void setReaderSpreadMode(ReaderSpreadMode value) =>
+      _update((p) => p.copyWith(spreadMode: value));
+  void setReaderCoverAlone(bool value) =>
+      _update((p) => p.copyWith(coverAlone: value));
+  void setReaderFilter({String? mode, int? brightness}) =>
+      _update((p) => p.copyWith(filterMode: mode, brightness: brightness));
+
+  void setReaderKeepAwake(bool value) =>
+      _ref.read(settingsProvider.notifier).setReaderKeepAwake(value);
+  void setReaderPreload(bool value) =>
+      _ref.read(settingsProvider.notifier).setReaderPreload(value);
+  void setOcrTranslationEnabled(bool value) =>
+      _ref.read(settingsProvider.notifier).setOcrTranslationEnabled(value);
+}
+
+final readerSettingsControllerProvider =
+    Provider.family<ReaderSettingsController, String>(
+  (ref, id) => ReaderSettingsController(ref, id),
+);
+
 /// Pages the person marked while reading, keyed by unit id.
 ///
 /// A bookmark belongs to a chapter, not to the work: page 7 of chapter 3 and
@@ -739,6 +928,14 @@ class ReaderBookmarksController extends Notifier<Map<String, List<int>>> {
   List<int> pagesFor(String unitId) => state[unitId] ?? const <int>[];
 
   bool isBookmarked(String unitId, int page) => pagesFor(unitId).contains(page);
+
+  Future<void> merge(Map<String, List<int>> imported) async {
+    if (imported.isEmpty) return;
+    final merged = ReaderStateSnapshot(bookmarks: state)
+        .merge(ReaderStateSnapshot(bookmarks: imported));
+    state = merged.bookmarks;
+    await ref.read(preferencesProvider)?.setString(_key, jsonEncode(state));
+  }
 
   void toggle(String unitId, int page) {
     if (page < 0) return;
@@ -815,6 +1012,8 @@ class CategoriesController extends Notifier<List<String>> {
     if (clean.isEmpty || state.contains(clean)) return;
     await _write([...state, clean]);
   }
+
+  Future<void> merge(Iterable<String> names) => _write([...state, ...names]);
 
   /// Renames a category on every work that carries it and keeps one entry.
   Future<void> rename(String from, String to) async {
@@ -984,9 +1183,13 @@ final FutureProvider<List<CategorySummary>> libraryCategoriesProvider =
 });
 
 /// A new event means some write landed; the shelf re-runs its query.
-final StreamProvider<void> libraryChangesProvider = StreamProvider<void>(
-  (ref) => ref.watch(repositoryProvider).changes,
-);
+final StreamProvider<int> libraryChangesProvider = StreamProvider<int>((ref) {
+  var revision = 0;
+  // Repository events are void/null. AsyncData(null) compares equal after the
+  // first event in Riverpod 3, so queries otherwise stop refreshing. Each write
+  // needs a distinct revision, not a distinct payload from the database.
+  return ref.watch(repositoryProvider).changes.map((_) => ++revision);
+});
 
 final FutureProvider<List<LibraryEntry>> libraryProvider =
     FutureProvider<List<LibraryEntry>>((ref) async {
@@ -1083,7 +1286,7 @@ final FutureProvider<List<ResumeSlot>> resumeProvider =
         ResumeSlot(
           media: entry.media,
           unit: units[i],
-          isNext: saved == null || saved.position == 0,
+          isNext: !UnitNavigation.hasStarted(saved),
           progress: saved,
         ),
       );
@@ -1632,7 +1835,7 @@ final seriesProvider = FutureProvider.family<SeriesData, SeriesKey>((
   final repository = ref.watch(repositoryProvider);
   final source = ref.watch(sourceRegistryProvider).byId(key.sourceId);
   if (source == null) {
-    throw StateError('This source is not installed: ${key.sourceId}');
+    throw SourceNotInstalled(key.sourceId);
   }
 
   final stored = await repository.mediaById(mediaIdOf(key.sourceId, key.url));
@@ -1654,7 +1857,9 @@ final seriesProvider = FutureProvider.family<SeriesData, SeriesKey>((
     // enough to open the work and read its chapters.
   }
 
-  final units = await source.units(media);
+  final units = UnitNavigation.readingOrder(await source.units(media).timeout(
+        const Duration(seconds: 20),
+      ));
   await repository.saveUnits(units);
 
   final progress = <String, UnitProgress>{};
@@ -1747,22 +1952,24 @@ class ResolvedUnit {
 
   final Media media;
   final MediaUnit unit;
-  final SourceAdapter source;
+  final SourceAdapter? source;
   final List<MediaUnit> units;
 }
 
 Future<ResolvedUnit> _resolveUnit(
   LibraryRepository repository,
   SourceRegistry registry,
-  UnitKey key,
-) async {
+  UnitKey key, {
+  bool requireSource = true,
+}) async {
   final source = registry.byId(key.sourceId);
-  if (source == null) {
-    throw StateError('This source is not installed: ${key.sourceId}');
+  if (source == null && requireSource) {
+    throw SourceNotInstalled(key.sourceId);
   }
 
   final media = await repository.mediaById(mediaIdOf(key.sourceId, key.url));
   if (media == null) {
+    if (source == null) throw SourceNotInstalled(key.sourceId);
     throw StateError('This work is not in the local catalogue yet.');
   }
 
@@ -1788,6 +1995,8 @@ class ReaderData {
     required this.progress,
     this.units = const [],
     this.offline = false,
+    this.partial = false,
+    this.totalPages,
   });
 
   final Media media;
@@ -1798,6 +2007,8 @@ class ReaderData {
 
   /// True when the pages came from a finished download, not a source.
   final bool offline;
+  final bool partial;
+  final int? totalPages;
 }
 
 final readerProvider = FutureProvider.family<ReaderData, ReaderKey>((
@@ -1809,6 +2020,7 @@ final readerProvider = FutureProvider.family<ReaderData, ReaderKey>((
     repository,
     ref.watch(sourceRegistryProvider),
     key,
+    requireSource: false,
   );
   final media = resolved.media;
   final unit = resolved.unit;
@@ -1825,12 +2037,15 @@ final readerProvider = FutureProvider.family<ReaderData, ReaderKey>((
         progress: await repository.progressFor(unit.id),
         units: resolved.units,
         offline: true,
+        partial: task.total > local.length,
+        totalPages: task.total > 0 ? task.total : null,
       );
     }
   }
 
   List<MediaResource> resources;
   try {
+    if (source == null) throw SourceNotInstalled(key.sourceId);
     resources = await source.resources(unit);
   } catch (error) {
     // A paused or partially written download is still better than an error
@@ -1845,6 +2060,10 @@ final readerProvider = FutureProvider.family<ReaderData, ReaderKey>((
       progress: await repository.progressFor(unit.id),
       units: resolved.units,
       offline: true,
+      partial: true,
+      totalPages: task.total > 0
+          ? task.total
+          : (unit.pageCount > 0 ? unit.pageCount : null),
     );
   }
 
@@ -1892,7 +2111,9 @@ final watchProvider = FutureProvider.family<WatchData, WatchKey>((
     key,
   );
 
-  final resources = await resolved.source.resources(resolved.unit);
+  final source = resolved.source;
+  if (source == null) throw SourceNotInstalled(key.sourceId);
+  final resources = await source.resources(resolved.unit);
   VideoResource? stream;
   for (final resource in resources) {
     if (resource is VideoResource) {
@@ -1909,7 +2130,7 @@ final watchProvider = FutureProvider.family<WatchData, WatchKey>((
     unit: resolved.unit,
     stream: stream,
     progress: await repository.progressFor(resolved.unit.id),
-    sample: resolved.source.id == DemoSource.sourceId,
+    sample: source.id == DemoSource.sourceId,
   );
 });
 
@@ -1958,8 +2179,18 @@ class BackupController {
   Future<({String text, LibrarySnapshot snapshot})> export() async {
     final snapshot = await snapshotOf(_ref.read(repositoryProvider));
     final sources = _ref.read(sourcePacksProvider.notifier).exportAll();
+    final reader = ReaderStateSnapshot(
+      defaults: _ref.read(settingsProvider).readerPreferences,
+      profiles: _ref.read(readerProfilesProvider),
+      bookmarks: _ref.read(readerBookmarksProvider),
+    );
     return (
-      text: LibraryBackup.encode(snapshot, sources: sources),
+      text: LibraryBackup.encode(
+        snapshot,
+        sources: sources,
+        categories: _ref.read(categoriesProvider),
+        reader: reader,
+      ),
       snapshot: snapshot,
     );
   }
@@ -1967,10 +2198,31 @@ class BackupController {
   /// Restores the shelf and reinstalls the packs the backup was made with.
   Future<RestoreReport> restore(String raw) async {
     final document = LibraryBackup.decodeDocument(raw);
-    if (document.sources.isNotEmpty) {
+    return restoreDocument(document);
+  }
+
+  Future<RestoreReport> restoreDocument(
+    BackupDocument document, {
+    bool reinstallSources = true,
+  }) async {
+    if (reinstallSources && document.sources.isNotEmpty) {
       _ref.read(sourcePacksProvider.notifier).addAll(document.sources);
     }
-    return restoreInto(_ref.read(repositoryProvider), document.snapshot);
+    final report =
+        await restoreInto(_ref.read(repositoryProvider), document.snapshot);
+    await _ref.read(categoriesProvider.notifier).merge(document.categories);
+    await _ref
+        .read(readerProfilesProvider.notifier)
+        .merge(document.reader.profiles);
+    await _ref
+        .read(readerBookmarksProvider.notifier)
+        .merge(document.reader.bookmarks);
+    if (document.reader.defaults case final defaults?) {
+      await _ref
+          .read(settingsProvider.notifier)
+          .restoreReaderDefaultsIfUnset(defaults);
+    }
+    return report;
   }
 }
 
@@ -2162,7 +2414,10 @@ class SyncController {
     final sources = document.sources.isEmpty
         ? 0
         : _ref.read(sourcePacksProvider.notifier).addAll(document.sources);
-    await restoreInto(_ref.read(repositoryProvider), document.snapshot);
+    await _ref.read(backupControllerProvider).restoreDocument(
+          document,
+          reinstallSources: false,
+        );
     return (
       works: document.snapshot.libraryCount,
       units: document.snapshot.units.length,

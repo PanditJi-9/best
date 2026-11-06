@@ -7,11 +7,13 @@ import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../extension_host.dart';
 import '../l10n/generated/app_localizations.dart';
+import '../navigation.dart';
 import '../ocr/bubble_overlay_widget.dart';
 import '../providers.dart';
 import '../widgets/chapter_list_sheet.dart';
@@ -27,11 +29,13 @@ class ReaderScreen extends ConsumerWidget {
     required this.url,
     required this.unitUrl,
     this.startAtEnd = false,
+    this.fromStart = false,
   });
 
   final String sourceId;
   final String url;
   final String unitUrl;
+  final bool fromStart;
 
   /// Going *back* a chapter starts on its last page, the way a paper volume
   /// works. Without saved progress, opening it at page one would reverse the
@@ -59,12 +63,24 @@ class ReaderScreen extends ConsumerWidget {
           backgroundColor: Colors.black,
           body: EmptyState(
             icon: Icons.broken_image_outlined,
-            title: l10n.sourceError,
-            body: '$error',
+            title: error is SourceNotInstalled
+                ? l10n.sourceNotInstalledTitle
+                : l10n.sourceError,
+            body: error is SourceNotInstalled
+                ? l10n.sourceNotInstalledBody
+                : '$error',
             action: FilledButton.icon(
-              onPressed: () => ref.invalidate(readerProvider(key)),
-              icon: const Icon(Icons.refresh, size: 18),
-              label: Text(l10n.retry),
+              onPressed: error is SourceNotInstalled
+                  ? () => context.push(Routes.sources)
+                  : () => ref.invalidate(readerProvider(key)),
+              icon: Icon(
+                  error is SourceNotInstalled
+                      ? Icons.extension_outlined
+                      : Icons.refresh,
+                  size: 18),
+              label: Text(error is SourceNotInstalled
+                  ? l10n.directoryTitle
+                  : l10n.retry),
             ),
           ),
         ),
@@ -73,6 +89,7 @@ class ReaderScreen extends ConsumerWidget {
         key: ValueKey(reader.unit.id),
         data: reader,
         startAtEnd: startAtEnd,
+        fromStart: fromStart,
       ),
     );
   }
@@ -83,10 +100,12 @@ class _ReaderView extends ConsumerStatefulWidget {
     super.key,
     required this.data,
     this.startAtEnd = false,
+    this.fromStart = false,
   });
 
   final ReaderData data;
   final bool startAtEnd;
+  final bool fromStart;
 
   @override
   ConsumerState<_ReaderView> createState() => _ReaderViewState();
@@ -99,6 +118,8 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   static int _openReaders = 0;
 
   PageController? _pagedController;
+  ReaderPageLayout? _pagedLayout;
+  ReaderDirection? _pagedDirection;
   late final LibraryRepository _repository;
   final ItemScrollController _verticalController = ItemScrollController();
   final ItemPositionsListener _verticalPositions =
@@ -113,9 +134,33 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   List<MediaResource> get _resources => widget.data.resources;
 
   bool _showChrome = true;
-  ReaderColorFilter _colorFilter = const ReaderColorFilter();
   Timer? _chromeTimer;
   bool _awake = false;
+  bool _openingUnit = false;
+  bool _refreshingPartial = false;
+  bool _unfinishedDownloadSeen = false;
+  bool _dragStartedAtStart = false;
+  bool _dragStartedAtEnd = false;
+  double _edgeDrag = 0;
+
+  AppSettings get _readerSettings =>
+      ref.read(readerSettingsForProvider(widget.data.media.id));
+  ReaderSettingsController get _readerController =>
+      ref.read(readerSettingsControllerProvider(widget.data.media.id));
+  ReaderColorFilter get _colorFilter => _filterFrom(_readerSettings);
+
+  int get _lastVisiblePage => _pagedLayout?.lastVisiblePage(_index) ?? _index;
+  int get _chapterTotal {
+    final expected = widget.data.totalPages ?? _resources.length;
+    return expected > _resources.length ? expected : _resources.length;
+  }
+
+  bool get _atAvailableEnd =>
+      _resources.isNotEmpty && _lastVisiblePage >= _resources.length - 1;
+  bool get _atEnd =>
+      !widget.data.partial &&
+      _resources.isNotEmpty &&
+      _lastVisiblePage >= _chapterTotal - 1;
 
   /// Pages already handed to the cache this session. Preloading the same page
   /// on every scroll tick would be wasted work.
@@ -136,19 +181,18 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   void _scheduleChromeHide() {
     _chromeTimer?.cancel();
     if (!_showChrome) return;
-    final total = _resources.length;
-    if (total > 0 && _index >= total - 1) return;
+    if (ModalRoute.of(context)?.isCurrent == false) return;
+    if (_atEnd || (widget.data.partial && _atAvailableEnd)) return;
     _chromeTimer = Timer(const Duration(seconds: 4), () {
       if (mounted) setState(() => _showChrome = false);
     });
   }
 
   void _updateFilter(ReaderColorFilter filter) {
-    setState(() => _colorFilter = filter);
-    ref.read(settingsProvider.notifier).setReaderFilter(
-          mode: filter.mode.name,
-          brightness: filter.customBrightnessOffset,
-        );
+    _readerController.setReaderFilter(
+      mode: filter.mode.name,
+      brightness: filter.customBrightnessOffset,
+    );
   }
 
   void _showColorFilterSheet() {
@@ -210,6 +254,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
         resources: _resources,
         unitId: widget.data.unit.id,
         current: _index,
+        totalPages: _chapterTotal,
         initialBookmarksOnly: bookmarksOnly,
         onSelected: (index) {
           Navigator.of(sheetContext).pop();
@@ -227,19 +272,29 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     final total = _resources.length;
     if (total == 0) return;
     final target = index.clamp(0, total - 1);
-    if (ref.read(settingsProvider).readerMode == ReaderMode.vertical) {
+    final atEnd =
+        (_pagedLayout?.lastVisiblePage(target) ?? target) >= total - 1;
+    if (target != _index || (atEnd && !_showChrome)) {
+      setState(() {
+        _index = target;
+        if (atEnd) _showChrome = true;
+      });
+    }
+    if (_readerSettings.readerMode == ReaderMode.vertical) {
       if (_verticalController.isAttached) {
         _verticalController.jumpTo(index: target);
       }
     } else if (_pagedController?.hasClients ?? false) {
-      _pagedController!.jumpToPage(target);
+      _pagedController!.jumpToPage(_pagedLayout!.viewForPage(target));
     }
-    if (target != _index) {
-      setState(() => _index = target);
-      _markRead(target);
-      _saveNow();
+    _markRead(_lastVisiblePage);
+    _saveNow();
+    _precacheAround(_lastVisiblePage);
+    if (_atEnd) {
+      _chromeTimer?.cancel();
+    } else {
+      _scheduleChromeHide();
     }
-    _precacheAround(target);
   }
 
   void _toggleBookmark() {
@@ -266,10 +321,10 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 
   void _toggleMode() {
-    final current = ref.read(settingsProvider).readerMode;
-    ref.read(settingsProvider.notifier).setReaderMode(
-          current == ReaderMode.paged ? ReaderMode.vertical : ReaderMode.paged,
-        );
+    final current = _readerSettings.readerMode;
+    _readerController.setReaderMode(
+      current == ReaderMode.paged ? ReaderMode.vertical : ReaderMode.paged,
+    );
   }
 
   void _showChaptersSheet() {
@@ -301,7 +356,20 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   /// Replaces the route so a chapter does not stack dozens of readers on the
   /// back stack, and saves the current page before the old state is disposed.
   void _openUnit(MediaUnit unit, {bool startAtEnd = false}) {
+    if (!mounted || _openingUnit) return;
+    if (ModalRoute.of(context)?.isCurrent == false) return;
+    _openingUnit = true;
     _saveNow();
+    final router = GoRouter.maybeOf(context);
+    if (router != null) {
+      router.pushReplacement(Routes.reader(
+        sourceId: widget.data.media.ref.sourceId,
+        url: widget.data.media.ref.url,
+        unitUrl: unit.url,
+        atEnd: startAtEnd,
+      ));
+      return;
+    }
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) => ReaderScreen(
@@ -337,16 +405,29 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 
   void _openNextUnit() {
+    if (widget.data.partial) {
+      _showPartialWarning();
+      return;
+    }
     final next = _nextUnit;
     if (next == null) return;
     _openUnit(next);
+  }
+
+  void _showPartialWarning() {
+    _chromeTimer?.cancel();
+    if (!_showChrome) setState(() => _showChrome = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text(AppLocalizations.of(context).readerPartialOffline)),
+    );
   }
 
   /// The outer thirds turn a page; the middle third toggles the controls. In a
   /// right-to-left chapter the forward zone is the left side, matching the way
   /// the pages themselves move.
   void _handleTap(TapUpDetails details, double width) {
-    final settings = ref.read(settingsProvider);
+    final settings = _readerSettings;
     if (settings.readerMode == ReaderMode.vertical ||
         !settings.readerTapZones) {
       _toggleChrome();
@@ -363,10 +444,11 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 
   void _turnPage(int delta) {
-    final total = _resources.length;
-    if (total == 0) return;
-    final target = (_index + delta).clamp(0, total - 1);
-    if (target == _index) {
+    final layout = _pagedLayout;
+    if (layout == null || layout.viewCount == 0 || _openingUnit) return;
+    final current = layout.viewForPage(_index);
+    final target = (current + delta).clamp(0, layout.viewCount - 1);
+    if (target == current) {
       // At the edge, the same forward gesture continues the story instead of
       // dead-ending on a static page. Backward starts the previous chapter on
       // its last page, so the reading direction is preserved.
@@ -415,7 +497,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   /// lands in the same cache entry.
   void _precacheAround(int index) {
     if (!mounted) return;
-    if (!ref.read(settingsProvider).readerPreload) return;
+    if (!_readerSettings.readerPreload) return;
     final total = _resources.length;
     if (total == 0) return;
     final extension = extensionSourceIdOf(widget.data.media.ref.sourceId);
@@ -454,7 +536,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
 
   void _stepVertical(int delta) {
     final total = _resources.length;
-    if (total <= 1) return;
+    if (total == 0) return;
     final target = (_index + delta).clamp(0, total - 1);
     if (target == _index) {
       if (delta > 0) {
@@ -475,12 +557,18 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
 
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isAltPressed ||
+        keyboard.isMetaPressed) {
+      return KeyEventResult.ignored;
+    }
     // A sheet, dialog or the next chapter route owns the keyboard while it is
     // on top; otherwise an arrow pressed in chapter search would also flip the
     // hidden page behind it.
     final route = ModalRoute.of(context);
     if (route != null && !route.isCurrent) return KeyEventResult.ignored;
-    final settings = ref.read(settingsProvider);
+    final settings = _readerSettings;
     final vertical = settings.readerMode == ReaderMode.vertical;
     final rtl = settings.readerDirection.isRtl;
     final key = event.logicalKey;
@@ -530,11 +618,12 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   void initState() {
     super.initState();
     _repository = ref.read(repositoryProvider);
-    final settings = ref.read(settingsProvider);
-    _colorFilter = _filterFrom(settings);
+    final settings = _readerSettings;
     final total = _resources.length;
     final saved = widget.data.progress?.position;
     if (total == 0) {
+      _index = 0;
+    } else if (widget.fromStart) {
       _index = 0;
     } else if (saved != null) {
       _index = saved.clamp(0, total - 1);
@@ -559,6 +648,19 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 
   @override
+  void didUpdateWidget(_ReaderView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final total = _resources.length;
+    if (total == 0) {
+      _index = 0;
+    } else if (oldWidget.data.partial && !widget.data.partial) {
+      _index = (widget.data.progress?.position ?? _index).clamp(0, total - 1);
+    } else {
+      _index = _index.clamp(0, total - 1);
+    }
+  }
+
+  @override
   void dispose() {
     _chromeTimer?.cancel();
     _saveTimer?.cancel();
@@ -575,17 +677,24 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     super.dispose();
   }
 
-  void _onPageChanged(int index) {
+  void _onPageChanged(int view, ReaderPageLayout layout) {
+    if (!mounted || !identical(layout, _pagedLayout)) return;
+    final pages = layout.pagesForView(view);
+    if (pages.isEmpty) return;
+    // A jump or a reflow keeps the exact source page selected, including the
+    // second scan of a pair. Only a swipe into a different pair changes it.
+    final index = pages.contains(_index) ? _index : pages.first;
+    if (index == _index) return;
     final total = _resources.length;
-    final atEnd = total > 0 && index >= total - 1;
+    final atEnd = total > 0 && pages.last >= total - 1;
     setState(() {
       _index = index;
       if (atEnd) _showChrome = true;
     });
-    _markRead(index);
+    _markRead(pages.last);
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 320), _saveNow);
-    _precacheAround(index);
+    _precacheAround(pages.last);
     if (atEnd) {
       _chromeTimer?.cancel();
     } else if (_showChrome) {
@@ -598,7 +707,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   /// reached when the reader can actually see it, not when its first pixel
   /// enters from below.
   void _onVerticalPositions() {
-    if (!mounted) return;
+    if (!mounted || _readerSettings.readerMode != ReaderMode.vertical) return;
     final total = _resources.length;
     if (total == 0) return;
     final positions = _verticalPositions.itemPositions.value
@@ -638,13 +747,16 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   void _saveNow() {
     final total = _resources.length;
     if (total == 0) return;
+    final saved = widget.data.progress?.position ?? 0;
+    final position = widget.data.partial && saved > _index ? saved : _index;
     unawaited(
       _repository.saveProgress(
         UnitProgress(
           unitId: widget.data.unit.id,
-          position: _index,
-          total: total,
-          completed: _index >= total - 1,
+          position: position,
+          total: _chapterTotal,
+          completed: _atEnd,
+          started: true,
           updatedAt: DateTime.now().millisecondsSinceEpoch,
         ),
       ),
@@ -674,50 +786,174 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     };
   }
 
+  void _configurePagedLayout(AppSettings settings, Size viewport) {
+    final next =
+        settings.readerMode == ReaderMode.paged && _resources.isNotEmpty
+            ? ReaderPageLayout(
+                pageCount: _resources.length,
+                doublePage: settings.readerPreferences.usesSpreads(
+                  width: viewport.width,
+                  height: viewport.height,
+                ),
+                coverAlone: settings.readerCoverAlone,
+              )
+            : null;
+    if (next == _pagedLayout &&
+        settings.readerDirection == _pagedDirection &&
+        (next == null || _pagedController != null)) {
+      return;
+    }
+
+    final oldController = _pagedController;
+    _pagedLayout = next;
+    _pagedDirection = settings.readerDirection;
+    _pagedController = next == null
+        ? null
+        : PageController(
+            initialPage: next.viewForPage(_index), keepPage: false);
+    _edgeDrag = 0;
+    _dragStartedAtStart = false;
+    _dragStartedAtEnd = false;
+
+    // A controller's pixels refer to viewports, not source scans. Recreate it
+    // when the grouping changes and detach the old view before disposing it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      oldController?.dispose();
+      if (!mounted || next == null || !identical(next, _pagedLayout)) return;
+      if (_atEnd && !_showChrome) setState(() => _showChrome = true);
+      _markRead(_lastVisiblePage);
+      _precacheAround(_lastVisiblePage);
+      _scheduleChromeHide();
+    });
+  }
+
+  bool _handlePagedScroll(ScrollNotification notification) {
+    if (notification.depth != 0 ||
+        notification.metrics.axis != Axis.horizontal) {
+      return false;
+    }
+    final metrics = notification.metrics;
+    if (notification is ScrollStartNotification) {
+      _edgeDrag = 0;
+      _dragStartedAtStart = metrics.pixels <= metrics.minScrollExtent + 0.5;
+      _dragStartedAtEnd = metrics.pixels >= metrics.maxScrollExtent - 0.5;
+    } else if (notification is OverscrollNotification &&
+        notification.dragDetails != null) {
+      if ((notification.overscroll > 0 && _dragStartedAtEnd) ||
+          (notification.overscroll < 0 && _dragStartedAtStart)) {
+        _edgeDrag += notification.overscroll;
+      }
+    } else if (notification is ScrollEndNotification) {
+      final delta = _edgeDrag >= 88 ? 1 : (_edgeDrag <= -88 ? -1 : 0);
+      final layout = _pagedLayout;
+      _edgeDrag = 0;
+      // Reaching the final page mid-swipe is not permission to skip chapters.
+      // The gesture must start at the boundary and deliberately go beyond it.
+      if (delta != 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || _openingUnit || !identical(layout, _pagedLayout)) {
+            return;
+          }
+          delta > 0 ? _openNextUnit() : _openPreviousUnit();
+        });
+      }
+    }
+    return false;
+  }
+
+  Widget _buildPagedView(AppSettings settings) {
+    final layout = _pagedLayout!;
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) => identical(layout, _pagedLayout)
+          ? _handlePagedScroll(notification)
+          : false,
+      child: PageView.builder(
+        key: ValueKey((layout, settings.readerDirection)),
+        reverse: settings.readerDirection.isRtl,
+        physics: settings.readerFit == ReaderFit.original
+            ? const NeverScrollableScrollPhysics()
+            : const PageScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(
+                  parent: ClampingScrollPhysics(),
+                ),
+              ),
+        controller: _pagedController,
+        onPageChanged: (view) => _onPageChanged(view, layout),
+        itemCount: layout.viewCount,
+        itemBuilder: (context, view) {
+          final pages = layout.pagesForView(view);
+          Widget scan(int page) => _ResourcePage(
+                key: ValueKey(page),
+                unitId: widget.data.unit.id,
+                resource: _resources[page],
+                sourceId: widget.data.media.ref.sourceId,
+                index: page,
+                total: _chapterTotal,
+                fit: settings.readerFit,
+                colorFilter: _colorFilter,
+              );
+          if (pages.length == 1) return scan(pages.single);
+          return Row(
+            // Reading direction, not interface language, orders the artwork.
+            textDirection: settings.readerDirection.isRtl
+                ? TextDirection.rtl
+                : TextDirection.ltr,
+            children: [
+              Expanded(child: scan(pages.first)),
+              const SizedBox(width: BestSpace.xs),
+              Expanded(child: scan(pages.last)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  String _pagePositionLabel(AppLocalizations l10n) {
+    final pages = _pagedLayout?.pagesForView(_pagedLayout!.viewForPage(_index));
+    if (pages != null && pages.length == 2) {
+      return l10n.readerSpreadPageOf(
+        pages.first + 1,
+        pages.last + 1,
+        _chapterTotal,
+      );
+    }
+    return l10n.pageOf(_index + 1, _chapterTotal);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final unit = widget.data.unit;
     final total = _resources.length;
-    final settings = ref.watch(settingsProvider);
+    final settings = ref.watch(readerSettingsForProvider(widget.data.media.id));
     final mode = settings.readerMode;
     final direction = settings.readerDirection;
     final background = _backgroundFor(settings.readerBackground);
+    final viewport = MediaQuery.sizeOf(context);
+    _configurePagedLayout(settings, viewport);
     final bookmarked =
         (ref.watch(readerBookmarksProvider)[unit.id] ?? const <int>[])
             .contains(_index);
 
-    // The settings sheet changes the same provider the reader builds from. When
-    // the axis or the paged/vertical layout changes, the scroll position is
-    // carried over explicitly; a PageController keeps pixels, not page numbers.
+    // Device wake policy is shared; work profiles only override presentation.
     ref.listen(settingsProvider.select((s) => s.readerKeepAwake), (_, next) {
       unawaited(_setAwake(next));
     });
-    ref.listen(settingsProvider.select((s) => s.readerMode), (previous, next) {
-      if (previous == null || previous == next) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (next == ReaderMode.vertical) {
-          if (_verticalController.isAttached) {
-            _verticalController.jumpTo(index: _index);
-          }
-        } else if (_pagedController?.hasClients ?? false) {
-          _pagedController!.jumpToPage(_index);
-        }
-      });
+    if (!widget.data.partial) _refreshingPartial = false;
+    ref.listen(downloadForProvider(unit.id), (previous, next) {
+      if (!mounted || !widget.data.partial || _refreshingPartial) return;
+      if (next.value?.isFinished == false) _unfinishedDownloadSeen = true;
+      if (_unfinishedDownloadSeen && next.value?.isFinished == true) {
+        _refreshingPartial = true;
+        _saveNow();
+        ref.invalidate(readerProvider((
+          sourceId: widget.data.media.ref.sourceId,
+          url: widget.data.media.ref.url,
+          unitUrl: unit.url,
+        )));
+      }
     });
-    ref.listen(
-      settingsProvider.select((s) => s.readerDirection),
-      (previous, next) {
-        if (previous == null || previous == next) return;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          if (_pagedController?.hasClients ?? false) {
-            _pagedController!.jumpToPage(_index);
-          }
-        });
-      },
-    );
 
     return Focus(
       autofocus: true,
@@ -771,12 +1007,29 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                           ],
                         ],
                       ),
-                      Text(
-                        widget.data.media.displayTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 11, color: Colors.white70),
+                      Row(
+                        children: [
+                          if (widget.data.offline) ...[
+                            Tooltip(
+                              message: l10n.offlineBadge,
+                              child: const Icon(
+                                Icons.offline_pin_rounded,
+                                size: 14,
+                                color: BestColors.jade,
+                              ),
+                            ),
+                            const SizedBox(width: BestSpace.xs),
+                          ],
+                          Expanded(
+                            child: Text(
+                              widget.data.media.displayTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 11, color: Colors.white70),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -807,19 +1060,20 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                       size: 21,
                     ),
                   ),
-                  IconButton(
-                    tooltip: settings.ocrTranslationEnabled
-                        ? l10n.readerTranslateDisable
-                        : l10n.readerTranslateEnable,
-                    onPressed: _toggleOcr,
-                    icon: Icon(
-                      Icons.translate_rounded,
-                      color: settings.ocrTranslationEnabled
-                          ? BestColors.jade
-                          : Colors.white70,
-                      size: 21,
+                  if (viewport.width >= 480)
+                    IconButton(
+                      tooltip: settings.ocrTranslationEnabled
+                          ? l10n.readerTranslateDisable
+                          : l10n.readerTranslateEnable,
+                      onPressed: _toggleOcr,
+                      icon: Icon(
+                        Icons.translate_rounded,
+                        color: settings.ocrTranslationEnabled
+                            ? BestColors.jade
+                            : Colors.white70,
+                        size: 21,
+                      ),
                     ),
-                  ),
                   IconButton(
                     tooltip: l10n.readerSettings,
                     onPressed: _showReaderSettings,
@@ -832,36 +1086,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                       size: 21,
                     ),
                   ),
-                  if (widget.data.offline)
-                    Padding(
-                      padding: const EdgeInsetsDirectional.only(end: 14),
-                      child: Center(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: BestColors.jade.withValues(alpha: 0.18),
-                            borderRadius:
-                                BorderRadius.circular(BestRadius.pill),
-                            border: Border.all(
-                              color: BestColors.jade.withValues(alpha: 0.35),
-                            ),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 4,
-                            ),
-                            child: Text(
-                              l10n.offlineBadge,
-                              style: const TextStyle(
-                                color: BestColors.jade,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -900,11 +1124,12 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                               itemCount: total,
                               itemBuilder: (BuildContext context, int index) {
                                 final page = _ResourcePage(
+                                  key: ValueKey(index),
                                   unitId: widget.data.unit.id,
                                   resource: _resources[index],
                                   sourceId: widget.data.media.ref.sourceId,
                                   index: index,
-                                  total: total,
+                                  total: _chapterTotal,
                                   continuous: true,
                                   fit: settings.readerFit,
                                   colorFilter: _colorFilter,
@@ -920,29 +1145,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                                       );
                               },
                             )
-                          : PageView.builder(
-                              reverse: direction.isRtl,
-                              // Original size is a pan surface: letting the
-                              // PageView compete would steal every drag. Taps and
-                              // the slider still change pages there.
-                              physics: settings.readerFit == ReaderFit.original
-                                  ? const NeverScrollableScrollPhysics()
-                                  : const PageScrollPhysics(),
-                              controller: _pagedController ??=
-                                  PageController(initialPage: _index),
-                              onPageChanged: _onPageChanged,
-                              itemCount: total,
-                              itemBuilder: (BuildContext context, int index) =>
-                                  _ResourcePage(
-                                unitId: widget.data.unit.id,
-                                resource: _resources[index],
-                                sourceId: widget.data.media.ref.sourceId,
-                                index: index,
-                                total: total,
-                                fit: settings.readerFit,
-                                colorFilter: _colorFilter,
-                              ),
-                            ),
+                          : _buildPagedView(settings),
                     ),
                   ),
                   Positioned(
@@ -952,7 +1155,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                     child: ReaderHud(
                       chapterTitle: unit.displayTitle,
                       page: _index + 1,
-                      total: total,
+                      total: _chapterTotal,
                       isVerticalMode: mode == ReaderMode.vertical,
                     ),
                   ),
@@ -985,7 +1188,18 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (_index + 1 >= total) ...[
+                              if (widget.data.partial && _atAvailableEnd)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                      bottom: BestSpace.sm),
+                                  child: Text(
+                                    l10n.readerPartialOffline,
+                                    style: const TextStyle(
+                                        color: Colors.white70, fontSize: 12),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              if (_atEnd) ...[
                                 if (_nextUnit != null)
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 10),
@@ -1024,7 +1238,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                               ],
                               Row(
                                 children: [
-                                  if (_index + 1 >= total) ...[
+                                  if (_atEnd) ...[
                                     const Icon(
                                       Icons.check_circle_rounded,
                                       size: 13,
@@ -1034,9 +1248,9 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                                   ],
                                   Expanded(
                                     child: Text(
-                                      _index + 1 >= total
+                                      _atEnd
                                           ? l10n.readerFinished
-                                          : l10n.pageOf(_index + 1, total),
+                                          : _pagePositionLabel(l10n),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
@@ -1087,14 +1301,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                                   onChanged: (val) {
                                     final target =
                                         (val.round() - 1).clamp(0, total - 1);
-                                    if (target != _index) {
-                                      if (mode == ReaderMode.vertical) {
-                                        _verticalController.jumpTo(
-                                            index: target);
-                                      } else {
-                                        _pagedController?.jumpToPage(target);
-                                      }
-                                    }
+                                    if (target != _index) _jumpToPage(target);
                                   },
                                 ),
                               ),
@@ -1140,9 +1347,10 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                                   ),
                                   IconButton(
                                     tooltip: l10n.readerNextChapter,
-                                    onPressed: _nextUnit == null
-                                        ? null
-                                        : _openNextUnit,
+                                    onPressed:
+                                        _nextUnit == null || widget.data.partial
+                                            ? null
+                                            : _openNextUnit,
                                     color: Colors.white70,
                                     disabledColor: Colors.white24,
                                     icon: Icon(
@@ -1503,6 +1711,7 @@ class _OcrPageOverlayState extends ConsumerState<_OcrPageOverlay> {
 
 class _ResourcePage extends ConsumerStatefulWidget {
   const _ResourcePage({
+    super.key,
     required this.unitId,
     required this.resource,
     required this.sourceId,
@@ -1538,6 +1747,21 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
   @override
   void initState() {
     super.initState();
+    _loadSignedImage();
+  }
+
+  @override
+  void didUpdateWidget(_ResourcePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.resource != widget.resource ||
+        oldWidget.sourceId != widget.sourceId) {
+      _attempt = 0;
+      _bytes = null;
+      _loadSignedImage();
+    }
+  }
+
+  void _loadSignedImage() {
     final resource = widget.resource;
     final source = extensionSourceIdOf(widget.sourceId);
     if (resource is ImageResource && source != null) {
@@ -1819,6 +2043,7 @@ class _SyntheticPageView extends StatelessWidget {
               const SizedBox(height: 16),
               Text(
                 '${position + 1} / $total',
+                textDirection: TextDirection.ltr,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.55),
                   fontSize: 13,

@@ -240,7 +240,7 @@ class MemoryLibraryRepository implements LibraryRepository {
   Future<List<ContinueEntry>> continueReading({int limit = 6}) async {
     final entries = <ContinueEntry>[];
     for (final progress in _progress.values) {
-      if (progress.position <= 0 && !progress.completed) continue;
+      if (!UnitNavigation.hasStarted(progress)) continue;
       final unit = _units[progress.unitId];
       if (unit == null) continue;
       final media = _media[unit.mediaId];

@@ -192,6 +192,7 @@ class SqfliteLibraryRepository implements LibraryRepository {
             position: (row['position'] as int?) ?? 0,
             total: (row['total'] as int?) ?? 0,
             completed: ((row['completed'] as int?) ?? 0) == 1,
+            started: ((row['started'] as int?) ?? 0) == 1,
             updatedAt: (row['updated_at'] as int?) ?? 0,
           ),
         )
@@ -310,6 +311,7 @@ class SqfliteLibraryRepository implements LibraryRepository {
       position: (row['position'] as int?) ?? 0,
       total: (row['total'] as int?) ?? 0,
       completed: ((row['completed'] as int?) ?? 0) == 1,
+      started: ((row['started'] as int?) ?? 0) == 1,
       updatedAt: (row['updated_at'] as int?) ?? 0,
     );
   }
@@ -325,6 +327,7 @@ class SqfliteLibraryRepository implements LibraryRepository {
         'position': merged.position,
         'total': merged.total,
         'completed': merged.completed ? 1 : 0,
+        'started': merged.started ? 1 : 0,
         'updated_at': merged.updatedAt,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -341,16 +344,17 @@ class SqfliteLibraryRepository implements LibraryRepository {
              u.published_at AS unit_published_at, u.page_count AS unit_page_count,
              u.memo AS unit_memo,
              p.position AS progress_position, p.total AS progress_total,
-             p.completed AS progress_completed, p.updated_at AS progress_updated_at
+              p.completed AS progress_completed, p.started AS progress_started,
+              p.updated_at AS progress_updated_at
       FROM progress p
       JOIN unit u ON u.id = p.unit_id
       JOIN media m ON m.id = u.media_id
-      WHERE (p.position > 0 OR p.completed = 1) AND m.in_library = 1
+      WHERE (p.position > 0 OR p.started = 1 OR p.completed = 1) AND m.in_library = 1
         AND NOT EXISTS (
           SELECT 1 FROM progress newer
           JOIN unit other ON other.id = newer.unit_id
           WHERE other.media_id = m.id
-            AND (newer.position > 0 OR newer.completed = 1)
+            AND (newer.position > 0 OR newer.started = 1 OR newer.completed = 1)
             AND (newer.updated_at > p.updated_at
               OR (newer.updated_at = p.updated_at AND newer.unit_id > p.unit_id))
         )
@@ -375,6 +379,7 @@ class SqfliteLibraryRepository implements LibraryRepository {
         position: (row['progress_position'] as int?) ?? 0,
         total: (row['progress_total'] as int?) ?? 0,
         completed: ((row['progress_completed'] as int?) ?? 0) == 1,
+        started: ((row['progress_started'] as int?) ?? 0) == 1,
         updatedAt: (row['progress_updated_at'] as int?) ?? 0,
       );
       return ContinueEntry(media: media, unit: unit, progress: progress);

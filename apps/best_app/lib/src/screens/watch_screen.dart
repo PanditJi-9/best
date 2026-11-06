@@ -29,11 +29,13 @@ class WatchScreen extends ConsumerWidget {
     required this.sourceId,
     required this.url,
     required this.unitUrl,
+    this.fromStart = false,
   });
 
   final String sourceId;
   final String url;
   final String unitUrl;
+  final bool fromStart;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -56,16 +58,29 @@ class WatchScreen extends ConsumerWidget {
           ),
           body: EmptyState(
             icon: Icons.play_disabled_outlined,
-            title: l10n.playbackError,
-            body: '$error',
+            title: error is SourceNotInstalled
+                ? l10n.sourceNotInstalledTitle
+                : l10n.playbackError,
+            body: error is SourceNotInstalled
+                ? l10n.sourceNotInstalledBody
+                : '$error',
             action: FilledButton.icon(
-              onPressed: () => ref.invalidate(watchProvider(key)),
-              icon: const Icon(Icons.refresh, size: 18),
-              label: Text(l10n.retry),
+              onPressed: error is SourceNotInstalled
+                  ? () => context.push(Routes.sources)
+                  : () => ref.invalidate(watchProvider(key)),
+              icon: Icon(
+                  error is SourceNotInstalled
+                      ? Icons.extension_outlined
+                      : Icons.refresh,
+                  size: 18),
+              label: Text(error is SourceNotInstalled
+                  ? l10n.directoryTitle
+                  : l10n.retry),
             ),
           ),
         ),
-        data: (data) => _WatchView(key: ValueKey(data.unit.id), data: data),
+        data: (data) => _WatchView(
+            key: ValueKey(data.unit.id), data: data, fromStart: fromStart),
       ),
     );
   }
@@ -99,9 +114,10 @@ class _PlayerScaffold extends StatelessWidget {
 }
 
 class _WatchView extends ConsumerStatefulWidget {
-  const _WatchView({super.key, required this.data});
+  const _WatchView({super.key, required this.data, this.fromStart = false});
 
   final WatchData data;
+  final bool fromStart;
 
   @override
   ConsumerState<_WatchView> createState() => _WatchViewState();
@@ -191,10 +207,12 @@ class _WatchViewState extends ConsumerState<_WatchView> {
         return;
       }
 
-      final start = PlaybackProgress.resumeAt(
-        savedSeconds: widget.data.progress?.position ?? 0,
-        duration: controller.value.duration,
-      );
+      final start = widget.fromStart
+          ? Duration.zero
+          : PlaybackProgress.resumeAt(
+              savedSeconds: widget.data.progress?.position ?? 0,
+              duration: controller.value.duration,
+            );
       if (start > Duration.zero) {
         await controller.seekTo(start);
       }
@@ -758,9 +776,8 @@ class _WatchViewState extends ConsumerState<_WatchView> {
                             _subtitlesOn
                                 ? Icons.closed_caption
                                 : Icons.closed_caption_off_outlined,
-                            color: _subtitlesOn
-                                ? BestColors.jade
-                                : Colors.white70,
+                            color:
+                                _subtitlesOn ? BestColors.jade : Colors.white70,
                           ),
                         ),
                       PopupMenuButton<double>(
@@ -856,7 +873,8 @@ class _SubtitleOverlay extends StatelessWidget {
                 fontWeight: FontWeight.w600,
                 shadows: [
                   Shadow(blurRadius: 6, color: Colors.black87),
-                  Shadow(blurRadius: 2, offset: Offset(1, 1), color: Colors.black),
+                  Shadow(
+                      blurRadius: 2, offset: Offset(1, 1), color: Colors.black),
                 ],
               ),
             ),

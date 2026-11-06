@@ -2,6 +2,7 @@ import 'media.dart';
 import 'progress.dart';
 import 'search_text.dart';
 import 'units.dart';
+import 'unit_navigation.dart';
 
 enum LibraryFilter {
   all,
@@ -127,7 +128,8 @@ class ContinueEntry {
 class LibraryPolicy {
   const LibraryPolicy._();
 
-  static List<LibraryEntry> apply(Iterable<LibraryEntry> entries, LibraryQuery query) {
+  static List<LibraryEntry> apply(
+      Iterable<LibraryEntry> entries, LibraryQuery query) {
     final filtered = entries.where((entry) => _matches(entry, query)).toList();
 
     filtered.sort((a, b) {
@@ -136,8 +138,10 @@ class LibraryPolicy {
           .compareTo(b.media.displayTitle.toLowerCase());
       return switch (query.sort) {
         LibrarySort.title => byTitle,
-        LibrarySort.recentlyRead => _compareDesc(a.media.lastOpenedAt, b.media.lastOpenedAt, byTitle),
-        LibrarySort.recentlyAdded => _compareDesc(a.media.addedAt, b.media.addedAt, byTitle),
+        LibrarySort.recentlyRead =>
+          _compareDesc(a.media.lastOpenedAt, b.media.lastOpenedAt, byTitle),
+        LibrarySort.recentlyAdded =>
+          _compareDesc(a.media.addedAt, b.media.addedAt, byTitle),
       };
     });
 
@@ -154,7 +158,7 @@ class LibraryPolicy {
   static ContinueEntry? pickContinue(Iterable<ContinueEntry> entries) {
     ContinueEntry? finished;
     for (final entry in entries) {
-      if (entry.progress.position <= 0) continue;
+      if (!UnitNavigation.hasStarted(entry.progress)) continue;
       if (!entry.progress.completed) return entry;
       finished ??= entry;
     }
@@ -179,14 +183,16 @@ class LibraryPolicy {
       return false;
     }
 
+    final started = entry.completedUnits > 0 ||
+        UnitNavigation.hasStarted(entry.lastProgress);
+    final finished =
+        entry.totalUnits > 0 && entry.completedUnits >= entry.totalUnits;
     return switch (query.filter) {
       LibraryFilter.all => true,
       LibraryFilter.favorites => media.favorite,
-      LibraryFilter.unread => entry.completedUnits == 0,
-      LibraryFilter.inProgress =>
-        entry.completedUnits > 0 && entry.completedUnits < entry.totalUnits,
-      LibraryFilter.completed =>
-        entry.totalUnits > 0 && entry.completedUnits >= entry.totalUnits,
+      LibraryFilter.unread => !started,
+      LibraryFilter.inProgress => started && !finished,
+      LibraryFilter.completed => finished,
       LibraryFilter.planned => media.state == ReadingState.planned,
       LibraryFilter.paused => media.state == ReadingState.paused,
       LibraryFilter.offline => entry.offlineUnits > 0,

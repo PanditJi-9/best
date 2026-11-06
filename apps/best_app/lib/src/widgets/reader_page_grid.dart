@@ -22,6 +22,7 @@ class ReaderPageGridSheet extends ConsumerStatefulWidget {
     required this.current,
     required this.onSelected,
     this.initialBookmarksOnly = false,
+    this.totalPages,
   });
 
   final List<MediaResource> resources;
@@ -32,6 +33,7 @@ class ReaderPageGridSheet extends ConsumerStatefulWidget {
   /// Opened from the "bookmarks" tool, so start filtered instead of asking the
   /// person to find the filter chip.
   final bool initialBookmarksOnly;
+  final int? totalPages;
 
   @override
   ConsumerState<ReaderPageGridSheet> createState() =>
@@ -53,7 +55,7 @@ class _ReaderPageGridSheetState extends ConsumerState<ReaderPageGridSheet> {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final total = widget.resources.length;
-    final displayTotal = total == 0 ? 1 : total;
+    final displayTotal = widget.totalPages ?? (total == 0 ? 1 : total);
     final bookmarks =
         ref.watch(readerBookmarksProvider)[widget.unitId] ?? const <int>[];
     final bookmarkSet = bookmarks.toSet();
@@ -196,7 +198,7 @@ class _ReaderPageGridSheetState extends ConsumerState<ReaderPageGridSheet> {
                         final index = visible[position];
                         return _PageTile(
                           index: index,
-                          total: total,
+                          total: displayTotal,
                           resource: widget.resources[index],
                           current: index == widget.current,
                           bookmarked: bookmarkSet.contains(index),

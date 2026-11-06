@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:best_data/best_data.dart';
-import 'package:best_domain/best_domain.dart';
 import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -54,17 +53,38 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     setState(() => _busy = true);
     final l10n = AppLocalizations.of(context);
     try {
-      final backup = await ref.read(backupControllerProvider).export();
-      final directory = ref.read(downloadRootProvider);
-      if (!directory.existsSync()) directory.createSync(recursive: true);
-      final stamp = DateTime.now()
-          .toIso8601String()
-          .substring(0, 16)
-          .replaceAll(':', '')
-          .replaceAll('T', '-');
-      final file = File(p.join(directory.path, 'best-backup-$stamp.json'));
-      await file.writeAsString(backup.text, flush: true);
-      _toast(l10n.backupSaved(p.basename(file.path)));
+      final file = await _writeBackup();
+      _toast(
+          '${l10n.backupSaved(p.basename(file.path))}\n${l10n.backupLocalNote}');
+    } catch (error) {
+      _toast('$error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<File> _writeBackup() async {
+    final backup = await ref.read(backupControllerProvider).export();
+    final directory = ref.read(downloadRootProvider);
+    return ref.read(backupFileStoreProvider).write(backup.text, directory);
+  }
+
+  Future<void> _share(BuildContext buttonContext) async {
+    if (_busy) return;
+    final title = AppLocalizations.of(context).backupTitle;
+    final box = buttonContext.findRenderObject() as RenderBox?;
+    final origin = box != null && box.hasSize
+        ? box.localToGlobal(Offset.zero) & box.size
+        : null;
+    setState(() => _busy = true);
+    try {
+      final file = await _writeBackup();
+      if (!mounted) return;
+      await ref.read(backupFileSharerProvider).share(
+            file.path,
+            title: title,
+            origin: origin,
+          );
     } catch (error) {
       _toast('$error');
     } finally {
@@ -78,15 +98,15 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     final raw = _input.text.trim();
     if (raw.isEmpty) return;
 
-    final LibrarySnapshot snapshot;
+    final BackupDocument document;
     try {
-      snapshot = LibraryBackup.decode(raw);
+      document = LibraryBackup.decodeDocument(raw);
     } on BackupException catch (error) {
       setState(() => _error = '${error.message} ${l10n.backupFailed}');
       return;
     }
     setState(() => _error = null);
-    if (snapshot.isEmpty) {
+    if (document.isEmpty) {
       _toast(l10n.backupEmpty);
       return;
     }
@@ -95,8 +115,28 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(l10n.backupRestoreTitle),
-        content: Text(
-          '${LibraryBackup.describe(snapshot)}\n\n${l10n.backupRestoreBody}',
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.backupPreview(
+                document.snapshot.media.length,
+                document.snapshot.units.length,
+                document.snapshot.progress.length,
+              )),
+              const SizedBox(height: BestSpace.md),
+              Text(l10n.backupRestoreBody),
+              if (!document.reader.isEmpty) ...[
+                const SizedBox(height: BestSpace.md),
+                Text(l10n.backupReaderNote),
+              ],
+              if (document.categories.isNotEmpty) ...[
+                const SizedBox(height: BestSpace.md),
+                Text(l10n.backupCategoriesNote),
+              ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -116,7 +156,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     try {
       final report = await ref.read(backupControllerProvider).restore(raw);
       _toast(
-        l10n.backupRestored(report.media, report.units, report.progress),
+        '${l10n.backupRestored(report.media, report.units, report.progress)}'
+        '${document.reader.isEmpty ? '' : '\n${l10n.backupReaderRestored}'}',
       );
       if (mounted) _input.clear();
     } catch (error) {
@@ -157,6 +198,22 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                   l10n.backupBody,
                   style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
                 ),
+                const SizedBox(height: BestSpace.sm),
+                Text(
+                  l10n.backupReaderNote,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: BestSpace.sm),
+                Text(
+                  l10n.backupPrivacyNote,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    height: 1.5,
+                  ),
+                ),
                 const SizedBox(height: 10),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,7 +238,15 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          FilledButton.icon(
+          Builder(
+            builder: (buttonContext) => FilledButton.icon(
+              onPressed: _busy ? null : () => _share(buttonContext),
+              icon: const Icon(Icons.ios_share_rounded, size: 19),
+              label: Text(l10n.backupExport),
+            ),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
             onPressed: _busy ? null : _copy,
             icon: const Icon(Icons.copy_all_outlined, size: 19),
             label: Text(l10n.backupCopy),
@@ -190,7 +255,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           OutlinedButton.icon(
             onPressed: _busy ? null : _save,
             icon: const Icon(Icons.save_alt_outlined, size: 19),
-            label: Text(l10n.backupSave),
+            label: Text(l10n.backupLocalCopy),
           ),
           const SizedBox(height: 26),
           Text(

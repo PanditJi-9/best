@@ -149,6 +149,22 @@ jobs:
           path: apps/best_app/build/redesign-*.png
           if-no-files-found: warn
 
+      - name: Keep reader regression renders
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reader-renders
+          path: apps/best_app/build/reader-*.png
+          if-no-files-found: warn
+
+      - name: Keep work-page regression renders
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: series-renders
+          path: apps/best_app/build/series-*.png
+          if-no-files-found: warn
+
       # AGP 9 creates only debug unit tests by default. Explicitly retain the
       # release test variant so this gate checks the runtime we actually ship.
       - name: Extension runtime JVM compatibility tests

@@ -12,12 +12,17 @@ class UnitProgress {
     this.position = 0,
     this.total = 0,
     this.completed = false,
+    this.started = false,
   });
 
   final String unitId;
   final int position;
   final int total;
   final bool completed;
+
+  /// Explicitly opened/played, even while still on zero-based page/second zero.
+  /// Legacy zero rows remain untouched unless this flag is set.
+  final bool started;
 
   /// Epoch milliseconds of the last write. The tie-breaker for every merge.
   final int updatedAt;
@@ -36,13 +41,20 @@ class UnitProgress {
   /// A write with an older timestamp can never move the reader backwards, even
   /// if it arrives later over the network.
   UnitProgress merge(UnitProgress other) {
-    assert(unitId == other.unitId, 'Progress for two different units cannot merge.');
+    assert(unitId == other.unitId,
+        'Progress for two different units cannot merge.');
     final newer = updatedAt >= other.updatedAt ? this : other;
     final merged = UnitProgress(
       unitId: unitId,
       position: newer.position,
       total: math.max(total, other.total),
       completed: completed || other.completed,
+      started: started ||
+          other.started ||
+          position > 0 ||
+          other.position > 0 ||
+          completed ||
+          other.completed,
       updatedAt: math.max(updatedAt, other.updatedAt),
     );
 
@@ -54,6 +66,7 @@ class UnitProgress {
         position: merged.total - 1,
         total: merged.total,
         completed: merged.completed,
+        started: merged.started,
         updatedAt: merged.updatedAt,
       );
     }
@@ -61,5 +74,6 @@ class UnitProgress {
   }
 
   @override
-  String toString() => 'UnitProgress($unitId, $position/$total, done=$completed)';
+  String toString() =>
+      'UnitProgress($unitId, $position/$total, done=$completed)';
 }

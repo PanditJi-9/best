@@ -33,8 +33,12 @@ class ReaderSettingsSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final settings = ref.watch(settingsProvider);
-    final notifier = ref.read(settingsProvider.notifier);
+    final settings = ref.watch(readerSettingsForProvider(media.id));
+    final notifier = ref.read(readerSettingsControllerProvider(media.id));
+    final remembersWork = ref.watch(
+      readerProfilesProvider
+          .select((profiles) => profiles.containsKey(media.id)),
+    );
     final bookmarks =
         ref.watch(readerBookmarksProvider)[unit.id] ?? const <int>[];
     final download = ref.watch(downloadForProvider(unit.id)).value;
@@ -77,6 +81,40 @@ class ReaderSettingsSheet extends ConsumerWidget {
                 height: 1.5,
               ),
             ),
+            _section(theme, l10n.readerProfileTitle),
+            Wrap(
+              spacing: BestSpace.sm,
+              runSpacing: BestSpace.sm,
+              children: [
+                _chip(
+                  context,
+                  label: l10n.readerProfileGlobal,
+                  icon: Icons.public_rounded,
+                  selected: !remembersWork,
+                  onSelected: () => notifier.rememberForWork(false),
+                ),
+                _chip(
+                  context,
+                  label: l10n.readerProfileWork,
+                  icon: Icons.auto_stories_outlined,
+                  selected: remembersWork,
+                  onSelected: () => notifier.rememberForWork(true),
+                ),
+              ],
+            ),
+            _hint(
+              theme,
+              remembersWork
+                  ? l10n.readerProfileWorkBody
+                  : l10n.readerProfileGlobalBody,
+            ),
+            if (remembersWork)
+              Text(
+                media.displayTitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelMedium,
+              ),
             _section(theme, l10n.readerTools),
             Row(
               children: [
@@ -208,6 +246,49 @@ class ReaderSettingsSheet extends ConsumerWidget {
                 ],
               ),
               _hint(theme, l10n.readerFitBody),
+              _section(theme, l10n.readerSpread),
+              Wrap(
+                spacing: BestSpace.sm,
+                runSpacing: BestSpace.sm,
+                children: [
+                  _chip(
+                    context,
+                    label: l10n.readerSpreadSingle,
+                    icon: Icons.crop_portrait_rounded,
+                    selected:
+                        settings.readerSpreadMode == ReaderSpreadMode.single,
+                    onSelected: () =>
+                        notifier.setReaderSpreadMode(ReaderSpreadMode.single),
+                  ),
+                  _chip(
+                    context,
+                    label: l10n.readerSpreadAdaptive,
+                    icon: Icons.screen_rotation_rounded,
+                    selected:
+                        settings.readerSpreadMode == ReaderSpreadMode.adaptive,
+                    onSelected: () =>
+                        notifier.setReaderSpreadMode(ReaderSpreadMode.adaptive),
+                  ),
+                  _chip(
+                    context,
+                    label: l10n.readerSpreadDouble,
+                    icon: Icons.menu_book_rounded,
+                    selected: settings.readerSpreadMode ==
+                        ReaderSpreadMode.doublePage,
+                    onSelected: () => notifier
+                        .setReaderSpreadMode(ReaderSpreadMode.doublePage),
+                  ),
+                ],
+              ),
+              _hint(theme, l10n.readerSpreadBody),
+              if (settings.readerSpreadMode != ReaderSpreadMode.single)
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: settings.readerCoverAlone,
+                  onChanged: notifier.setReaderCoverAlone,
+                  title: Text(l10n.readerCoverAlone),
+                  subtitle: Text(l10n.readerCoverAloneBody),
+                ),
             ],
             _section(theme, l10n.readerBackground),
             Wrap(
@@ -275,6 +356,8 @@ class ReaderSettingsSheet extends ConsumerWidget {
                   ),
                 ),
               ),
+            _section(theme, l10n.readerDeviceSettings),
+            _hint(theme, l10n.readerDeviceSettingsBody),
             SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
               value: settings.readerKeepAwake,
@@ -312,6 +395,14 @@ class ReaderSettingsSheet extends ConsumerWidget {
                   height: 1.45,
                 ),
               ),
+            ),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              value: settings.ocrTranslationEnabled,
+              onChanged: notifier.setOcrTranslationEnabled,
+              secondary: const Icon(Icons.translate_rounded, size: 20),
+              title: Text(l10n.readerOcrTitle),
+              subtitle: Text(l10n.readerOcrBody),
             ),
             const SizedBox(height: BestSpace.sm),
             DecoratedBox(
@@ -367,6 +458,11 @@ class ReaderSettingsSheet extends ConsumerWidget {
                     Icons.download_for_offline_outlined,
                     l10n.readerTipDownload,
                   ),
+                  _tip(
+                    theme,
+                    Icons.skip_next_rounded,
+                    l10n.readerTipChapterEdges,
+                  ),
                 ],
               ),
             ),
@@ -384,6 +480,7 @@ class ReaderSettingsSheet extends ConsumerWidget {
     return OutlinedButton.icon(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 60),
         padding: const EdgeInsets.symmetric(
           horizontal: BestSpace.sm,
           vertical: 12,
@@ -392,7 +489,7 @@ class ReaderSettingsSheet extends ConsumerWidget {
       icon: Icon(icon, size: 18),
       label: Text(
         label,
-        maxLines: 1,
+        maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
     );

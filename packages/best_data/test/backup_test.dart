@@ -42,7 +42,9 @@ void main() {
   LibrarySnapshot snapshot() {
     return LibrarySnapshot(
       exportedAt: 1234,
-      media: [work(state: ReadingState.reading, tags: const ['favourites'])],
+      media: [
+        work(state: ReadingState.reading, tags: const ['favourites'])
+      ],
       units: [unit],
       progress: [
         UnitProgress(unitId: unit.id, position: 4, total: 12, updatedAt: 900),
@@ -111,6 +113,46 @@ void main() {
       expect(document.snapshot.media, hasLength(1));
     });
 
+    test(
+        'reader state and empty category names travel as optional format-2 sections',
+        () {
+      final document = LibraryBackup.decodeDocument(LibraryBackup.encode(
+        snapshot(),
+        categories: const ['Favorites', 'For later'],
+        reader: ReaderStateSnapshot(
+          defaults: const ReaderPreferences(direction: ReaderDirection.rtl),
+          profiles: {
+            work().id: const ReaderPreferences(mode: ReaderMode.vertical)
+          },
+          bookmarks: {
+            unit.id: const [2, 8]
+          },
+        ),
+      ));
+      expect(document.categories, ['Favorites', 'For later']);
+      expect(document.reader.defaults!.direction, ReaderDirection.rtl);
+      expect(document.reader.profiles[work().id]!.mode, ReaderMode.vertical);
+      expect(document.reader.bookmarks[unit.id], [2, 8]);
+      expect(document.snapshot.progress.single.position, 4);
+    });
+
+    test('a preferences-only document is not an empty backup', () {
+      final document = LibraryBackup.decodeDocument(LibraryBackup.encode(
+        const LibrarySnapshot(media: [], units: [], progress: []),
+        reader: const ReaderStateSnapshot(defaults: ReaderPreferences()),
+      ));
+      expect(document.snapshot.isEmpty, isTrue);
+      expect(document.isEmpty, isFalse);
+    });
+
+    test('bad reader state is refused instead of silently dropping marks', () {
+      expect(
+          () => LibraryBackup.decodeDocument(
+                '{"format":"best.library","version":2,"reader":{"bookmarks":{"chapter":[-1]}}}',
+              ),
+          throwsA(isA<BackupException>()));
+    });
+
     test('a format-1 backup has no sources and still restores', () {
       final document = LibraryBackup.decodeDocument(
         '{"format":"best.library","version":1,"media":[]}',
@@ -169,7 +211,8 @@ void main() {
       expect(
         days.single.pages,
         12,
-        reason: 'a day is a total, so a second restore of the same file is a no-op',
+        reason:
+            'a day is a total, so a second restore of the same file is a no-op',
       );
     });
 

@@ -189,6 +189,8 @@ GoRouter buildRouter() => GoRouter(
               sourceId: query['source'] ?? '',
               url: query['url'] ?? '',
               unitUrl: query['unit'] ?? '',
+              fromStart: query['start'] == '1',
+              startAtEnd: query['end'] == '1',
             );
           },
         ),
@@ -212,6 +214,7 @@ GoRouter buildRouter() => GoRouter(
               sourceId: query['source'] ?? '',
               url: query['url'] ?? '',
               unitUrl: query['unit'] ?? '',
+              fromStart: query['start'] == '1',
             );
           },
         ),

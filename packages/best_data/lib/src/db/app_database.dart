@@ -8,7 +8,7 @@ import 'package:sqflite_common/sqlite_api.dart';
 class AppDatabase {
   AppDatabase._(this.db);
 
-  static const int schemaVersion = 8;
+  static const int schemaVersion = 9;
   static const String fileName = 'best.db';
 
   final Database db;
@@ -49,6 +49,9 @@ class AppDatabase {
           }
           if (oldVersion < 8) {
             await _createOcrCache(db);
+          }
+          if (oldVersion < 9) {
+            await _addProgressStarted(db);
           }
         },
       ),
@@ -104,6 +107,7 @@ class AppDatabase {
         position INTEGER NOT NULL DEFAULT 0,
         total INTEGER NOT NULL DEFAULT 0,
         completed INTEGER NOT NULL DEFAULT 0,
+        started INTEGER NOT NULL DEFAULT 0,
         updated_at INTEGER NOT NULL
       )
     ''');
@@ -133,6 +137,19 @@ class AppDatabase {
     await db.execute(
       "ALTER TABLE unit ADD COLUMN memo TEXT NOT NULL DEFAULT ''",
     );
+  }
+
+  static Future<void> _addProgressStarted(Database db) async {
+    final tables = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'progress'",
+    );
+    if (tables.isEmpty) return;
+    final columns = await db.rawQuery('PRAGMA table_info(progress)');
+    if (columns.any((row) => row['name'] == 'started')) return;
+    await db.execute(
+        'ALTER TABLE progress ADD COLUMN started INTEGER NOT NULL DEFAULT 0');
+    await db.execute(
+        'UPDATE progress SET started = 1 WHERE position > 0 OR completed = 1');
   }
 
   /// The work-level counterpart of `unit.memo`: Madara-derived sources keep the

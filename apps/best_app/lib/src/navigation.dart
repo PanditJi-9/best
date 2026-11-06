@@ -52,9 +52,17 @@ abstract final class Routes {
     required String sourceId,
     required String url,
     required String unitUrl,
+    bool fromStart = false,
+    bool atEnd = false,
   }) {
     final query = Uri(
-      queryParameters: {'source': sourceId, 'url': url, 'unit': unitUrl},
+      queryParameters: {
+        'source': sourceId,
+        'url': url,
+        'unit': unitUrl,
+        if (fromStart) 'start': '1',
+        if (atEnd) 'end': '1',
+      },
     ).query;
     return '/read?$query';
   }
@@ -63,9 +71,15 @@ abstract final class Routes {
     required String sourceId,
     required String url,
     required String unitUrl,
+    bool fromStart = false,
   }) {
     final query = Uri(
-      queryParameters: {'source': sourceId, 'url': url, 'unit': unitUrl},
+      queryParameters: {
+        'source': sourceId,
+        'url': url,
+        'unit': unitUrl,
+        if (fromStart) 'start': '1',
+      },
     ).query;
     return '/watch?$query';
   }
@@ -80,15 +94,21 @@ abstract final class Routes {
 
   static String migrateOf(Media media) => migrate(media.id);
 
-  static String readerOf(Media media, MediaUnit unit) => reader(
+  static String readerOf(Media media, MediaUnit unit,
+          {bool fromStart = false}) =>
+      reader(
         sourceId: media.ref.sourceId,
         url: media.ref.url,
         unitUrl: unit.url,
+        fromStart: fromStart,
       );
 
-  static String watchOf(Media media, MediaUnit unit) => watch(
+  static String watchOf(Media media, MediaUnit unit,
+          {bool fromStart = false}) =>
+      watch(
         sourceId: media.ref.sourceId,
         url: media.ref.url,
         unitUrl: unit.url,
+        fromStart: fromStart,
       );
 }

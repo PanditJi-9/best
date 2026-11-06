@@ -61,6 +61,7 @@ abstract final class PlaybackProgress {
       total: duration.inSeconds,
       completed:
           completed || isFinished(position: position, duration: duration),
+      started: true,
       updatedAt: updatedAt,
     );
   }

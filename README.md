@@ -6,7 +6,15 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 1.3.0 — the reader becomes a real manga reader.**
+**Status: 1.4.0 in development — reading styles per work and two-page spreads.**
+1.3.0 passed Flutter analysis, widget tests and signed-APK generation in
+[CI](https://github.com/PanditJi-9/best/actions/runs/42248335144). The next slice
+adds opt-in per-work reading preferences, adaptive two-page layouts, cover
+alignment and deliberate chapter-edge swipes. It preserves source page numbers
+for progress and bookmarks. This pass also adds tablet work pages, pinned
+chapter search/filter/sort, consistent continuation, safe partial/offline
+reading and portable reader state in backups. No 1.4.0 release has been published.
+
 The shelf, the reader, the video player with captions, the bilingual UI, local
 progress, statistics, JSON backup/restore, one real catalogue (MangaDex),
 declarative source packs (format 2, including streaming packs) and the native
@@ -53,13 +61,15 @@ Suwayomi remains as an optional alternative for readers who already run one.
 - **Suwayomi, if you already run one.** Settings → **Suwayomi server** takes one
   address (`http://192.168.1.20:4567`) and Browse gains that server's sources
   over REST. Manga only, off by default.
-- **One visual system.** "Ink & Ember": a warm near-black canvas, cinnabar for
-  action, brass for ranks and rules, and jade kept for progress and offline
-  state. Amiri and IBM Plex Sans Arabic carry the editorial voice. The mark,
+- **One visual system.** "Ink & Aurora": blue-black ink, blue for action, gold
+  for ranks and jade kept for progress and offline state. Amiri and IBM Plex
+  Sans Arabic carry the editorial voice. The mark,
   masthead, numbered sections, cards and reader chrome are shared components,
   not per-screen styling. See [docs/DESIGN.md](docs/DESIGN.md).
 - **A real shelf.** Add, remove, favorite, search, filter and sort. Counts and
-  progress come from the local database, not from a widget's memory.
+  progress come from the local database, not from a widget's memory. Started
+  first-page sessions remain resumable; Not started and In progress do not
+  contradict each other.
 - **Categories, hidden categories, bulk edits.** A category is a named tag, so
   old backups restore with all of them. Hide one to clear it from the shelf,
   reveal hidden ones from the same row, long-press a cover to select several
@@ -78,8 +88,10 @@ Suwayomi remains as an optional alternative for readers who already run one.
   page grid jumps anywhere with thumbnails, bookmarks persist per chapter,
   chapter search/sort handles long serials, upcoming pages preload, webtoon
   spacing is adjustable, and the current chapter can be downloaded without
-  leaving the reader. See
-  [docs/releases/1.3.0.md](docs/releases/1.3.0.md).
+  leaving the reader. A work can remember its own presentation without changing
+  another title; wide viewports support paired scans with an optional solo
+  cover. Portrait phones and pan/fit-width modes keep one page. See
+  [docs/releases/1.4.0.md](docs/releases/1.4.0.md).
 - **A real video player.** Episodes open a full-screen player with resume in
   seconds, ±10 s seeking, playback speed and fullscreen. Anime and drama are
   first-class, not a card with a placeholder. See
@@ -101,7 +113,14 @@ Suwayomi remains as an optional alternative for readers who already run one.
 - **Real downloads.** Queue one chapter or every chapter from a series, watch
   per-page progress and storage use, pause, resume, retry or delete, and read
   with no connection. The queue is persisted, so closing the app resumes from
-  the last saved page. See [docs/OFFLINE.md](docs/OFFLINE.md).
+  the last saved page. A partial prefix is not marked as a complete chapter,
+  and stored pages can open after removing their source. See
+  [docs/OFFLINE.md](docs/OFFLINE.md).
+- **A backup you can actually keep.** Export JSON through the system sharing
+  boundary or copy it; local copies are clearly labelled app-local. Reader
+  defaults, per-work profiles, bookmarks and empty category names travel with
+  the library. Existing styles are preserved on merge, device credentials are
+  excluded, and plain exports are labelled unencrypted.
 - **Offline-first storage.** SQLite through `sqflite`; an in-memory repository
   keeps the app usable if the database cannot be opened.
 
@@ -122,7 +141,7 @@ Flutter, which is why its storage tests run in plain Dart on CI.
 
 ## Build
 
-Requirements: Flutter stable (Dart 3.9+), Rust stable, Android SDK for the APK.
+Requirements: Flutter stable (Dart 3.10+), Rust stable, Android SDK for the APK.
 
 ```sh
 # Dart packages
@@ -141,8 +160,8 @@ flutter test
 flutter build apk --release
 ```
 
-The `Build Android APK` workflow runs these steps on every change under
-`mobile/` and uploads `app-release.apk` as a downloadable artifact. It uses the
+The `CI` workflow runs these steps on pushes to `main` and on pull requests,
+and uploads `app-release.apk` as a downloadable artifact. It uses the
 memory-safe Gradle profile from `tool/android/gradle.properties` (3G Gradle,
 2G Kotlin), so the runner does not spend its budget on an 8G heap it never
 needs.

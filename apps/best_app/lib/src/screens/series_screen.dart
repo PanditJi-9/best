@@ -9,6 +9,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../labels.dart';
 import '../navigation.dart';
 import '../providers.dart';
+import '../progress_label.dart';
 
 class SeriesScreen extends ConsumerWidget {
   const SeriesScreen({super.key, required this.sourceId, required this.url});
@@ -21,23 +22,49 @@ class SeriesScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final key = (sourceId: sourceId, url: url);
     final data = ref.watch(seriesProvider(key));
+    final stored = ref.watch(localWorkProvider(mediaIdOf(sourceId, url))).value;
+
+    Widget body(SeriesData series,
+            {bool refreshing = false,
+            bool cached = false,
+            bool sourceMissing = false}) =>
+        _SeriesBody(
+          key: ValueKey(series.media.id),
+          data: SeriesData(
+            media: stored?.media ?? series.media,
+            units: series.units,
+            progress: stored?.progress ?? series.progress,
+          ),
+          seriesKey: key,
+          refreshing: refreshing,
+          cached: cached,
+          sourceMissing: sourceMissing,
+        );
 
     return data.when(
-      loading: () => const _SeriesSkeleton(),
-      error: (error, stack) => Scaffold(
-        appBar: AppBar(),
-        body: EmptyState(
-          icon: Icons.cloud_off_outlined,
-          title: l10n.sourceError,
-          body: '$error',
-          action: FilledButton.icon(
-            onPressed: () => ref.invalidate(seriesProvider(key)),
-            icon: const Icon(Icons.refresh, size: 18),
-            label: Text(l10n.retry),
-          ),
-        ),
-      ),
-      data: (series) => _SeriesBody(data: series, seriesKey: key),
+      loading: () => stored == null
+          ? const _SeriesSkeleton()
+          : body(stored, refreshing: true, cached: true),
+      error: (error, stack) => stored != null
+          ? body(stored,
+              cached: true, sourceMissing: error is SourceNotInstalled)
+          : Scaffold(
+              appBar: AppBar(),
+              body: EmptyState(
+                icon: Icons.cloud_off_outlined,
+                title: l10n.sourceError,
+                body: '$error',
+                action: FilledButton.icon(
+                  onPressed: () => ref.invalidate(seriesProvider(key)),
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: Text(l10n.retry),
+                ),
+              ),
+            ),
+      data: (series) =>
+          series.units.isEmpty && stored != null && stored.units.isNotEmpty
+              ? body(stored, cached: true, refreshing: data.isLoading)
+              : body(series, refreshing: data.isLoading),
     );
   }
 }
@@ -84,330 +111,621 @@ class _SeriesSkeleton extends StatelessWidget {
   }
 }
 
-class _SeriesBody extends ConsumerWidget {
-  const _SeriesBody({required this.data, required this.seriesKey});
+class _SeriesBody extends ConsumerStatefulWidget {
+  const _SeriesBody(
+      {super.key,
+      required this.data,
+      required this.seriesKey,
+      this.refreshing = false,
+      this.cached = false,
+      this.sourceMissing = false});
 
   final SeriesData data;
   final SeriesKey seriesKey;
+  final bool refreshing;
+  final bool cached;
+  final bool sourceMissing;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SeriesBody> createState() => _SeriesBodyState();
+}
+
+enum _SeriesAction { refresh, migrate, source }
+
+class _SeriesBodyState extends ConsumerState<_SeriesBody> {
+  final _search = TextEditingController();
+  final _chapterHeader = GlobalKey();
+  String _query = '';
+  UnitFilter _filter = UnitFilter.all;
+  UnitSort _sort = UnitSort.oldest;
+  bool _bulkBusy = false;
+
+  SeriesData get data => widget.data;
+  SeriesKey get seriesKey => widget.seriesKey;
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final media = data.media;
-    final units = data.units;
+    final units = UnitNavigation.readingOrder(data.units);
     final downloads =
         ref.watch(downloadsProvider).value ?? const <DownloadTask>[];
     final tasks = {for (final task in downloads) task.unitId: task};
-    final canDownload = media.kind.isReading;
+    final canDownload = media.kind.isReading && !widget.sourceMissing;
     final offlineCount = tasks.values
         .where((task) => task.mediaId == media.id && task.isFinished)
         .length;
-    final pendingDownloads = units.where((unit) {
+    final visible = UnitNavigation.visible(
+      units,
+      query: _query,
+      filter: _filter,
+      sort: _sort,
+      progress: data.progress,
+      downloads: tasks,
+    );
+    final pendingDownloads = visible.where((unit) {
       final task = tasks[unit.id];
       return task == null || task.isFailed;
     }).length;
-    final next = _nextUnit(units, data.progress);
-    final hasProgress = data.progress.values.any(
-      (progress) => progress.position > 0 || progress.completed,
-    );
+    final continuation = UnitNavigation.continuation(units, data.progress);
+    final next = continuation?.unit;
+    final needsSource = widget.sourceMissing &&
+        next != null &&
+        !(tasks[next.id]?.isFinished ?? false);
     final completed = units
         .where((unit) => data.progress[unit.id]?.completed ?? false)
         .length;
     final percent =
         units.isEmpty ? 0 : (completed * 100 / units.length).round();
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: _Hero(
-                  title: media.displayTitle,
-                  coverUrl: media.coverUrl,
+    final overviewSlivers = <Widget>[
+      SliverToBoxAdapter(
+        child: _Hero(
+          title: media.displayTitle,
+          coverUrl: media.coverUrl,
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                media.displayTitle,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: BestType.tracking(context, -0.8),
+                  height: 1.08,
                 ),
               ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(
-                        media.displayTitle,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: BestType.tracking(context, -0.8),
-                          height: 1.08,
-                        ),
-                      ),
-                      if (media.nativeTitle != null &&
-                          media.nativeTitle!.trim().isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          media.nativeTitle!,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 10),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 8,
-                        runSpacing: 6,
-                        children: [
-                          _MetaDot(label: kindLabel(l10n, media.kind)),
-                          if (media.year != null)
-                            _MetaDot(label: '${media.year}'),
-                          if (media.rating != null)
-                            RatingBadge(score: media.rating!),
-                          _MetaDot(label: statusLabel(l10n, media.status)),
-                          if (offlineCount > 0)
-                            _MetaDot(
-                              label: l10n.offlineCount(offlineCount),
-                              accent: true,
-                            ),
-                        ],
-                      ),
-                      if (media.author != null &&
-                          media.author!.trim().isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          media.author!,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                      if (media.genres.isNotEmpty) ...[
-                        const SizedBox(height: 14),
-                        Wrap(
-                          alignment: WrapAlignment.center,
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final genre in media.genres.take(5))
-                              _GenrePill(label: genre),
-                          ],
-                        ),
-                      ],
-                    ],
+              if (media.nativeTitle != null &&
+                  media.nativeTitle!.trim().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  media.nativeTitle!,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: next == null
-                          ? null
-                          : () => openUnit(context, ref, media, next),
-                      icon: Icon(
-                        media.kind.isReading
-                            ? Icons.menu_book_rounded
-                            : Icons.play_arrow_rounded,
-                        size: 20,
-                      ),
-                      label: Text(
-                        media.kind.isReading
-                            ? (hasProgress
-                                ? l10n.continueReading
-                                : l10n.startReading)
-                            : (hasProgress
-                                ? l10n.continueWatching
-                                : l10n.startWatching),
-                      ),
+              ],
+              const SizedBox(height: 10),
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  _MetaDot(
+                      label: ref
+                              .watch(sourceRegistryProvider)
+                              .byId(media.ref.sourceId)
+                              ?.name ??
+                          (widget.sourceMissing
+                              ? l10n.sourceNotInstalledTitle
+                              : media.ref.sourceId)),
+                  _MetaDot(label: kindLabel(l10n, media.kind)),
+                  if (media.year != null) _MetaDot(label: '${media.year}'),
+                  if (media.rating != null) RatingBadge(score: media.rating!),
+                  _MetaDot(label: statusLabel(l10n, media.status)),
+                  if (offlineCount > 0)
+                    _MetaDot(
+                      label: l10n.offlineCount(offlineCount),
+                      accent: true,
                     ),
-                  ),
-                ),
+                ],
               ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                  child: _ShelfPlan(media: media),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-                  child: StatStrip(
-                    stats: [
-                      StatItem(
-                        value: '${units.length}',
-                        label: media.kind.isReading
-                            ? l10n.chapters
-                            : l10n.episodes,
-                      ),
-                      StatItem(
-                        value: '$offlineCount',
-                        label: l10n.offlineLabel,
-                      ),
-                      StatItem(value: '$percent%', label: l10n.progressLabel),
-                    ],
+              if (media.author != null && media.author!.trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  media.author!,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-              ),
-              if (media.synopsis != null && media.synopsis!.trim().isNotEmpty)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SectionHeader(title: l10n.aboutWork),
-                        _Synopsis(text: media.synopsis!),
-                      ],
-                    ),
-                  ),
+              ],
+              if (media.genres.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final genre in media.genres.take(5))
+                      _GenrePill(label: genre),
+                  ],
                 ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: SectionHeader(
-                    title: media.kind.isReading ? l10n.chapters : l10n.episodes,
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          l10n.unitCount(units.length),
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        if (canDownload && pendingDownloads > 0) ...[
-                          const SizedBox(width: 2),
-                          IconButton(
-                            tooltip: l10n.downloadAll,
-                            visualDensity: VisualDensity.compact,
-                            onPressed: () => _downloadAll(
-                              context,
-                              ref,
-                              media,
-                              units,
-                              tasks,
-                            ),
-                            icon: const Icon(
-                              Icons.download_for_offline_outlined,
-                              size: 20,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              if (units.isEmpty)
-                SliverToBoxAdapter(
-                  child: EmptyState(
-                    icon: Icons.inbox_outlined,
-                    title: l10n.noUnits,
-                    body: l10n.nothingHereBody,
-                  ),
-                )
-              else
-                SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final unit = units[index];
-                    final task = tasks[unit.id];
-                    return _UnitTile(
-                      unit: unit,
-                      progress: data.progress[unit.id],
-                      download: task,
-                      canDownload: canDownload,
-                      onTap: () => openUnit(context, ref, media, unit),
-                      onDownload: () => _download(context, ref, media, unit),
-                      onPause: task == null
-                          ? null
-                          : () => ref
-                              .read(downloadManagerProvider)
-                              .pause(task.unitId),
-                      onResume: task == null
-                          ? null
-                          : () => ref
-                              .read(downloadManagerProvider)
-                              .resume(task.unitId),
-                    );
-                  }, childCount: units.length),
-                ),
-              const SliverToBoxAdapter(child: SizedBox(height: 28)),
+              ],
             ],
           ),
-          PositionedDirectional(
-            top: MediaQuery.paddingOf(context).top + 8,
-            start: 12,
-            child: _GlassCircle(
-              tooltip: l10n.backToSeries,
-              icon: Icons.arrow_back_rounded,
-              onTap: () {
-                if (context.canPop()) {
-                  context.pop();
-                } else {
-                  Navigator.of(context).maybePop();
-                }
-              },
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: needsSource
+                  ? () => context.push(Routes.sources)
+                  : next == null
+                      ? null
+                      : () => openUnit(context, ref, media, next,
+                          fromStart: continuation?.kind ==
+                              UnitContinuationKind.replay),
+              icon: Icon(
+                needsSource
+                    ? Icons.extension_outlined
+                    : media.kind.isReading
+                        ? Icons.menu_book_rounded
+                        : Icons.play_arrow_rounded,
+                size: 20,
+              ),
+              label: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(needsSource
+                      ? l10n.directoryTitle
+                      : _primaryLabel(l10n, media, continuation)),
+                  if (next != null)
+                    Text(
+                      _primaryDescription(l10n, media, continuation!),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color:
+                            theme.colorScheme.onPrimary.withValues(alpha: 0.85),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
-          PositionedDirectional(
-            top: MediaQuery.paddingOf(context).top + 8,
-            end: 12,
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+          child: _ShelfPlan(media: media),
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+          child: StatStrip(
+            stats: [
+              StatItem(
+                value: '${units.length}',
+                label: media.kind.isReading ? l10n.chapters : l10n.episodes,
+              ),
+              StatItem(
+                value: '$offlineCount',
+                label: l10n.offlineLabel,
+              ),
+              StatItem(value: '$percent%', label: l10n.progressLabel),
+            ],
+          ),
+        ),
+      ),
+      if (media.synopsis != null && media.synopsis!.trim().isNotEmpty)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _GlassCircle(
-                  tooltip: media.favorite ? l10n.unfavorite : l10n.favorite,
-                  icon: media.favorite
-                      ? Icons.favorite_rounded
-                      : Icons.favorite_border_rounded,
-                  active: media.favorite,
-                  onTap: () async {
-                    await ref
-                        .read(repositoryProvider)
-                        .setFavorite(media.id, !media.favorite);
-                    if (!context.mounted) return;
-                    ref.invalidate(seriesProvider(seriesKey));
-                  },
-                ),
-                const SizedBox(height: BestSpace.sm),
-                _GlassCircle(
-                  tooltip: media.inLibrary
-                      ? l10n.removeFromLibrary
-                      : l10n.addToLibrary,
-                  icon: media.inLibrary
-                      ? Icons.library_add_check_rounded
-                      : Icons.library_add_outlined,
-                  active: media.inLibrary,
-                  onTap: () async {
-                    await ref
-                        .read(repositoryProvider)
-                        .setInLibrary(media.id, !media.inLibrary);
-                    if (!context.mounted) return;
-                    ref.invalidate(seriesProvider(seriesKey));
-                  },
-                ),
-                const SizedBox(height: BestSpace.sm),
-                _GlassCircle(
-                  tooltip: l10n.migrateTitle,
-                  icon: Icons.swap_horiz_rounded,
-                  onTap: () => context.push(Routes.migrateOf(media)),
-                ),
+                SectionHeader(title: l10n.aboutWork),
+                _Synopsis(text: media.synopsis!),
               ],
             ),
           ),
+        ),
+    ];
+    final chapterSlivers = <Widget>[
+      if (widget.refreshing)
+        const SliverToBoxAdapter(child: LinearProgressIndicator(minHeight: 2)),
+      if (widget.cached && !widget.refreshing)
+        SliverToBoxAdapter(
+            child: Padding(
+          padding: const EdgeInsets.all(BestLayout.gutter),
+          child: _CachedChapterNotice(
+            missingSource: widget.sourceMissing,
+            hasDownloads: offlineCount > 0,
+            onRetry: () => ref.invalidate(seriesProvider(seriesKey)),
+            onSources: () => context.push(Routes.sources),
+            onDownloads: () => _setFilter(UnitFilter.downloaded, reveal: true),
+          ),
+        )),
+      SliverToBoxAdapter(
+        child: Padding(
+          key: _chapterHeader,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: SectionHeader(
+            title: media.kind.isReading ? l10n.chapters : l10n.episodes,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _query.trim().isNotEmpty || _filter != UnitFilter.all
+                      ? l10n.seriesVisibleCount(visible.length, units.length)
+                      : l10n.unitCount(units.length),
+                  textDirection:
+                      _query.trim().isNotEmpty || _filter != UnitFilter.all
+                          ? TextDirection.ltr
+                          : null,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (canDownload && pendingDownloads > 0) ...[
+                  const SizedBox(width: 2),
+                  IconButton(
+                    tooltip:
+                        _query.trim().isNotEmpty || _filter != UnitFilter.all
+                            ? l10n.seriesDownloadShown
+                            : l10n.downloadAll,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: _bulkBusy
+                        ? null
+                        : () => _downloadAll(
+                              context,
+                              ref,
+                              media,
+                              visible,
+                              tasks,
+                            ),
+                    icon: const Icon(
+                      Icons.download_for_offline_outlined,
+                      size: 20,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+      PinnedHeaderSliver(
+          child: Material(
+        color: theme.colorScheme.surface,
+        child: _chapterTools(context, media, units),
+      )),
+      if (units.isEmpty && widget.refreshing)
+        SliverToBoxAdapter(
+            child: Padding(
+          padding: const EdgeInsets.all(BestLayout.gutter),
+          child: Text(l10n.seriesUpdating),
+        ))
+      else if (units.isEmpty)
+        SliverToBoxAdapter(
+          child: EmptyState(
+            icon: Icons.inbox_outlined,
+            title: l10n.noUnits,
+            body: l10n.nothingHereBody,
+          ),
+        )
+      else if (visible.isEmpty)
+        SliverToBoxAdapter(
+            child: EmptyState(
+          icon: Icons.filter_alt_off_outlined,
+          title: l10n.seriesNoMatch,
+          body: l10n.seriesNoMatchBody,
+          action: TextButton(
+            onPressed: _clearFilters,
+            child: Text(l10n.seriesClearFilters),
+          ),
+        ))
+      else
+        SliverList(
+          delegate: SliverChildBuilderDelegate((context, index) {
+            final unit = visible[index];
+            final task = tasks[unit.id];
+            return _UnitTile(
+              key: ValueKey('series-unit-${unit.id}'),
+              unit: unit,
+              progress: data.progress[unit.id],
+              download: task,
+              canDownload: canDownload,
+              onTap: () => openUnit(context, ref, media, unit),
+              onDownload: () => _download(context, ref, media, unit),
+              onPause: task == null
+                  ? null
+                  : () => ref.read(downloadManagerProvider).pause(task.unitId),
+              onResume: task == null
+                  ? null
+                  : () => ref.read(downloadManagerProvider).resume(task.unitId),
+            );
+          }, childCount: visible.length),
+        ),
+      const SliverToBoxAdapter(child: SizedBox(height: 28)),
+    ];
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(media.displayTitle,
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: [
+          _GlassCircle(
+            tooltip: media.favorite ? l10n.unfavorite : l10n.favorite,
+            icon: media.favorite
+                ? Icons.favorite_rounded
+                : Icons.favorite_border_rounded,
+            active: media.favorite,
+            onTap: () async {
+              final repository = ref.read(repositoryProvider);
+              if (!media.favorite && !media.inLibrary) {
+                await repository.setInLibrary(media.id, true);
+              }
+              await repository.setFavorite(media.id, !media.favorite);
+            },
+          ),
+          const SizedBox(width: BestSpace.xs),
+          _GlassCircle(
+            tooltip:
+                media.inLibrary ? l10n.removeFromLibrary : l10n.addToLibrary,
+            icon: media.inLibrary
+                ? Icons.library_add_check_rounded
+                : Icons.library_add_outlined,
+            active: media.inLibrary,
+            onTap: () => _toggleShelf(media),
+          ),
+          PopupMenuButton<_SeriesAction>(
+            onSelected: (action) {
+              switch (action) {
+                case _SeriesAction.refresh:
+                  ref.invalidate(seriesProvider(seriesKey));
+                case _SeriesAction.migrate:
+                  context.push(Routes.migrateOf(media));
+                case _SeriesAction.source:
+                  context.push(widget.sourceMissing
+                      ? Routes.sources
+                      : Routes.browseSource(media.ref.sourceId));
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                  value: _SeriesAction.refresh,
+                  child: Text(l10n.seriesRefresh)),
+              PopupMenuItem(
+                  value: _SeriesAction.migrate, child: Text(l10n.migrateTitle)),
+              PopupMenuItem(
+                  value: _SeriesAction.source, child: Text(l10n.sourceLabel)),
+            ],
+          ),
         ],
       ),
+      body: SafeArea(
+        top: false,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1120),
+            child: LayoutBuilder(builder: (context, constraints) {
+              Widget chapterList(List<Widget> slivers, String key) =>
+                  RefreshIndicator(
+                    onRefresh: _refresh,
+                    child: CustomScrollView(
+                      key: PageStorageKey(key),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: slivers,
+                    ),
+                  );
+              if (constraints.maxWidth < 840) {
+                return chapterList(
+                    [...overviewSlivers, ...chapterSlivers], 'series-phone');
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                      width: 340,
+                      child: CustomScrollView(
+                        key: const PageStorageKey('series-overview'),
+                        slivers: overviewSlivers,
+                      )),
+                  VerticalDivider(
+                      width: 1, color: theme.colorScheme.outlineVariant),
+                  Expanded(
+                      child: chapterList(chapterSlivers, 'series-chapters')),
+                ],
+              );
+            }),
+          ),
+        ),
+      ),
     );
+  }
+
+  Future<void> _refresh() async {
+    ref.invalidate(seriesProvider(seriesKey));
+    try {
+      await ref.read(seriesProvider(seriesKey).future);
+    } catch (_) {
+      // The saved list stays visible; the cache notice offers recovery.
+    }
+  }
+
+  void _setFilter(UnitFilter filter, {bool reveal = false}) {
+    setState(() => _filter = filter);
+    if (reveal) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final target = _chapterHeader.currentContext;
+        if (mounted && target != null) {
+          Scrollable.ensureVisible(target,
+              duration: BestMotion.normal, curve: BestMotion.curve);
+        }
+      });
+    }
+  }
+
+  void _clearFilters() {
+    _search.clear();
+    setState(() {
+      _query = '';
+      _filter = UnitFilter.all;
+    });
+  }
+
+  String _primaryLabel(
+      AppLocalizations l10n, Media media, UnitContinuation? next) {
+    final reading = media.kind.isReading;
+    return switch (next?.kind) {
+      UnitContinuationKind.resume =>
+        reading ? l10n.continueReading : l10n.continueWatching,
+      UnitContinuationKind.next =>
+        reading ? l10n.readerNextChapter : l10n.seriesNextEpisode,
+      UnitContinuationKind.catchUp =>
+        reading ? l10n.seriesReadRemaining : l10n.seriesWatchRemaining,
+      UnitContinuationKind.replay =>
+        reading ? l10n.seriesReadAgain : l10n.seriesWatchAgain,
+      _ => reading ? l10n.startReading : l10n.startWatching,
+    };
+  }
+
+  String _primaryDescription(
+      AppLocalizations l10n, Media media, UnitContinuation next) {
+    if (next.kind == UnitContinuationKind.resume && next.progress != null) {
+      return '${next.unit.displayTitle} · ${continueProgressLabel(
+        l10n,
+        ContinueEntry(media: media, unit: next.unit, progress: next.progress!),
+      )}';
+    }
+    return next.unit.displayTitle;
+  }
+
+  Widget _chapterTools(
+      BuildContext context, Media media, List<MediaUnit> units) {
+    final l10n = AppLocalizations.of(context);
+    final numbered = UnitNavigation.hasChronologicalOrder(units);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      child: Column(children: [
+        Row(children: [
+          Expanded(
+              child: TextField(
+            key: const ValueKey('series-unit-search'),
+            controller: _search,
+            textInputAction: TextInputAction.search,
+            onChanged: (value) => setState(() => _query = value),
+            decoration: InputDecoration(
+              hintText: media.kind.isReading
+                  ? l10n.seriesChapterSearch
+                  : l10n.seriesEpisodeSearch,
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _query.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip:
+                          MaterialLocalizations.of(context).closeButtonTooltip,
+                      onPressed: () {
+                        _search.clear();
+                        setState(() => _query = '');
+                      },
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+            ),
+          )),
+          PopupMenuButton<UnitSort>(
+            tooltip: l10n.seriesSort,
+            initialValue: _sort,
+            icon: const Icon(Icons.sort_rounded),
+            onSelected: (sort) => setState(() => _sort = sort),
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                  value: UnitSort.oldest,
+                  child: Text(numbered
+                      ? l10n.readerSortOldest
+                      : l10n.seriesSourceOrder)),
+              PopupMenuItem(
+                  value: UnitSort.newest,
+                  child: Text(numbered
+                      ? l10n.readerSortNewest
+                      : l10n.seriesReverseOrder)),
+            ],
+          ),
+        ]),
+        const SizedBox(height: BestSpace.sm),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [
+            for (final filter in UnitFilter.values)
+              if (filter != UnitFilter.downloaded || media.kind.isReading)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(end: BestSpace.sm),
+                  child: ChoiceChip(
+                    label: Text(switch (filter) {
+                      UnitFilter.all => l10n.seriesAllUnits,
+                      UnitFilter.unread => l10n.seriesUnreadUnits,
+                      UnitFilter.inProgress => l10n.seriesStartedUnits,
+                      UnitFilter.downloaded => l10n.seriesDownloadedUnits,
+                    }),
+                    selected: _filter == filter,
+                    onSelected: (selected) =>
+                        _setFilter(selected ? filter : UnitFilter.all),
+                  ),
+                ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Future<void> _toggleShelf(Media media) async {
+    if (media.inLibrary) {
+      final l10n = AppLocalizations.of(context);
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(l10n.removeFromLibrary),
+          content: Text(l10n.seriesRemoveBody),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(l10n.cancel)),
+            FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: Text(l10n.removeFromLibrary)),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+    await ref.read(repositoryProvider).setInLibrary(media.id, !media.inLibrary);
   }
 
   Future<void> _downloadAll(
@@ -417,6 +735,7 @@ class _SeriesBody extends ConsumerWidget {
     List<MediaUnit> units,
     Map<String, DownloadTask> tasks,
   ) async {
+    if (_bulkBusy) return;
     final l10n = AppLocalizations.of(context);
     final pending = units.where((unit) {
       final task = tasks[unit.id];
@@ -441,15 +760,34 @@ class _SeriesBody extends ConsumerWidget {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !context.mounted) return;
 
     final manager = ref.read(downloadManagerProvider);
+    final repository = ref.read(repositoryProvider);
+    var queued = 0;
+    var failed = 0;
+    setState(() => _bulkBusy = true);
     for (final unit in pending) {
-      await manager.enqueue(media, unit);
+      try {
+        final current = await repository.downloadFor(unit.id);
+        if (current != null &&
+            (current.isFinished || current.isActive || current.isPaused)) {
+          continue;
+        }
+        final task = await manager.enqueue(media, unit);
+        if (task.isActive) queued++;
+      } catch (_) {
+        failed++;
+      }
     }
     if (!context.mounted) return;
+    setState(() => _bulkBusy = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.downloadAllQueued(pending.length))),
+      SnackBar(
+          content: Text(
+        '${l10n.downloadAllQueued(queued)}'
+        '${failed == 0 ? '' : '\n${l10n.seriesQueueFailed(failed)}'}',
+      )),
     );
   }
 
@@ -459,26 +797,80 @@ class _SeriesBody extends ConsumerWidget {
     Media media,
     MediaUnit unit,
   ) async {
-    await ref.read(downloadManagerProvider).enqueue(media, unit);
+    try {
+      await ref.read(downloadManagerProvider).enqueue(media, unit);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(AppLocalizations.of(context).readerDownloadFailed)),
+        );
+      }
+      return;
+    }
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(AppLocalizations.of(context).downloadStarted)),
     );
   }
+}
 
-  static MediaUnit? _nextUnit(
-    List<MediaUnit> units,
-    Map<String, UnitProgress> progress,
-  ) {
-    if (units.isEmpty) return null;
-    for (final unit in units) {
-      final saved = progress[unit.id];
-      if (saved != null && !saved.completed && saved.position > 0) return unit;
-    }
-    for (final unit in units) {
-      if (!(progress[unit.id]?.completed ?? false)) return unit;
-    }
-    return units.last;
+class _CachedChapterNotice extends StatelessWidget {
+  const _CachedChapterNotice(
+      {required this.missingSource,
+      required this.hasDownloads,
+      required this.onRetry,
+      required this.onSources,
+      required this.onDownloads});
+
+  final bool missingSource;
+  final bool hasDownloads;
+  final VoidCallback onRetry;
+  final VoidCallback onSources;
+  final VoidCallback onDownloads;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Container(
+      key: const ValueKey('series-cache-notice'),
+      padding: const EdgeInsets.all(BestSpace.md),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(BestRadius.md),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(
+            missingSource
+                ? l10n.sourceNotInstalledTitle
+                : l10n.seriesSavedTitle,
+            style: theme.textTheme.titleSmall),
+        const SizedBox(height: BestSpace.sm),
+        Text(
+            missingSource ? l10n.sourceNotInstalledBody : l10n.seriesCachedBody,
+            style: theme.textTheme.bodySmall?.copyWith(height: 1.5)),
+        const SizedBox(height: BestSpace.sm),
+        Wrap(spacing: BestSpace.sm, children: [
+          TextButton.icon(
+            onPressed: missingSource ? onSources : onRetry,
+            icon: Icon(
+                missingSource
+                    ? Icons.extension_outlined
+                    : Icons.refresh_rounded,
+                size: 18),
+            label: Text(missingSource ? l10n.directoryTitle : l10n.retry),
+          ),
+          if (hasDownloads)
+            TextButton.icon(
+              onPressed: onDownloads,
+              icon: const Icon(Icons.offline_pin_outlined, size: 18),
+              label: Text(l10n.seriesShowDownloaded),
+            ),
+        ]),
+      ]),
+    );
   }
 }
 
@@ -494,16 +886,16 @@ class _Hero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 416,
+      height: 216,
       child: Stack(
         fit: StackFit.expand,
         children: [
           SizedBox(
-            height: 300,
+            height: 216,
             child: BestBackdrop(title: title, url: coverUrl),
           ),
           Positioned(
-            top: 222,
+            top: 20,
             left: 0,
             right: 0,
             child: Center(
@@ -593,7 +985,7 @@ class _GlassCircle extends StatelessWidget {
       tooltip: tooltip,
       onPressed: onTap,
       style: IconButton.styleFrom(
-        fixedSize: const Size(42, 42),
+        fixedSize: const Size(48, 48),
         backgroundColor:
             active ? BestColors.jade : Colors.black.withValues(alpha: 0.5),
         foregroundColor: active ? BestColors.ink : Colors.white,
@@ -620,36 +1012,55 @@ class _SynopsisState extends State<_Synopsis> {
   bool _open = false;
 
   @override
+  void didUpdateWidget(_Synopsis oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text) _open = false;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          widget.text,
-          maxLines: _open ? null : 4,
-          overflow: _open ? null : TextOverflow.ellipsis,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            height: 1.7,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        TextButton(
-          onPressed: () => setState(() => _open = !_open),
-          style: TextButton.styleFrom(
-            padding: EdgeInsets.zero,
-            visualDensity: VisualDensity.compact,
-          ),
-          child: Text(_open ? l10n.less : l10n.more),
-        ),
-      ],
+    final style = theme.textTheme.bodyMedium?.copyWith(
+      height: 1.7,
+      color: theme.colorScheme.onSurfaceVariant,
     );
+    return LayoutBuilder(builder: (context, constraints) {
+      final measure = TextPainter(
+        text: TextSpan(text: widget.text, style: style),
+        maxLines: 4,
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout(maxWidth: constraints.maxWidth);
+      final expandable = measure.didExceedMaxLines;
+      measure.dispose();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.text,
+            maxLines: _open ? null : 4,
+            overflow: _open ? null : TextOverflow.ellipsis,
+            style: style,
+          ),
+          if (expandable || _open)
+            TextButton(
+              onPressed: () => setState(() => _open = !_open),
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+              child: Text(_open ? l10n.less : l10n.more),
+            ),
+        ],
+      );
+    });
   }
 }
 
 class _UnitTile extends StatelessWidget {
   const _UnitTile({
+    super.key,
     required this.unit,
     required this.progress,
     required this.download,
@@ -675,7 +1086,7 @@ class _UnitTile extends StatelessWidget {
     final theme = Theme.of(context);
     final saved = progress;
     final completed = saved?.completed ?? false;
-    final started = saved != null && saved.position > 0 && !completed;
+    final started = UnitNavigation.hasStarted(saved) && !completed;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
@@ -708,7 +1119,7 @@ class _UnitTile extends StatelessWidget {
                                 width: 24,
                                 height: 24,
                                 child: CircularProgressIndicator(
-                                  value: saved.fraction,
+                                  value: saved!.fraction,
                                   strokeWidth: 2.6,
                                 ),
                               )

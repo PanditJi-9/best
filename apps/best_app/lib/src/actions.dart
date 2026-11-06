@@ -29,13 +29,14 @@ Future<void> openReader(
   BuildContext context,
   WidgetRef ref,
   Media media,
-  MediaUnit unit,
-) async {
+  MediaUnit unit, {
+  bool fromStart = false,
+}) async {
   await ref.read(repositoryProvider).saveMedia(
         media.copyWith(lastOpenedAt: DateTime.now().millisecondsSinceEpoch),
       );
   if (!context.mounted) return;
-  context.push(Routes.readerOf(media, unit));
+  context.push(Routes.readerOf(media, unit, fromStart: fromStart));
 }
 
 /// One tap, the right engine: a chapter opens the page reader, an episode opens
@@ -45,23 +46,27 @@ Future<void> openUnit(
   BuildContext context,
   WidgetRef ref,
   Media media,
-  MediaUnit unit,
-) {
-  if (media.kind.isReading) return openReader(context, ref, media, unit);
-  return openWatch(context, ref, media, unit);
+  MediaUnit unit, {
+  bool fromStart = false,
+}) {
+  if (media.kind.isReading) {
+    return openReader(context, ref, media, unit, fromStart: fromStart);
+  }
+  return openWatch(context, ref, media, unit, fromStart: fromStart);
 }
 
 Future<void> openWatch(
   BuildContext context,
   WidgetRef ref,
   Media media,
-  MediaUnit unit,
-) async {
+  MediaUnit unit, {
+  bool fromStart = false,
+}) async {
   await ref.read(repositoryProvider).saveMedia(
         media.copyWith(lastOpenedAt: DateTime.now().millisecondsSinceEpoch),
       );
   if (!context.mounted) return;
-  context.push(Routes.watchOf(media, unit));
+  context.push(Routes.watchOf(media, unit, fromStart: fromStart));
 }
 
 /// The guide is fetched, saved and opened exactly like a real source, so the

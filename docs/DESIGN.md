@@ -1,6 +1,6 @@
 # Best — identity and structure
 
-Version 1.2.0 · "Ink & Aurora"
+Version 1.4.0 · "Ink & Aurora"
 
 Best is one shelf for manga, manhwa, manhua, webtoons, anime and Asian drama.
 The design has to do something hard: feel premium next to Mihon and HikariManga,
@@ -190,30 +190,48 @@ content is centered and capped instead of stretching text and cards edge to edge
 
 ### Series — the work
 
-1. **Hero** — 300 px blurred cover, scrim to the page colour, and a 124×186
-   cover floating half-in/half-out. No negative margins, no overflow.
+1. **Hero** — a compact 216 px artwork block with a 124×186 cover. The primary
+   reading action should not be pushed below a large decorative gap.
 2. **Identity** — centered title, native title, kind · year · status · offline
    count, author, genre pills.
-3. **Actions** — primary continue/start button, circular favorite and library
-   buttons. All 52×52.
+3. **Actions** — a primary button naming the exact next chapter and saved
+   position. Favorite and library remain on the app bar; refresh/source/migration
+   are secondary menu actions. Removing from the shelf asks first.
 4. **Stat strip** — units / offline / percent complete.
 5. **Synopsis** — four lines with More/Less.
-6. **Unit list** — section header with count and a "download all" action.
+6. **Unit list** — chapter/episode search, view-only filters and sort, with
+   naturally sized pinned controls and a count of shown/total rows. Bulk download
+   applies to the shown list after confirmation.
    Each row is a card: progress ring or check, title, date · pages, download
    control, numbered chip.
-7. **Floating glass back button** over the hero.
+7. **Adaptive layout** — below 840 dp use one column; wider layouts cap at 1120
+   dp with a 340 dp overview pane and a separate chapter pane. A cached-data
+   notice explains unavailable sources and leads to installed sources or downloads.
 
 ### Reader — pages
 
-- Pure black, edge-to-edge.
-- App bar: 14 px blur over 45% black, unit title + series title, offline badge.
-- `PageView` with `InteractiveViewer` (1–4×) for images, `Image.file` for
-  offline pages.
-- Bottom overlay (ignores pointer events): page x of y — or "End of this unit"
-  with a jade check on the last page — the series name, a 3 px jade progress
-  bar, and safe-area padding.
-- Progress saves 320 ms after a page change and again on dispose. Completed at
-  the last page; a completed row never moves backwards.
+- Edge-to-edge black by default; charcoal, sepia and white are reader choices,
+  not changes to the app's colour identity.
+- App bar: 14 px blur over 45% black, unit + work titles. Offline status sits in
+  the subtitle rather than competing with phone-width controls.
+- Mode, bookmark and settings remain direct controls. Wide screens also show
+  OCR directly; the same OCR switch stays in settings on every viewport.
+- Fit-screen scans page normally; fit-width scrolls tall scans; original size
+  has explicit pinch/pan. A vertical webtoon strip keeps natural page heights.
+- Two-page layouts require fit-screen and at least 600 dp of width. Adaptive
+  mode additionally requires a landscape viewport at least 720 dp wide.
+  Artwork order follows the reader direction independently of the UI locale.
+- Page one may stand alone. A leftover final scan never crosses chapters.
+- Settings starts with **App defaults / This work** scope and explains what is
+  shared. Wake, preload and OCR are grouped as device-wide choices.
+- Bottom chrome has a real source-page counter (or pair range), grid jump,
+  slider and chapter navigation. A deliberate edge drag may change chapter;
+  landing at an edge during the same drag never does.
+- Progress saves 320 ms after a page change and again on dispose. Pairing never
+  renumbers pages or bookmarks; completion accounts for the last visible scan.
+- Partial downloads never count a prefix as the whole chapter. They retain the
+  expected total and later saved position, warn clearly, and block automatic
+  next-chapter flow until the full chapter is available.
 
 ### Watch — episodes
 
@@ -312,8 +330,9 @@ in, which keeps the package reusable and testable.
 
 - No `BackdropFilter` on scrolling lists; only on the reader app bar and modal
   sheets.
-- The reader uses `Image.network` with a loading builder and an error icon; no
-  full-resolution decode of off-screen pages beyond `PageView`'s cache.
+- The reader uses image loading/retry states and a bounded warm-up of the next
+  two scans and previous scan. Turning preload off stops new warm-ups. Extension
+  image requests stay with their signing client instead of duplicating requests.
 - The download queue is a single manager watched by the shell; tiles read from
   the same provider, never poll.
 - Main tab content is capped at 1120 dp and centered on wide displays. Grid

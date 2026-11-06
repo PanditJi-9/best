@@ -84,6 +84,52 @@ void main() {
     expect(progress.updatedAt, 200);
   });
 
+  test(
+      'version-8 progress migration distinguishes opened rows from untouched zero rows',
+      () async {
+    final folder =
+        await Directory.systemTemp.createTemp('best-progress-upgrade-');
+    addTearDown(() => folder.delete(recursive: true));
+    final path = p.join(folder.path, 'old.db');
+    final old = await databaseFactoryFfi.openDatabase(path,
+        options: OpenDatabaseOptions(
+          version: 8,
+          onCreate: (db, version) async {
+            await db.execute(
+                'CREATE TABLE progress (unit_id TEXT PRIMARY KEY, position INTEGER NOT NULL, total INTEGER NOT NULL, completed INTEGER NOT NULL, updated_at INTEGER NOT NULL)');
+            await db.insert('progress', {
+              'unit_id': 'untouched',
+              'position': 0,
+              'total': 10,
+              'completed': 0,
+              'updated_at': 1
+            });
+            await db.insert('progress', {
+              'unit_id': 'partial',
+              'position': 2,
+              'total': 10,
+              'completed': 0,
+              'updated_at': 2
+            });
+            await db.insert('progress', {
+              'unit_id': 'finished',
+              'position': 0,
+              'total': 1,
+              'completed': 1,
+              'updated_at': 3
+            });
+          },
+        ));
+    await old.close();
+    final upgraded =
+        await AppDatabase.open(factory: databaseFactoryFfi, path: path);
+    addTearDown(upgraded.close);
+    final rows = await upgraded.db.query('progress');
+    final flags = {for (final row in rows) row['unit_id']: row['started']};
+    expect(flags, {'untouched': 0, 'partial': 1, 'finished': 1});
+    expect(await upgraded.db.getVersion(), AppDatabase.schemaVersion);
+  });
+
   test('continue reading orders by the last write', () async {
     await repository.saveMedia(work('a'));
     await repository.saveMedia(work('b'));
@@ -101,6 +147,43 @@ void main() {
     final rows = await repository.continueReading();
     expect(rows.first.media.title, 'b');
     expect(LibraryPolicy.pickContinue(rows)?.media.title, 'b');
+  });
+
+  test(
+      'a first-page session remains the latest continuation in both repositories',
+      () async {
+    final memory = MemoryLibraryRepository();
+    addTearDown(memory.close);
+    for (final store in <LibraryRepository>[repository, memory]) {
+      await store.saveMedia(work('first-page'));
+      await store.saveUnits([
+        unit('first-page', 1),
+        unit('first-page', 2),
+        unit('first-page', 3)
+      ]);
+      await store.saveProgress(UnitProgress(
+        unitId: unit('first-page', 1).id,
+        position: 4,
+        total: 20,
+        updatedAt: 10,
+      ));
+      await store.saveProgress(UnitProgress(
+        unitId: unit('first-page', 2).id,
+        position: 0,
+        total: 20,
+        started: true,
+        updatedAt: 20,
+      ));
+      await store.saveProgress(UnitProgress(
+        unitId: unit('first-page', 3).id,
+        position: 0,
+        total: 0,
+        updatedAt: 30,
+      ));
+      final rows = await store.continueReading();
+      expect(rows.single.unit.id, unit('first-page', 2).id);
+      expect(rows.single.progress.position, 0);
+    }
   });
 
   test('continue limit counts works, with deterministic latest chapter ties',

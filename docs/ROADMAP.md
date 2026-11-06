@@ -334,17 +334,48 @@ persistent.
 - [x] **Arabic and English parity.** Reader tooltips, filter labels, chapter
   sheet, OCR messages and the OCR setting are no longer hardcoded Arabic; the
   two ARB files hold the same 674 keys.
-- [ ] Double-page spreads, volume-aware chapter navigation and per-source
-  reader profiles. These need layout experiments on a real tablet, so they are
-  not claimed yet.
+- [ ] Volume-aware chapter navigation and per-source reader defaults.
+  Per-work profiles and two-page spreads are the next slice below.
 - [ ] Volume-key page turns. Android does not deliver volume keys to Flutter
   reliably without a native key filter, so this stays out until it can be
   tested on a device.
 
-Verification: `dart format` and `git diff --check` pass, and the `best_domain`
-and `best_data` suites run on Dart 3.13. This environment has no Flutter
-toolchain, so `flutter analyze`, `flutter test`, the widget suite and an APK
-build were **not** run for this milestone; the release notes say so too.
+Verification: the initial environment lacked Flutter. Follow-up
+[CI 42248335144](https://github.com/PanditJi-9/best/actions/runs/42248335144)
+on `432422f` passed Flutter analysis, all widget tests, domain/data/Rust tests,
+release APK generation, JVM compatibility tests and signature verification.
+This is build/test evidence, not a real-device review of the new reader.
+
+## 1.4.0 — reading styles and spreads (in development)
+
+- [x] **Opt-in per-work profiles.** Layout, direction, fit, background, tap zones,
+  spacing, filter and spread alignment can be remembered across that work's
+  chapters. App defaults remain unchanged; resetting a profile affects only it.
+- [x] **Device-wide policy remains shared.** Wake, preload, OCR, downloads,
+  language and biometric protection are never captured in a reading profile.
+- [x] **Two-page layouts.** Single, adaptive landscape, or explicit paired scans;
+  narrow phones, vertical reading and pan/fit-width modes stay single-page.
+  Pair ordering follows reading direction, not interface language.
+- [x] **Cover alignment.** Keep page one alone or start pairing immediately;
+  odd final pages never borrow a scan from the next chapter.
+- [x] **Stable source-page coordinates.** Rotation, mode changes, grid jumps,
+  bookmarks and progress use original page numbers, never spread numbers.
+- [x] **Deliberate boundary swipes.** A drag must start at a chapter edge and
+  exceed a threshold; reaching the last page mid-swipe never skips chapters.
+- [x] **Compact phone controls.** Offline status moves into the title; OCR is
+  available in settings on narrow screens. The mode toggle remains accessible.
+- [x] **Regression coverage** for pairing, profile isolation, rotation, chapter
+  edges, original bookmark numbers and Arabic large-text phone layouts.
+- [x] **Adaptive work pages** with pinned chapter search/filter/sort and separate
+  overview/chapter panes on wide screens; the primary action names its target.
+- [x] **Cached list recovery** and reading downloaded pages without their source.
+- [x] **Partial-download correctness:** expected totals, preserved later positions,
+  no false completion, no automatic skip over unavailable pages.
+- [x] **Portable reader state and empty categories** in backward-compatible
+  optional backup sections; system file export and explicit privacy notice.
+- [x] **Explicit progress-start state** with guarded schema-9 migration. Legacy
+  untouched page-zero rows are not misclassified as opened.
+- [ ] Real-device/tablet review and a signed 1.4.0 APK before release.
 
 ## 7. Growth
 

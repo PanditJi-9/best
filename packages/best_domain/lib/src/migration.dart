@@ -48,7 +48,8 @@ class MigrationPlan {
     final unmatched = <MediaUnit>[];
 
     for (final old in oldUnits) {
-      final match = _takeByNumber(available, old) ?? _takeByTitle(available, old);
+      final match =
+          _takeByNumber(available, old) ?? _takeByTitle(available, old);
       if (match == null) {
         unmatched.add(old);
       } else {
@@ -84,6 +85,7 @@ class MigrationPlan {
           position: position,
           total: total,
           completed: saved.completed,
+          started: saved.started,
           updatedAt: saved.updatedAt,
         ),
       );
