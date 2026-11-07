@@ -7,10 +7,11 @@ does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
 **Status: 1.5.0 build 25 in development — a source-first front door and an offline shelf.**
-Build 24 passed Flutter analysis, tests and signed-APK generation in
-[CI](https://github.com/PanditJi-9/best/actions/runs/42313388842), and produced
-universal, arm64-v8a, armeabi-v7a and x86_64 APKs that share one application id
-and signing certificate. Build 25 reorganises navigation around four tabs
+Build 25 passed Flutter analysis, 172 serial widget and unit tests, 62 Python
+tool tests, and signed four-APK generation in
+[CI](https://github.com/PanditJi-9/best/actions/runs/42327073500). The universal,
+arm64-v8a, armeabi-v7a and x86_64 APKs share one application id, version and
+signing certificate. This build reorganises navigation around four tabs
 (Home, Library, History, Settings), makes Home strictly source-scoped — the
 chosen source's own kind decides whether it shows manga or anime, with no
 global switch — folds finished downloads into the Library, removes the
