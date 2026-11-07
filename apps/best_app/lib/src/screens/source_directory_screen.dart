@@ -9,7 +9,10 @@ import '../providers.dart';
 /// Lists APK bundles, not thousands of duplicated language rows. Only visible
 /// tiles build/load icons; searching the index makes no requests to the sites.
 class SourceDirectoryScreen extends ConsumerStatefulWidget {
-  const SourceDirectoryScreen({super.key});
+  const SourceDirectoryScreen({super.key, this.initialKind = 'all'});
+
+  /// Opens already narrowed to the half of the catalogue the reader is in.
+  final String initialKind;
 
   @override
   ConsumerState<SourceDirectoryScreen> createState() => _SourceDirectoryState();
@@ -21,7 +24,7 @@ class _SourceDirectoryState extends ConsumerState<SourceDirectoryScreen> {
   final _confirming = <String>{};
   final _errors = <String, String>{};
   final _trusted = <String>{};
-  String _kind = 'all';
+  late String _kind = widget.initialKind;
   String _status = 'all';
   String _language = '*';
   bool _adult = false;

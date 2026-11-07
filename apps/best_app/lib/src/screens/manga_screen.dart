@@ -76,7 +76,6 @@ class _MangaScreenState extends ConsumerState<MangaScreen> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
               child: PageMasthead(
-                index: "02",
                 title: l10n.mangaTitle,
                 subtitle: l10n.browseSubtitle(sources.length),
                 trailing: IconButton(
@@ -116,7 +115,6 @@ class _MangaScreenState extends ConsumerState<MangaScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: SectionHeader(
-                  index: "01",
                   title: l10n.mangaSourcesTitle,
                   trailing: sources.isEmpty
                       ? null
@@ -192,7 +190,6 @@ class _MangaScreenState extends ConsumerState<MangaScreen> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: SectionHeader(
-            index: "01",
             title: l10n.searchAll,
             trailing: Text(
               l10n.sourcesReady(

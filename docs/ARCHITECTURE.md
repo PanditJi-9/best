@@ -143,7 +143,7 @@ Riverpod 3 without code generation. The repository emits on `changes` after
 every successful write; the shelf watches that stream and re-runs its query.
 Screens never mutate a local list to fake persistence.
 
-`go_router` with a `StatefulShellRoute.indexedStack` for the five tabs. Series
+`go_router` with a `StatefulShellRoute.indexedStack` for the four tabs: Home, Library, History and Settings. Series
 and reader are pushed routes outside the shell, so the bottom bar disappears
 while reading. Source ids and urls travel as query parameters, not path
 segments: a url with slashes must not become a 404.

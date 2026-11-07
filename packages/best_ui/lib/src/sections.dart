@@ -119,17 +119,18 @@ class _AccentTick extends StatelessWidget {
 }
 
 /// The masthead for a whole page. It replaces four hand-built screen headers
-/// so the index, the display face and the hairline cannot drift between tabs.
+/// so the display face and the hairline cannot drift between tabs.
+///
+/// Deliberately has no section number: "07" told the reader nothing and made a
+/// personal app look like a numbered template.
 class PageMasthead extends StatelessWidget {
   const PageMasthead({
     super.key,
-    required this.index,
     required this.title,
     this.subtitle,
     this.trailing,
   });
 
-  final String index;
   final String title;
   final String? subtitle;
   final Widget? trailing;
@@ -140,26 +141,11 @@ class PageMasthead extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              index.padLeft(2, '0'),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: BestColors.brass,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.4,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Container(
-                height: 1,
-                color: theme.colorScheme.outlineVariant,
-              ),
-            ),
-          ],
+        Container(
+          height: 1,
+          color: theme.colorScheme.outlineVariant,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [

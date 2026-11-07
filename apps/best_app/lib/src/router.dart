@@ -7,13 +7,10 @@ import 'screens/about_screen.dart';
 import 'screens/backup_screen.dart';
 import 'screens/browse_screen.dart';
 import 'screens/contributors_screen.dart';
-import 'screens/database_screen.dart';
-import 'screens/discover_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
-import 'screens/menu_screen.dart';
 import 'screens/manga_screen.dart';
 import 'screens/meta_detail_screen.dart';
 import 'screens/meta_list_screen.dart';
@@ -52,14 +49,6 @@ GoRouter buildRouter() => GoRouter(
             StatefulShellBranch(
               routes: [
                 GoRoute(
-                  path: Routes.database,
-                  builder: (context, state) => const DatabaseScreen(),
-                ),
-              ],
-            ),
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
                   path: Routes.library,
                   builder: (context, state) => const LibraryScreen(),
                 ),
@@ -68,16 +57,16 @@ GoRouter buildRouter() => GoRouter(
             StatefulShellBranch(
               routes: [
                 GoRoute(
-                  path: Routes.downloads,
-                  builder: (context, state) => const DownloadsScreen(),
+                  path: Routes.history,
+                  builder: (context, state) => const HistoryScreen(),
                 ),
               ],
             ),
             StatefulShellBranch(
               routes: [
                 GoRoute(
-                  path: Routes.menu,
-                  builder: (context, state) => const MenuScreen(),
+                  path: Routes.settings,
+                  builder: (context, state) => const SettingsScreen(),
                 ),
               ],
             ),
@@ -86,10 +75,6 @@ GoRouter buildRouter() => GoRouter(
         GoRoute(
           path: Routes.manga,
           builder: (context, state) => const MangaScreen(),
-        ),
-        GoRoute(
-          path: Routes.discover,
-          builder: (context, state) => const DiscoverScreen(),
         ),
         GoRoute(
           path: Routes.metaSearch,
@@ -127,10 +112,6 @@ GoRouter buildRouter() => GoRouter(
           },
         ),
         GoRoute(
-          path: Routes.history,
-          builder: (context, state) => const HistoryScreen(),
-        ),
-        GoRoute(
           path: Routes.browse,
           builder: (context, state) {
             final query = state.uri.queryParameters;
@@ -139,10 +120,6 @@ GoRouter buildRouter() => GoRouter(
               initialQuery: query['q'] ?? '',
             );
           },
-        ),
-        GoRoute(
-          path: Routes.settings,
-          builder: (context, state) => const SettingsScreen(),
         ),
         GoRoute(
           path: Routes.about,
@@ -162,7 +139,13 @@ GoRouter buildRouter() => GoRouter(
         ),
         GoRoute(
           path: Routes.sources,
-          builder: (context, state) => const SourceDirectoryScreen(),
+          builder: (context, state) => SourceDirectoryScreen(
+            initialKind: state.uri.queryParameters['kind'] ?? 'all',
+          ),
+        ),
+        GoRoute(
+          path: Routes.downloads,
+          builder: (context, state) => const DownloadsScreen(),
         ),
         GoRoute(
           path: '/series',

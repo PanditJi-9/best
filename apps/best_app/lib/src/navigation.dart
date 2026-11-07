@@ -28,6 +28,9 @@ abstract final class Routes {
   static const String news = '/news';
   static const String contributors = '/contributors';
 
+  static String sourcesFor(String kind) =>
+      '$sources?${Uri(queryParameters: {'kind': kind}).query}';
+
   static String browseSource(String sourceId) =>
       '$browse?${Uri(queryParameters: {'source': sourceId}).query}';
 

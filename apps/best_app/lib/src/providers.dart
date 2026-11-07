@@ -354,7 +354,6 @@ final Provider<SourceRegistry> sourceRegistryProvider =
           packageSourceCount: packageCounts[info.packageName] ?? 1,
         )))
       ExtensionSourceAdapter(host: extensionHost, info: info),
-    const DemoSource(),
   ],
       fallback: (id) => id == 'mangadex'
           ? MangaDexSource(
@@ -381,6 +380,7 @@ class AppSettings {
     this.readerBrightness = 0,
     this.readerSpreadMode = ReaderSpreadMode.single,
     this.readerCoverAlone = true,
+    this.readerAutoAdvance = true,
     this.ocrTranslationEnabled = false,
     this.biometricLockEnabled = false,
   });
@@ -437,6 +437,11 @@ class AppSettings {
   final ReaderSpreadMode readerSpreadMode;
   final bool readerCoverAlone;
 
+  /// Finishing the last page and pushing past it opens the next chapter, the
+  /// way Mihon and Komikku behave. Turning it off keeps the reader on the
+  /// finished chapter until the reader chooses.
+  final bool readerAutoAdvance;
+
   ReaderPreferences get readerPreferences => ReaderPreferences(
         mode: readerMode,
         direction: readerDirection,
@@ -489,6 +494,7 @@ class AppSettings {
     int? readerBrightness,
     ReaderSpreadMode? readerSpreadMode,
     bool? readerCoverAlone,
+    bool? readerAutoAdvance,
     bool? ocrTranslationEnabled,
     bool? biometricLockEnabled,
   }) {
@@ -510,6 +516,7 @@ class AppSettings {
       readerBrightness: readerBrightness ?? this.readerBrightness,
       readerSpreadMode: readerSpreadMode ?? this.readerSpreadMode,
       readerCoverAlone: readerCoverAlone ?? this.readerCoverAlone,
+      readerAutoAdvance: readerAutoAdvance ?? this.readerAutoAdvance,
       ocrTranslationEnabled:
           ocrTranslationEnabled ?? this.ocrTranslationEnabled,
       biometricLockEnabled: biometricLockEnabled ?? this.biometricLockEnabled,
@@ -535,6 +542,7 @@ class SettingsController extends Notifier<AppSettings> {
   static const String _readerBrightnessKey = 'reader_brightness';
   static const String _readerSpreadModeKey = 'reader_spread_mode';
   static const String _readerCoverAloneKey = 'reader_cover_alone';
+  static const String _readerAutoAdvanceKey = 'reader_auto_advance';
   static const String _ocrTranslationKey = 'ocr_translation_enabled';
   static const String _biometricLockKey = 'biometric_lock_enabled';
 
@@ -570,6 +578,7 @@ class SettingsController extends Notifier<AppSettings> {
         preferences?.getString(_readerSpreadModeKey),
       ),
       readerCoverAlone: preferences?.getBool(_readerCoverAloneKey) ?? true,
+      readerAutoAdvance: preferences?.getBool(_readerAutoAdvanceKey) ?? true,
       ocrTranslationEnabled: preferences?.getBool(_ocrTranslationKey) ?? false,
       biometricLockEnabled: preferences?.getBool(_biometricLockKey) ?? false,
     );
@@ -648,6 +657,13 @@ class SettingsController extends Notifier<AppSettings> {
   void setReaderPreload(bool value) {
     unawaited(ref.read(preferencesProvider)?.setBool(_readerPreloadKey, value));
     state = state.copyWith(readerPreload: value);
+  }
+
+  void setReaderAutoAdvance(bool value) {
+    unawaited(
+      ref.read(preferencesProvider)?.setBool(_readerAutoAdvanceKey, value),
+    );
+    state = state.copyWith(readerAutoAdvance: value);
   }
 
   void setReaderWebtoonGap(int value) {
@@ -994,6 +1010,69 @@ final NotifierProvider<LibraryQueryController, LibraryQuery>
     NotifierProvider<LibraryQueryController, LibraryQuery>(
   LibraryQueryController.new,
 );
+
+/// The two halves of Best. A source belongs to one of them, and so does the
+/// home feed: manga and anime are never presented as one undifferentiated pile.
+enum HomeKind { reading, watching }
+
+/// Which half a source serves. Extensions declare it; a JSON pack declares its
+/// default work kind; every other adapter is a reading catalogue.
+HomeKind homeKindOf(SourceAdapter source) {
+  if (source is ExtensionSourceAdapter) {
+    return source.info.isAnime ? HomeKind.watching : HomeKind.reading;
+  }
+  if (source is JsonSourceAdapter) {
+    return source.pack.defaultKind.isReading
+        ? HomeKind.reading
+        : HomeKind.watching;
+  }
+  return HomeKind.reading;
+}
+
+/// The front door remembers the last source, so reopening Best lands on the
+/// catalogue the person actually uses instead of a merged list.
+class HomeScope {
+  const HomeScope({this.sourceId, this.kind = HomeKind.reading});
+
+  final String? sourceId;
+  final HomeKind kind;
+}
+
+class HomeScopeController extends Notifier<HomeScope> {
+  static const String _sourceKey = 'home.source';
+  static const String _kindKey = 'home.kind';
+
+  @override
+  HomeScope build() {
+    final prefs = ref.watch(preferencesProvider);
+    return HomeScope(
+      sourceId: prefs?.getString(_sourceKey),
+      kind: prefs?.getString(_kindKey) == 'watching'
+          ? HomeKind.watching
+          : HomeKind.reading,
+    );
+  }
+
+  void selectSource(String? sourceId) {
+    unawaited(
+        ref.read(preferencesProvider)?.setString(_sourceKey, sourceId ?? ''));
+    state = HomeScope(
+      sourceId: sourceId == null || sourceId.isEmpty ? null : sourceId,
+      kind: state.kind,
+    );
+  }
+
+  void setKind(HomeKind kind, {String? sourceId}) {
+    unawaited(ref.read(preferencesProvider)?.setString(_kindKey, kind.name));
+    unawaited(ref
+        .read(preferencesProvider)
+        ?.setString(_sourceKey, sourceId ?? state.sourceId ?? ''));
+    state = HomeScope(sourceId: sourceId ?? state.sourceId, kind: kind);
+  }
+}
+
+final NotifierProvider<HomeScopeController, HomeScope> homeScopeProvider =
+    NotifierProvider<HomeScopeController, HomeScope>(HomeScopeController.new);
 
 /// Categories are tags with a first-class name.
 ///
@@ -1418,10 +1497,7 @@ final FutureProvider<DiscoverFeed> discoverProvider =
   }
 
   if (works.isEmpty) {
-    return DiscoverFeed(
-      works: await const DemoSource().popular(),
-      live: false,
-    );
+    return const DiscoverFeed(works: [], live: false);
   }
   return DiscoverFeed(
     works: List.unmodifiable(works.take(40)),

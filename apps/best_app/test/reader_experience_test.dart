@@ -4,7 +4,6 @@ import 'dart:ui' as ui;
 import 'package:best_app/src/l10n/generated/app_localizations.dart';
 import 'package:best_app/src/providers.dart';
 import 'package:best_app/src/screens/reader_screen.dart';
-import 'package:best_app/src/widgets/reader_hud.dart';
 import 'package:best_app/src/widgets/reader_page_grid.dart';
 import 'package:best_data/best_data.dart';
 import 'package:best_domain/best_domain.dart';
@@ -576,9 +575,6 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
       await tester.pumpAndSettle();
       expect(find.text(l10n.readerSavedPage(1)), findsOneWidget);
-      if (mode == 'vertical') {
-        expect(tester.widget<ReaderHud>(find.byType(ReaderHud)).total, isNull);
-      }
       await tester.pump(const Duration(milliseconds: 400));
       final unit = fixture.units.first;
       final saved = (await fixture.repository.progressFor(unit.id))!;

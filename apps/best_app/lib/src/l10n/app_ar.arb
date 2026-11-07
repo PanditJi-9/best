@@ -448,7 +448,7 @@
   "extensionsTitle": "الإضافات",
   "extensionsReady": "{count} مصدر جاهز",
   "extensionsUpdate": "تحديث الإضافات",
-  "extensionsHint": "اختر من دليل إضافات Mihon وAniyomi الكامل. لا تُثبّت أي إضافة قبل تفعيلها.",
+  "extensionsHint": "اختر من دليل الإضافات المجتمعي. لا تُثبّت أي إضافة قبل تفعيلها.",
   "directoryTitle": "دليل المصادر",
   "directorySearch": "ابحث عن موقع أو إضافة أو لغة",
   "directoryIntro": "حزم الإضافات الأصلية من Keiyoushi وYuzono. إضافات مجتمعية، وليست تطبيقات المواقع الرسمية. عمل كل موقع يعتمد على توفره.",
@@ -898,6 +898,8 @@
   "readerPreviousChapter": "الفصل السابق",
   "readerFinished": "نهاية الفصل",
   "readerLastChapter": "هذا آخر فصل.",
+  "readerAutoAdvance": "الانتقال التلقائي للفصل التالي",
+  "readerAutoAdvanceBody": "عند تجاوز آخر صفحة يُفتح الفصل التالي مباشرة دون زر.",
   "readerOcrTitle": "ترجمة المانجا التلقائية (OCR)",
   "readerOcrBody": "التعرف على فقاعات الحوار وترجمتها على الجهاز دون إنترنت.",
   "readerTranslating": "جارِ الترجمة…",
@@ -1046,5 +1048,10 @@
   "downloadUnknownTotalTitle": "عدد الصفحات المتوقّع غير معروف",
   "downloadUnavailable": "لم يعد هذا التنزيل متاحًا. لم تتغيّر أي ملفات أخرى.",
   "readerSavedPage": "الصفحة المحفوظة {current} · الإجمالي غير معروف",
-  "@readerSavedPage": {"placeholders": {"current": {"type": "int"}}}
+  "@readerSavedPage": {"placeholders": {"current": {"type": "int"}}},
+  "securityGroup": "الأمان والخصوصية",
+  "biometricLock": "قفل التطبيق بالبصمة",
+  "biometricLockBody": "اطلب بصمة الإصبع أو رمز قفل الجهاز عند فتح Best.",
+  "biometricPromptTitle": "تفعيل القفل بالبصمة",
+  "biometricPromptBody": "أكّد هويتك لتفعيل القفل البيومتري."
 }

@@ -6,16 +6,16 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 1.4.0 build 24 in development — resilient downloads and faster chapter access.**
-Build 23 passed Flutter analysis, tests and signed-APK generation in
-[CI](https://github.com/PanditJi-9/best/actions/runs/42281703029). This candidate
-adds opt-in per-work reading preferences, adaptive two-page layouts, cover
-alignment and deliberate chapter-edge swipes. It preserves source page numbers
-for progress and bookmarks. This pass also adds tablet work pages, pinned
-chapter search/filter/sort, consistent continuation, safe partial/offline
-reading and portable reader state in backups. Build 24 adds local file checks,
-repair-only downloads and a current-chapter/episode picker. See
-[the build-24 notes](docs/releases/1.4.0-build24.md). No 1.4.0 release has been published.
+**Status: 1.5.0 build 25 in development — a source-first front door and an offline shelf.**
+Build 24 passed Flutter analysis, tests and signed-APK generation in
+[CI](https://github.com/PanditJi-9/best/actions/runs/42313388842), and produced
+universal, arm64-v8a, armeabi-v7a and x86_64 APKs that share one application id
+and signing certificate. Build 25 reorganises navigation around four tabs
+(Home, Library, History, Settings), makes Home strictly source-scoped with a
+Manga/Anime switch, folds finished downloads into the Library, removes the
+Database/Discover/Menu screens, and streamlines the reader chrome with
+automatic chapter advance. See [the build notes](docs/releases/1.5.0-build25.md).
+No 1.5.0 release has been published.
 
 The shelf, the reader, the video player with captions, the bilingual UI, local
 progress, statistics, JSON backup/restore, one real catalogue (MangaDex),
@@ -39,11 +39,14 @@ Suwayomi remains as an optional alternative for readers who already run one.
 
 ## What works today
 
-- **A front door with real content.** Home offers latest, popular, rated and
-  personalized source feeds, with saved continuation in the same poster grid.
-  Search and source management remain direct controls. The guide is available
-  from Menu; its sample videos require a connection. Five tabs: Home, Database,
-  Library, Downloads, Menu.
+- **A source-first front door.** Home shows one source at a time, never a
+  mixed manga/anime grid: a Manga/Anime switch, pinned source chips with the
+  site's own icon, and Latest/Popular feeds with infinite scroll. Long-press a
+  poster to shelve it. Four tabs: Home, Library, History, Settings.
+- **Offline belongs to the shelf.** Finished downloads appear in a Ready
+  offline rail above the Library, while active and failed transfers collapse
+  into one banner that opens the download manager. There is no separate
+  Downloads tab.
 - **One search, every source.** Browse opens on **All sources** and searches
   them in parallel, so a slow pack cannot hold back the catalogue.
 - **Best picks, without a store update.** A curated shelf (`assets/curated.json`)

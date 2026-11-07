@@ -18,7 +18,6 @@ import '../ocr/bubble_overlay_widget.dart';
 import '../providers.dart';
 import '../widgets/chapter_list_sheet.dart';
 import '../widgets/reader_color_filter.dart';
-import '../widgets/reader_hud.dart';
 import '../widgets/reader_page_grid.dart';
 import '../widgets/reader_settings_sheet.dart';
 
@@ -145,6 +144,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   bool _dragStartedAtStart = false;
   bool _dragStartedAtEnd = false;
   double _edgeDrag = 0;
+  double _verticalOverscroll = 0;
 
   AppSettings get _readerSettings =>
       ref.read(readerSettingsForProvider(widget.data.media.id));
@@ -879,6 +879,32 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     });
   }
 
+  /// Vertical mode has no page boundaries, so "continue to the next chapter"
+  /// is a deliberate pull past the end of the last page. At that point — and
+  /// only when auto-advance is on — the next chapter opens by itself.
+  bool _handleVerticalScroll(ScrollNotification notification) {
+    final metrics = notification.metrics;
+    if (notification is ScrollStartNotification) {
+      _verticalOverscroll = 0;
+    } else if (notification is OverscrollNotification &&
+        notification.overscroll > 0 &&
+        metrics.extentAfter <= 0.5) {
+      _verticalOverscroll += notification.overscroll;
+    } else if (notification is ScrollEndNotification) {
+      final go = _verticalOverscroll >= 72;
+      _verticalOverscroll = 0;
+      if (go &&
+          _readerSettings.readerAutoAdvance &&
+          !widget.data.partial &&
+          _nextUnit != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_openingUnit) _openNextUnit();
+        });
+      }
+    }
+    return false;
+  }
+
   bool _handlePagedScroll(ScrollNotification notification) {
     if (notification.depth != 0 ||
         notification.metrics.axis != Axis.horizontal) {
@@ -1176,49 +1202,38 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                         MediaQuery.sizeOf(context).width,
                       ),
                       child: mode == ReaderMode.vertical
-                          ? ScrollablePositionedList.builder(
-                              itemScrollController: _verticalController,
-                              itemPositionsListener: _verticalPositions,
-                              initialScrollIndex: _index,
-                              itemCount: total,
-                              itemBuilder: (BuildContext context, int index) {
-                                final page = _ResourcePage(
-                                  key: ValueKey(index),
-                                  unitId: widget.data.unit.id,
-                                  resource: _resources[index],
-                                  sourceId: widget.data.media.ref.sourceId,
-                                  index: index,
-                                  total: _chapterTotal,
-                                  continuous: true,
-                                  fit: settings.readerFit,
-                                  colorFilter: _colorFilter,
-                                );
-                                final gap = settings.readerWebtoonGap;
-                                return gap <= 0
-                                    ? page
-                                    : Padding(
-                                        padding: EdgeInsets.only(
-                                          bottom: gap.toDouble(),
-                                        ),
-                                        child: page,
-                                      );
-                              },
+                          ? NotificationListener<ScrollNotification>(
+                              onNotification: _handleVerticalScroll,
+                              child: ScrollablePositionedList.builder(
+                                itemScrollController: _verticalController,
+                                itemPositionsListener: _verticalPositions,
+                                initialScrollIndex: _index,
+                                itemCount: total,
+                                itemBuilder: (BuildContext context, int index) {
+                                  final page = _ResourcePage(
+                                    key: ValueKey(index),
+                                    unitId: widget.data.unit.id,
+                                    resource: _resources[index],
+                                    sourceId: widget.data.media.ref.sourceId,
+                                    index: index,
+                                    total: _chapterTotal,
+                                    continuous: true,
+                                    fit: settings.readerFit,
+                                    colorFilter: _colorFilter,
+                                  );
+                                  final gap = settings.readerWebtoonGap;
+                                  return gap <= 0
+                                      ? page
+                                      : Padding(
+                                          padding: EdgeInsets.only(
+                                            bottom: gap.toDouble(),
+                                          ),
+                                          child: page,
+                                        );
+                                },
+                              ),
                             )
                           : _buildPagedView(settings),
-                    ),
-                  ),
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: ReaderHud(
-                      chapterTitle: unit.displayTitle,
-                      page: _index + 1,
-                      total:
-                          widget.data.partial && widget.data.totalPages == null
-                              ? null
-                              : _chapterTotal,
-                      isVerticalMode: mode == ReaderMode.vertical,
                     ),
                   ),
                   Positioned(
@@ -1261,50 +1276,70 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                                     textAlign: TextAlign.center,
                                   ),
                                 ),
-                              if (_atEnd) ...[
+                              if (_atEnd)
                                 Padding(
-                                  padding: const EdgeInsets.only(
-                                      bottom: BestSpace.sm),
-                                  child: Text(l10n.readerFinished,
-                                      style: const TextStyle(
-                                          color: Colors.white70, fontSize: 11)),
-                                ),
-                                if (_nextUnit != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: SizedBox(
-                                      width: double.infinity,
-                                      child: FilledButton.icon(
-                                        onPressed: _openNextUnit,
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: BestColors.jade,
-                                          foregroundColor: Colors.black,
-                                        ),
-                                        icon: const Icon(
-                                          Icons.skip_next_rounded,
-                                          size: 18,
-                                        ),
-                                        label: Text(
-                                          '${l10n.readerNextChapter} · '
-                                          '${_nextUnit!.displayTitle}',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        l10n.readerFinished,
+                                        style: const TextStyle(
+                                          color: Colors.white54,
+                                          fontSize: 10,
+                                          letterSpacing: 0.4,
                                         ),
                                       ),
-                                    ),
-                                  )
-                                else
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 10),
-                                    child: Text(
-                                      l10n.readerLastChapter,
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 11,
-                                      ),
-                                    ),
+                                      const SizedBox(height: 2),
+                                      if (_nextUnit != null)
+                                        TextButton.icon(
+                                          key: const ValueKey(
+                                              'reader-next-chapter'),
+                                          onPressed: widget.data.partial
+                                              ? null
+                                              : _openNextUnit,
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: BestColors.jade,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 4,
+                                            ),
+                                            minimumSize: const Size(0, 32),
+                                            tapTargetSize: MaterialTapTargetSize
+                                                .shrinkWrap,
+                                          ),
+                                          icon: const Icon(
+                                            Icons.skip_next_rounded,
+                                            size: 16,
+                                          ),
+                                          label: Text(
+                                            '${l10n.readerNextChapter} · '
+                                            '${_nextUnit!.displayTitle}',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      if (_nextUnit == null)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 2),
+                                          child: Text(
+                                            l10n.readerLastChapter,
+                                            style: const TextStyle(
+                                              color: Colors.white54,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
                                   ),
-                              ],
+                                ),
                               Row(
                                 children: [
                                   if (_atEnd) ...[
@@ -2085,40 +2120,18 @@ class _SyntheticPageView extends StatelessWidget {
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'BEST · ${(page + 1).toString().padLeft(2, '0')}',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.45),
-                  fontSize: 11,
-                  letterSpacing: 2,
-                  fontWeight: FontWeight.w700,
-                ),
+          child: Center(
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 30,
+                height: 1.25,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
               ),
-              const Spacer(),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 30,
-                  height: 1.25,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '${position + 1} / $total',
-                textDirection: TextDirection.ltr,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.55),
-                  fontSize: 13,
-                ),
-              ),
-              const Spacer(),
-            ],
+            ),
           ),
         ),
       ),

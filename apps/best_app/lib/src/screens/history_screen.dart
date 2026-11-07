@@ -22,15 +22,14 @@ class HistoryScreen extends ConsumerStatefulWidget {
   ConsumerState<HistoryScreen> createState() => _HistoryScreenState();
 }
 
-enum _HistoryTab { continueReading, recent, downloads }
+enum _HistoryTab { recent, continueReading }
 
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
-  _HistoryTab _tab = _HistoryTab.continueReading;
+  _HistoryTab _tab = _HistoryTab.recent;
 
   Future<void> _refresh() async {
     ref.invalidate(continueProvider);
     ref.invalidate(recentProvider);
-    ref.invalidate(downloadsProvider);
     try {
       await Future.wait([
         ref.read(continueProvider.future),
@@ -47,52 +46,59 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     final continuing =
         ref.watch(continueProvider).value ?? const <ContinueEntry>[];
     final recent = ref.watch(recentProvider).value ?? const <Media>[];
-    final downloads =
-        ref.watch(downloadsProvider).value ?? const <DownloadTask>[];
-    final active = downloads
-        .where((task) => task.status != DownloadStatus.done)
-        .toList(growable: false);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.historyTitle),
-        actions: [
-          IconButton(
-            tooltip: l10n.retry,
-            onPressed: _refresh,
-            icon: const Icon(Icons.refresh_rounded),
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 8, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.historyTitle,
+                        style: BestType.pageTitle(context),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.navHistory,
+                        style: BestType.body(context),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: l10n.retry,
+                  onPressed: _refresh,
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+            child: _Segments(
+              selected: _tab,
+              onSelected: (tab) => setState(() => _tab = tab),
+            ),
+          ),
+          Expanded(
+            child: switch (_tab) {
+              _HistoryTab.continueReading => _ContinueList(
+                  entries: continuing,
+                  onRefresh: _refresh,
+                ),
+              _HistoryTab.recent => _RecentList(
+                  works: recent,
+                  onRefresh: _refresh,
+                ),
+            },
           ),
         ],
-      ),
-      body: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-              child: _Segments(
-                selected: _tab,
-                onSelected: (tab) => setState(() => _tab = tab),
-              ),
-            ),
-            Expanded(
-              child: switch (_tab) {
-                _HistoryTab.continueReading => _ContinueList(
-                    entries: continuing,
-                    onRefresh: _refresh,
-                  ),
-                _HistoryTab.recent => _RecentList(
-                    works: recent,
-                    onRefresh: _refresh,
-                  ),
-                _HistoryTab.downloads => _ActiveDownloads(
-                    tasks: active,
-                    onRefresh: _refresh,
-                  ),
-              },
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -108,9 +114,8 @@ class _Segments extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final options = <(_HistoryTab, String)>[
-      (_HistoryTab.continueReading, l10n.historyContinue),
       (_HistoryTab.recent, l10n.historyRecent),
-      (_HistoryTab.downloads, l10n.historyDownloads),
+      (_HistoryTab.continueReading, l10n.historyContinue),
     ];
     return SizedBox(
       height: 38,
@@ -200,9 +205,9 @@ class _ContinueList extends StatelessWidget {
               title: l10n.historyEmptyTitle,
               body: l10n.historyEmptyBody,
               action: FilledButton.icon(
-                onPressed: () => context.go(Routes.database),
-                icon: const Icon(Icons.travel_explore_rounded, size: 18),
-                label: Text(l10n.metaTitle),
+                onPressed: () => context.push(Routes.sources),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: Text(l10n.homeAddSources),
               ),
             ),
           ],
@@ -434,152 +439,6 @@ class _RecentRow extends ConsumerWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ActiveDownloads extends StatelessWidget {
-  const _ActiveDownloads({required this.tasks, required this.onRefresh});
-
-  final List<DownloadTask> tasks;
-  final Future<void> Function() onRefresh;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    if (tasks.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: onRefresh,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: [
-            SizedBox(height: MediaQuery.sizeOf(context).height * 0.12),
-            EmptyState(
-              icon: Icons.download_done_rounded,
-              title: l10n.downloadsEmptyTitle,
-              body: l10n.historyDownloadsEmpty,
-              action: FilledButton.icon(
-                onPressed: () => context.go(Routes.downloads),
-                icon: const Icon(Icons.download_outlined, size: 18),
-                label: Text(l10n.navDownloads),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: ListView.separated(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-        itemCount: tasks.length + 1,
-        separatorBuilder: (context, index) => const SizedBox(height: 8),
-        itemBuilder: (context, index) {
-          if (index == tasks.length) {
-            return Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: OutlinedButton.icon(
-                onPressed: () => context.go(Routes.downloads),
-                icon: const Icon(Icons.download_outlined, size: 18),
-                label: Text(l10n.navDownloads),
-              ),
-            );
-          }
-          return _DownloadRow(task: tasks[index]);
-        },
-      ),
-    );
-  }
-}
-
-class _DownloadRow extends StatelessWidget {
-  const _DownloadRow({required this.task});
-
-  final DownloadTask task;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final fraction =
-        task.total <= 0 ? 0.0 : (task.completed / task.total).clamp(0.0, 1.0);
-    final status = switch (task.status) {
-      DownloadStatus.queued => l10n.downloadQueued,
-      DownloadStatus.running => l10n.downloadsInProgress,
-      DownloadStatus.paused => l10n.downloadPaused,
-      DownloadStatus.failed => l10n.downloadFailed,
-      DownloadStatus.done => l10n.downloadDone,
-    };
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(BestRadius.md),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.downloading_rounded,
-                size: 18,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  task.mediaTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-              Text(
-                status,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: 10.5,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            task.unitTitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontSize: 10.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(BestRadius.pill),
-            child: LinearProgressIndicator(
-              value: fraction,
-              minHeight: 3,
-              color: theme.colorScheme.primary,
-            ),
-          ),
-          if (task.total > 0) ...[
-            const SizedBox(height: 4),
-            Text(
-              l10n.downloadProgress(task.completed, task.total),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 10.5,
-              ),
-            ),
-          ],
-        ],
       ),
     );
   }

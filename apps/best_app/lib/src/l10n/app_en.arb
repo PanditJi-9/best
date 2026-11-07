@@ -478,7 +478,7 @@
   "@extensionsUpdate": {
     "description": "Checks installed extensions for upstream version updates"
   },
-  "extensionsHint": "Choose from the complete Mihon/Aniyomi extension directory. Nothing is installed until you activate it.",
+  "extensionsHint": "Choose from the community extension directory. Nothing is installed until you activate it.",
   "@extensionsHint": {
     "description": "Explains where sources come from"
   },
@@ -1070,6 +1070,8 @@
   "readerPreviousChapter": "Previous chapter",
   "readerFinished": "End of chapter",
   "readerLastChapter": "This is the last chapter.",
+  "readerAutoAdvance": "Auto-advance chapters",
+  "readerAutoAdvanceBody": "Pushing past the last page opens the next chapter, without a button.",
   "readerOcrTitle": "Automatic manga translation (OCR)",
   "readerOcrBody": "Find speech bubbles and translate them on the device, offline.",
   "readerTranslating": "Translating…",
@@ -1218,5 +1220,10 @@
   "downloadUnknownTotalTitle": "The expected page count is unknown",
   "downloadUnavailable": "This download is no longer available. No other files were changed.",
   "readerSavedPage": "Saved page {current} · total unknown",
-  "@readerSavedPage": {"placeholders": {"current": {"type": "int"}}}
+  "@readerSavedPage": {"placeholders": {"current": {"type": "int"}}},
+  "securityGroup": "Security and privacy",
+  "biometricLock": "Biometric app lock",
+  "biometricLockBody": "Ask for a fingerprint or device code when opening Best.",
+  "biometricPromptTitle": "Turn on biometric lock",
+  "biometricPromptBody": "Confirm your identity to enable the lock."
 }

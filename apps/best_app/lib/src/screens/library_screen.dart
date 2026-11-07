@@ -4,10 +4,12 @@ import 'package:best_domain/best_domain.dart';
 import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../actions.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../labels.dart';
+import '../navigation.dart';
 import '../providers.dart';
 import '../reading_card.dart';
 
@@ -128,6 +130,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final continuing = ref.watch(resumeProvider);
     final continueEntries = continuing.value ?? const <ResumeSlot>[];
     final shelfCount = shelf.value?.length;
+    final downloads =
+        ref.watch(downloadsProvider).value ?? const <DownloadTask>[];
+    final finishedDownloads =
+        downloads.where((task) => task.isFinished).toList(growable: false);
+    final liveDownloads = downloads
+        .where((task) => task.isActive || task.isFailed)
+        .toList(growable: false);
 
     return SafeArea(
       bottom: false,
@@ -222,29 +231,52 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 48,
-              child: ListView.separated(
+              height: 46,
+              child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: LibraryFilter.values.length,
-                separatorBuilder: (context, index) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  final filter = LibraryFilter.values[index];
-                  return ChoiceChip(
-                    label: Text(filterLabel(l10n, filter)),
-                    selected: query.filter == filter,
-                    onSelected: (_) => ref
-                        .read(libraryQueryProvider.notifier)
-                        .setFilter(filter),
-                  );
-                },
+                children: [
+                  for (final filter in const [
+                    LibraryFilter.all,
+                    LibraryFilter.unread,
+                    LibraryFilter.inProgress,
+                    LibraryFilter.offline,
+                  ]) ...[
+                    ChoiceChip(
+                      label: Text(filterLabel(l10n, filter)),
+                      selected: query.filter == filter,
+                      visualDensity: VisualDensity.compact,
+                      onSelected: (_) => ref
+                          .read(libraryQueryProvider.notifier)
+                          .setFilter(filter),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  IconButton(
+                    tooltip: l10n.libraryFilter,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _showFilters(context, query),
+                    icon: const Icon(Icons.tune_rounded, size: 20),
+                  ),
+                  IconButton(
+                    tooltip: l10n.categoryManage,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _showCategories(context),
+                    icon: const Icon(Icons.folder_outlined, size: 20),
+                  ),
+                  if (query.tag != null)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(start: 4),
+                      child: InputChip(
+                        label: Text(query.tag!),
+                        visualDensity: VisualDensity.compact,
+                        onDeleted: () => ref
+                            .read(libraryQueryProvider.notifier)
+                            .setTag(null),
+                      ),
+                    ),
+                ],
               ),
-            ),
-            _CategoryRow(
-              selected: query.tag,
-              onSelect: (name) =>
-                  ref.read(libraryQueryProvider.notifier).setTag(name),
-              onManage: () => _showCategories(context),
             ),
           ],
           const SizedBox(height: 4),
@@ -264,6 +296,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         entries: continueEntries,
                         onOpen: (entry) =>
                             openUnit(context, ref, entry.media, entry.unit),
+                      ),
+                    ),
+                  if (!_selecting && liveDownloads.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: _DownloadsBanner(
+                        tasks: liveDownloads,
+                        onOpen: () => context.push(Routes.downloads),
+                      ),
+                    ),
+                  if (!_selecting &&
+                      query.search.isEmpty &&
+                      query.filter == LibraryFilter.all &&
+                      query.tag == null &&
+                      finishedDownloads.isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: _DownloadedRail(
+                        tasks: finishedDownloads,
+                        onOpen: (task) => context.push(
+                          Routes.reader(
+                            sourceId: task.sourceId,
+                            url: task.mediaUrl,
+                            unitUrl: task.unitUrl,
+                          ),
+                        ),
+                        onManage: () => context.push(Routes.downloads),
                       ),
                     ),
                   const SliverToBoxAdapter(child: SizedBox(height: 12)),
@@ -316,6 +373,49 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(l10n.bulkAdded)));
+  }
+
+  Future<void> _showFilters(BuildContext context, LibraryQuery query) async {
+    final l10n = AppLocalizations.of(context);
+    final selected = await showModalBottomSheet<LibraryFilter>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Text(
+                  l10n.libraryFilter,
+                  style: BestType.sectionTitle(context),
+                ),
+              ),
+            ),
+            for (final filter in LibraryFilter.values)
+              if (!const [
+                LibraryFilter.all,
+                LibraryFilter.unread,
+                LibraryFilter.inProgress,
+                LibraryFilter.offline,
+              ].contains(filter))
+                ListTile(
+                  selected: query.filter == filter,
+                  title: Text(filterLabel(l10n, filter)),
+                  trailing: query.filter == filter
+                      ? const Icon(Icons.check_rounded, size: 20)
+                      : null,
+                  onTap: () => Navigator.of(context).pop(filter),
+                ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || selected == null) return;
+    ref.read(libraryQueryProvider.notifier).setFilter(selected);
   }
 
   Future<void> _showCategories(BuildContext context) async {
@@ -377,9 +477,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     : l10n.shelfEmptyBody,
                 action: !filtered
                     ? FilledButton.icon(
-                        onPressed: () => openGuide(context, ref),
-                        icon: const Icon(Icons.menu_book_outlined, size: 18),
-                        label: Text(l10n.openGuide),
+                        onPressed: () => context.push(Routes.sources),
+                        icon: const Icon(Icons.add_rounded, size: 18),
+                        label: Text(l10n.homeAddSources),
                       )
                     : OutlinedButton(
                         onPressed: () {
@@ -511,95 +611,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
     if (!mounted || selected == null) return;
     ref.read(libraryQueryProvider.notifier).setSort(selected);
-  }
-}
-
-/// One row of categories plus the manage button.
-///
-/// Categories are tags with names, so this row can show a tag typed on a
-/// series page without a separate setup step.
-class _CategoryRow extends ConsumerWidget {
-  const _CategoryRow({
-    required this.selected,
-    required this.onSelect,
-    required this.onManage,
-  });
-
-  final String? selected;
-  final ValueChanged<String?> onSelect;
-  final VoidCallback onManage;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final categories =
-        ref.watch(libraryCategoriesProvider).value ?? const <CategorySummary>[];
-    final hidden = ref.watch(hiddenCategoriesProvider);
-    final reveal = ref.watch(revealHiddenProvider);
-    final visible =
-        categories.where((category) => !category.hidden || reveal).toList();
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: SizedBox(
-        height: 44,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          children: [
-            ChoiceChip(
-              label: Text(l10n.filterAll),
-              selected: selected == null,
-              onSelected: (_) => onSelect(null),
-              visualDensity: VisualDensity.compact,
-            ),
-            for (final category in visible) ...[
-              const SizedBox(width: 8),
-              ChoiceChip(
-                label: Text('${category.name} · ${category.count}'),
-                selected: selected == category.name,
-                onSelected: (_) => onSelect(
-                  selected == category.name ? null : category.name,
-                ),
-                avatar: category.hidden
-                    ? const Icon(Icons.visibility_off_outlined, size: 15)
-                    : null,
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
-            const SizedBox(width: 4),
-            IconButton(
-              tooltip: l10n.categoryManage,
-              visualDensity: VisualDensity.compact,
-              onPressed: onManage,
-              icon: const Icon(Icons.tune_rounded, size: 20),
-            ),
-            if (hidden.isNotEmpty)
-              IconButton(
-                tooltip: reveal ? l10n.categoryHide : l10n.categoryReveal,
-                visualDensity: VisualDensity.compact,
-                onPressed: () {
-                  final turningOff = reveal;
-                  ref.read(revealHiddenProvider.notifier).set(!reveal);
-                  // Leaving a hidden category selected after hiding it again
-                  // would filter the shelf down to invisible rows.
-                  if (turningOff &&
-                      selected != null &&
-                      hidden.contains(selected)) {
-                    onSelect(null);
-                  }
-                },
-                icon: Icon(
-                  reveal
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
-                  size: 20,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -970,6 +981,185 @@ class _ContinueRail extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
               child: ReadingCard(slot: entry, onOpen: () => onOpen(entry))),
       ],
+    );
+  }
+}
+
+/// Finished downloads belong to the shelf, not to a second screen. This rail
+/// shows what is already readable offline and opens the reader directly.
+class _DownloadedRail extends StatelessWidget {
+  const _DownloadedRail({
+    required this.tasks,
+    required this.onOpen,
+    required this.onManage,
+  });
+
+  final List<DownloadTask> tasks;
+  final ValueChanged<DownloadTask> onOpen;
+  final VoidCallback onManage;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final byMedia = <String, DownloadTask>{};
+    for (final task in tasks) {
+      byMedia.putIfAbsent(task.mediaId, () => task);
+    }
+    final entries = byMedia.values.toList(growable: false);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: SectionHeader(
+            title: l10n.downloadsFinished,
+            actionLabel: l10n.downloadsTitle,
+            onAction: onManage,
+          ),
+        ),
+        SizedBox(
+          height: 96,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: entries.length,
+            separatorBuilder: (context, index) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              final task = entries[index];
+              return SizedBox(
+                width: 230,
+                child: Material(
+                  color: theme.colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(BestRadius.md),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => onOpen(task),
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 54,
+                            height: 74,
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.offline_pin_rounded,
+                              color: theme.colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  task.mediaTitle,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  task.unitTitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A quiet strip for downloads that are still moving or failed. It replaces the
+/// old second "Downloads" tab: the manager is one tap from the shelf.
+class _DownloadsBanner extends StatelessWidget {
+  const _DownloadsBanner({required this.tasks, required this.onOpen});
+
+  final List<DownloadTask> tasks;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final done = tasks.fold<int>(0, (sum, task) => sum + task.completed);
+    final total = tasks.fold<int>(0, (sum, task) => sum + task.total);
+    final failed = tasks.where((task) => task.isFailed).length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+      child: Material(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(BestRadius.md),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(BestRadius.md),
+          onTap: onOpen,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+            child: Row(
+              children: [
+                Icon(
+                  failed > 0
+                      ? Icons.error_outline_rounded
+                      : Icons.downloading_rounded,
+                  size: 20,
+                  color: failed > 0
+                      ? theme.colorScheme.error
+                      : theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        failed > 0
+                            ? l10n.downloadFailed
+                            : l10n.downloadsInProgress,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (total > 0) ...[
+                        const SizedBox(height: 6),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: (done / total).clamp(0.0, 1.0),
+                            minHeight: 5,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.chevron_right_rounded),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -112,15 +112,14 @@ The mark is the only place the full gradient is allowed at full strength.
 
 ## 4. Information architecture
 
-Five destinations. Anything deeper is a pushed route.
+Four destinations. Anything deeper is a pushed route.
 
 | Tab | Route | Question it answers |
 |-----|-------|---------------------|
-| Home | `/` | What should I do now? |
-| Database | `/database` | What is worth discovering? |
-| Library | `/library` | What do I own? |
-| Downloads | `/downloads` | What is offline? |
-| Menu | `/menu` | Where are the rest of my tools? |
+| Home | `/` | What is new in the source I chose? |
+| Library | `/library` | What do I own, and what is offline? |
+| History | `/history` | What did I read or watch recently? |
+| Settings | `/settings` | How should Best behave for me? |
 
 Routes: `/series?source=&url=`, `/read?source=&url=&unit=`,
 `/watch?source=&url=&unit=`. Source ids and URLs are query parameters, never
@@ -129,18 +128,21 @@ path segments — a source URL can contain slashes and dots.
 `openUnit` chooses `/read` or `/watch` from `MediaKind.isReading`; screens never
 branch on a source name.
 
-### Why these five
+### Why these four
 
-Home gives a fresh install a clear next step. Database is for broad metadata
-discovery; Browse is a pushed screen for searching installed sources. Library
-and Downloads stay one tap away, while Menu groups settings, backups, history,
-and supporting tools instead of crowding the main navigation.
+Home is source-first: a pinned source strip and a Manga/Anime switch scope one
+catalogue at a time, so manga and anime never mix in one grid. Library now owns
+offline content too — a finished-download rail sits above the shelf, and active
+or failed transfers appear as one quiet banner that opens the manager. History
+takes the old Database position because recent activity is the thing a reader
+returns to. Settings is a tab instead of a menu item, which removed a whole
+intermediate screen. Database, Discover and the old Menu are no longer tabs.
 
 ### The index bar
 
 - 64 px tall plus the safe-area inset, flat, with a one-pixel outline and no
   shadow.
-- Five equal columns. The selected column puts its filled icon on a 52×30 blue
+- Four equal columns. The selected column puts its filled icon on a 52×30 blue
   pill (16% tint) that grows from the 40 px resting width, with a blue label;
   the other four use outlined icons and muted labels.
 - Switching tabs gives a light haptic tick and eases the new page in with a
@@ -152,16 +154,17 @@ and supporting tools instead of crowding the main navigation.
 
 ### Home — the front door
 
-1. **Wordmark** — localized Best mark and tagline, with a quiet news action.
-2. **Unified search** — one obvious entry point for title discovery.
-3. **Continue hero** — artwork fills a wide card; the title, exact chapter or
-   episode, progress and next action sit on a strong bottom scrim. Reading and
-   watching use the correct action label.
-4. **Your sources** — compact source chips open directly into that catalogue;
-   Add source stays at the end of the rail.
-5. **Discover** — a small set of media-kind filters followed by recent source
-   updates and personalized picks. Empty and error states always offer a next
-   action.
+1. **Wordmark and one search box** — the only global action on the page.
+2. **Manga / Anime switch** — changes which half of the catalogue is shown;
+   the choice is persisted, never mixed in one grid.
+3. **Pinned source strip** — compact chips with the source's own image open
+   that catalogue directly. Changing source keeps the scroll position and
+   reloads in place; Add source opens the directory already narrowed to the
+   current kind.
+4. **Latest / Popular** — the two feeds a source can actually answer.
+   Infinite scroll pages past the first batch; pull to refresh.
+5. **Long-press** — adds the work to the library, or removes it, without
+   opening the details page.
 
 The hero adapts its height to the available width. On wide layouts the tab
 content is centered and capped instead of stretching text and cards edge to edge.

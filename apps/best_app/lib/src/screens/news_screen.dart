@@ -46,13 +46,11 @@ class NewsScreen extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           children: [
             PageMasthead(
-              index: "07",
               title: l10n.newsTitle,
               subtitle: l10n.newsSubtitle,
             ),
             const SizedBox(height: BestSpace.lg),
             SectionHeader(
-              index: "01",
               title: l10n.newsReleases,
             ),
             const SizedBox(height: BestSpace.md),
@@ -62,7 +60,6 @@ class NewsScreen extends ConsumerWidget {
             ],
             const SizedBox(height: BestSpace.md),
             SectionHeader(
-              index: "02",
               title: l10n.newsChapters,
             ),
             const SizedBox(height: BestSpace.md),
@@ -84,7 +81,6 @@ class NewsScreen extends ConsumerWidget {
               ],
             const SizedBox(height: BestSpace.lg),
             SectionHeader(
-              index: "03",
               title: l10n.newsMarket,
             ),
             const SizedBox(height: BestSpace.md),

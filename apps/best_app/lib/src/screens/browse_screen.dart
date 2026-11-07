@@ -155,7 +155,6 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
               child: PageMasthead(
-                index: "02",
                 title: l10n.browseTitle,
                 subtitle: l10n.browseSubtitle(sources.length),
                 trailing: Row(

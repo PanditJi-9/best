@@ -7,10 +7,10 @@ import 'package:go_router/go_router.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../providers.dart';
 
-/// The five rooms of the app: what is new, what is out there, what you own,
-/// what is offline, and the controls.
+/// The four rooms of the app: the chosen catalogue, the shelf, the reading
+/// history, and the person's own settings.
 ///
-/// A quiet, full-width dock keeps all five destinations legible in either
+/// A quiet, full-width dock keeps all four destinations legible in either
 /// language. Switching tabs eases the new page in (a short fade, never a
 /// slide: tabs are peers, not steps) and gives a light haptic tick.
 class ShellScreen extends ConsumerStatefulWidget {
@@ -72,24 +72,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
         selectedIcon: Icons.home_rounded,
       ),
       _Destination(
-        label: l10n.navDatabase,
-        icon: Icons.travel_explore_outlined,
-        selectedIcon: Icons.travel_explore_rounded,
-      ),
-      _Destination(
         label: l10n.navLibrary,
         icon: Icons.collections_bookmark_outlined,
         selectedIcon: Icons.collections_bookmark_rounded,
       ),
       _Destination(
-        label: l10n.navDownloads,
-        icon: Icons.download_outlined,
-        selectedIcon: Icons.download_rounded,
+        label: l10n.navHistory,
+        icon: Icons.history_rounded,
+        selectedIcon: Icons.history_rounded,
       ),
       _Destination(
-        label: l10n.navMenu,
-        icon: Icons.menu_rounded,
-        selectedIcon: Icons.menu_rounded,
+        label: l10n.navSettings,
+        icon: Icons.tune_rounded,
+        selectedIcon: Icons.tune_rounded,
       ),
     ];
 
@@ -113,9 +108,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
         // debug as soon as a tab with a tappable card is opened.
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final contentWidth = constraints.maxWidth > BestLayout.maxContentWidth
-                ? BestLayout.maxContentWidth
-                : constraints.maxWidth;
+            final contentWidth =
+                constraints.maxWidth > BestLayout.maxContentWidth
+                    ? BestLayout.maxContentWidth
+                    : constraints.maxWidth;
             return Align(
               alignment: Alignment.topCenter,
               child: SizedBox(

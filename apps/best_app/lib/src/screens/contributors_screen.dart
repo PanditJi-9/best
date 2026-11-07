@@ -40,7 +40,6 @@ class ContributorsScreen extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           children: [
             PageMasthead(
-              index: "08",
               title: l10n.contributorsTitle,
               subtitle: l10n.contributorsSubtitle,
             ),
@@ -61,7 +60,6 @@ class ContributorsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: BestSpace.xl),
             SectionHeader(
-              index: "01",
               title: l10n.contributorsTitle,
               trailing: market == null
                   ? null

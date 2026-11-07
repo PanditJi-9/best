@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:best_data/best_data.dart';
 import 'package:best_domain/best_domain.dart';
 import 'package:best_ui/best_ui.dart';
@@ -6,16 +8,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../actions.dart';
-import '../labels.dart';
+import '../extension_host.dart';
 import '../l10n/generated/app_localizations.dart';
+import '../labels.dart';
 import '../navigation.dart';
 import '../providers.dart';
 
-/// The catalogue-first front door.
+/// The front door is one source at a time.
 ///
-/// The layout deliberately keeps the covers in charge: a compact app bar,
-/// category tabs and a three-column poster grid make it possible to scan a
-/// source at a glance. Search, news and source management stay one tap away.
+/// Best is not a merged search engine: the reader chooses where they read or
+/// watch, and the home feed shows that site's catalogue — never a silent mix of
+/// a manga site, an anime site and an external database. The source and the
+/// manga/anime half stay pinned above the grid, so changing either never needs
+/// a scroll back to the top.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -23,31 +28,183 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-enum _HomeFeed { latest, popular, rated, recommended }
+enum _Feed { latest, popular }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  _HomeFeed _feed = _HomeFeed.latest;
+  final ScrollController _scroll = ScrollController();
 
-  Future<void> _refresh() async {
-    ref.invalidate(resumeProvider);
-    ref.invalidate(discoverProvider);
-    ref.invalidate(rankingsProvider);
-    ref.invalidate(recommendationsProvider);
-    try {
-      await switch (_feed) {
-        _HomeFeed.latest || _HomeFeed.popular =>
-          ref.read(discoverProvider.future),
-        _HomeFeed.rated => ref.read(rankingsProvider.future),
-        _HomeFeed.recommended => ref.read(recommendationsProvider.future),
-      };
-    } catch (_) {
-      // The empty state gives the reader an honest retry action. The rest of
-      // the home screen, including their saved progress, remains available.
+  HomeKind _kind = HomeKind.reading;
+  String? _sourceId;
+  _Feed _feed = _Feed.latest;
+
+  List<Media> _works = const [];
+  int _page = 0;
+  bool _loading = false;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  bool _initialised = false;
+  String? _error;
+  int _generation = 0;
+  String? _boundSourceId;
+  _Feed? _boundFeed;
+
+  @override
+  void initState() {
+    super.initState();
+    final scope = ref.read(homeScopeProvider);
+    _kind = scope.kind;
+    _sourceId = scope.sourceId;
+    _scroll.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scroll
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scroll.hasClients) return;
+    final position = _scroll.position;
+    if (position.pixels >= position.maxScrollExtent - 900) {
+      unawaited(_load());
     }
+  }
+
+  List<SourceAdapter> _sourcesFor(HomeKind kind) {
+    return ref
+        .read(sourceRegistryProvider)
+        .all
+        .where((source) => homeKindOf(source) == kind)
+        .toList(growable: false);
+  }
+
+  Future<List<Media>> _fetch(SourceAdapter source, _Feed feed, int page) {
+    if (feed == _Feed.latest && source is LatestSource) {
+      return (source as LatestSource).latest(page: page);
+    }
+    return source.popular(page: page);
+  }
+
+  Future<void> _load({bool reset = false}) async {
+    final sources = _sourcesFor(_kind);
+    if (sources.isEmpty) {
+      setState(() {
+        _works = const [];
+        _loading = false;
+        _loadingMore = false;
+        _error = null;
+        _initialised = true;
+      });
+      return;
+    }
+    SourceAdapter source = sources.first;
+    for (final candidate in sources) {
+      if (candidate.id == _sourceId) {
+        source = candidate;
+        break;
+      }
+    }
+    if (_sourceId != source.id) {
+      _sourceId = source.id;
+    }
+
+    final feed = _feed == _Feed.latest && source is LatestSource
+        ? _Feed.latest
+        : _Feed.popular;
+    if (_loadingMore || (!reset && !_hasMore)) return;
+
+    final generation = ++_generation;
+    final page = reset ? 1 : _page + 1;
+    if (reset) {
+      setState(() {
+        _works = const [];
+        _page = 0;
+        _hasMore = true;
+        _error = null;
+        _loading = true;
+        _loadingMore = false;
+        _boundSourceId = source.id;
+        _boundFeed = feed;
+      });
+      if (_scroll.hasClients) _scroll.jumpTo(0);
+    } else {
+      setState(() => _loadingMore = true);
+    }
+
+    try {
+      final works = await _fetch(source, feed, page);
+      if (!mounted || generation != _generation) return;
+      final seen = {for (final work in _works) work.id};
+      final fresh = <Media>[];
+      for (final work in works) {
+        if (seen.add(work.id)) fresh.add(work);
+      }
+      setState(() {
+        _works = reset ? fresh : [..._works, ...fresh];
+        _page = page;
+        // A short page or a page made entirely of repeats is the end. Never
+        // keep asking a source that has started repeating itself.
+        _hasMore = works.isNotEmpty && fresh.isNotEmpty;
+        _loading = false;
+        _loadingMore = false;
+        _initialised = true;
+        _boundSourceId = source.id;
+        _boundFeed = feed;
+      });
+    } catch (error) {
+      if (!mounted || generation != _generation) return;
+      setState(() {
+        _loading = false;
+        _loadingMore = false;
+        _initialised = true;
+        _error = reset || _works.isEmpty ? '$error' : null;
+        if (_works.isNotEmpty) _hasMore = false;
+      });
+    }
+  }
+
+  void _selectSource(SourceAdapter source) {
+    if (source.id == _sourceId) return;
+    setState(() {
+      _sourceId = source.id;
+      _boundSourceId = null;
+      _boundFeed = null;
+    });
+    ref.read(homeScopeProvider.notifier).selectSource(source.id);
+    unawaited(_load(reset: true));
+  }
+
+  void _setKind(HomeKind kind) {
+    if (kind == _kind) return;
+    final sources = _sourcesFor(kind);
+    final nextId = sources.isEmpty ? null : sources.first.id;
+    setState(() {
+      _kind = kind;
+      _sourceId = nextId;
+      _boundSourceId = null;
+      _boundFeed = null;
+      _works = const [];
+      _initialised = false;
+    });
+    ref.read(homeScopeProvider.notifier).setKind(kind, sourceId: nextId);
+    unawaited(_load(reset: true));
+  }
+
+  void _setFeed(_Feed feed) {
+    if (feed == _feed) return;
+    setState(() {
+      _feed = feed;
+      _boundFeed = null;
+    });
+    unawaited(_load(reset: true));
   }
 
   void _openSourcePicker(
     BuildContext context,
+    SourceAdapter? current,
     List<SourceAdapter> sources,
   ) {
     showModalBottomSheet<void>(
@@ -56,488 +213,724 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => _SourcePicker(
+        current: current,
         sources: sources,
-        onRefresh: _refresh,
-        onOpen: (source) {
+        onSelected: (source) {
           Navigator.of(sheetContext).pop();
-          context.push(Routes.browseSource(source.id));
+          _selectSource(source);
         },
-        onManage: () {
+        onAdd: () {
           Navigator.of(sheetContext).pop();
-          context.push(Routes.sources);
+          context.push(Routes.sourcesFor(
+            _kind == HomeKind.watching ? 'anime' : 'manga',
+          ));
         },
       ),
     );
   }
 
-  List<_HomeGridItem> _itemsFor({
-    required List<Media> works,
-    required List<ResumeSlot> slots,
-  }) {
-    final seen = <String>{};
-    final items = <_HomeGridItem>[];
-
-    // A reader's active chapter belongs in the same fast-scanning grid rather
-    // than growing a second, competing hero above it. It also means the first
-    // card is always a useful action when the app is reopened.
-    if (_feed == _HomeFeed.latest && slots.isNotEmpty) {
-      final slot = slots.first;
-      seen.add(slot.media.id);
-      items.add(_HomeGridItem(media: slot.media, slot: slot));
+  Future<void> _toggleShelf(Media media, AppLocalizations l10n) async {
+    final repository = ref.read(repositoryProvider);
+    if (!media.inLibrary) {
+      await repository.setInLibrary(media.id, true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('${media.displayTitle} · ${l10n.addToLibrary}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      return;
     }
-
-    for (final media in works) {
-      if (seen.add(media.id)) {
-        items.add(_HomeGridItem(media: media));
-      }
+    if (!mounted) return;
+    final remove = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.bookmark_added_rounded),
+              title: Text(media.displayTitle, maxLines: 2),
+              subtitle: Text(l10n.inLibrary),
+            ),
+            ListTile(
+              leading: const Icon(Icons.bookmark_remove_outlined),
+              title: Text(l10n.removeFromLibrary),
+              onTap: () => Navigator.of(sheetContext).pop(true),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (remove == true) {
+      await repository.setInLibrary(media.id, false);
     }
-    return List<_HomeGridItem>.unmodifiable(items.take(30));
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final continuing = ref.watch(resumeProvider);
-    final slots = continuing.value ?? const <ResumeSlot>[];
-    final discovery = ref.watch(discoverProvider);
-    final rankings = ref.watch(rankingsProvider);
-    final recommendations = ref.watch(recommendationsProvider);
-    final sources = ref
-        .watch(sourceRegistryProvider)
-        .all
-        .where((source) => source.id != DemoSource.sourceId)
-        .toList(growable: false);
+    final theme = Theme.of(context);
+    final sources = _sourcesFor(_kind);
+    SourceAdapter? current;
+    for (final source in sources) {
+      if (source.id == _sourceId) {
+        current = source;
+        break;
+      }
+    }
+    current ??= sources.isEmpty ? null : sources.first;
+    final feed = _feed == _Feed.latest && current is LatestSource
+        ? _Feed.latest
+        : _Feed.popular;
 
-    // A recommendation is only actionable when its adapter is still enabled.
-    // Resume cards remain available even after a source disappears, since the
-    // reader may still resolve them through a compatible fallback.
-    bool available(Media media) =>
-        sources.any((source) => source.id == media.ref.sourceId);
-
-    final latest = (discovery.value?.latest ?? const <Media>[])
-        .where(available)
-        .toList(growable: false);
-    final popular = (discovery.value?.works ?? const <Media>[])
-        .where(available)
-        .toList(growable: false);
-    final rated = (rankings.value?.works ?? const <Media>[])
-        .where(available)
-        .toList(growable: false);
-    final personalised = (recommendations.value?.works ?? const <Media>[])
-        .where(available)
-        .toList(growable: false);
-
-    final selectedWorks = switch (_feed) {
-      _HomeFeed.latest => latest,
-      _HomeFeed.popular => popular,
-      _HomeFeed.rated => rated,
-      _HomeFeed.recommended => personalised,
-    };
-    final items = _itemsFor(works: selectedWorks, slots: slots);
-    final loading = switch (_feed) {
-      _HomeFeed.latest || _HomeFeed.popular => discovery.isLoading,
-      _HomeFeed.rated => rankings.isLoading,
-      _HomeFeed.recommended => recommendations.isLoading,
-    };
-    final error = switch (_feed) {
-      _HomeFeed.latest || _HomeFeed.popular => discovery.hasError,
-      _HomeFeed.rated => rankings.hasError,
-      _HomeFeed.recommended => recommendations.hasError,
-    };
+    // The source list can arrive after the first frame (extensions load
+    // asynchronously) or change when a source is installed. Binding here keeps
+    // the first real source supplied without a state write during build.
+    if (!_initialised &&
+        current != null &&
+        !_loading &&
+        (_boundSourceId != current.id || _boundFeed != feed)) {
+      _boundSourceId = current.id;
+      _boundFeed = feed;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_load(reset: true));
+      });
+    }
 
     return SafeArea(
       bottom: false,
-      child: RefreshIndicator(
-        onRefresh: _refresh,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsetsDirectional.fromSTEB(
-                  BestLayout.gutter,
-                  BestSpace.lg,
-                  BestLayout.gutter,
-                  BestSpace.md,
-                ),
-                child: _HomeHeader(
-                  title: l10n.appName,
-                  searchLabel: l10n.searchEverything,
-                  newsLabel: l10n.newsTitle,
-                  sourcesLabel: l10n.sources,
-                  onSearch: () => context.push(Routes.metaSearch),
-                  onNews: () => context.push(Routes.news),
-                  onSources: () => _openSourcePicker(context, sources),
-                ),
-              ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(
+              BestLayout.gutter,
+              BestSpace.md,
+              BestSpace.sm,
+              0,
             ),
-            SliverToBoxAdapter(
-              child: _HomeTabs(
-                selected: _feed,
-                onSelected: (feed) => setState(() => _feed = feed),
-                labels: <_HomeFeed, String>{
-                  _HomeFeed.latest: l10n.homeLatest,
-                  _HomeFeed.popular: l10n.homePopular,
-                  _HomeFeed.rated: l10n.topRatedTitle,
-                  _HomeFeed.recommended: l10n.homeRecommended,
-                },
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: BestSpace.lg)),
-            if (items.isNotEmpty)
-              _HomePosterGrid(
-                items: items,
-                feed: _feed,
-                onOpen: (item) {
-                  if (item.slot != null) {
-                    openUnit(context, ref, item.slot!.media, item.slot!.unit);
-                  } else {
-                    openSeries(context, ref, item.media);
-                  }
-                },
-              )
-            else if (loading)
-              const SliverPosterGridSkeleton()
-            else
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: _HomeEmpty(
-                  title: _emptyTitle(l10n, sources.isEmpty),
-                  body: _emptyBody(l10n, error, sources.isEmpty),
-                  icon: sources.isEmpty
-                      ? Icons.extension_outlined
-                      : error
-                          ? Icons.cloud_off_outlined
-                          : Icons.auto_stories_outlined,
-                  actionLabel: sources.isEmpty ? l10n.homeAddSources : l10n.retry,
-                  onAction: sources.isEmpty
-                      ? () => context.push(Routes.sources)
-                      : _refresh,
-                ),
-              ),
-            const SliverToBoxAdapter(child: SizedBox(height: BestSpace.xxl)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _emptyTitle(AppLocalizations l10n, bool noSources) {
-    if (noSources) return l10n.mangaNoSourcesTitle;
-    return switch (_feed) {
-      _HomeFeed.latest => l10n.homeNoLatest,
-      _HomeFeed.popular => l10n.homeNoResults,
-      _HomeFeed.rated => l10n.homeNoRatings,
-      _HomeFeed.recommended => l10n.homeNoRecommendations,
-    };
-  }
-
-  String _emptyBody(AppLocalizations l10n, bool error, bool noSources) {
-    if (noSources) return l10n.mangaNoSourcesBody;
-    return error ? l10n.sourceError : l10n.homeDiscoveryBody;
-  }
-}
-
-class _HomeHeader extends StatelessWidget {
-  const _HomeHeader({
-    required this.title,
-    required this.searchLabel,
-    required this.newsLabel,
-    required this.sourcesLabel,
-    required this.onSearch,
-    required this.onNews,
-    required this.onSources,
-  });
-
-  final String title;
-  final String searchLabel;
-  final String newsLabel;
-  final String sourcesLabel;
-  final VoidCallback onSearch;
-  final VoidCallback onNews;
-  final VoidCallback onSources;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        const BestMark(size: 48),
-        const SizedBox(width: BestSpace.md),
-        Expanded(
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontSize: 27,
-              fontWeight: FontWeight.w800,
-              height: 1,
-              letterSpacing: BestType.tracking(context, -0.7),
-            ),
-          ),
-        ),
-        IconButton(
-          key: const ValueKey('home-unified-search'),
-          tooltip: searchLabel,
-          onPressed: onSearch,
-          icon: const Icon(Icons.search_rounded),
-        ),
-        IconButton(
-          key: const ValueKey('home-news'),
-          tooltip: newsLabel,
-          onPressed: onNews,
-          icon: const Icon(Icons.notifications_none_rounded),
-        ),
-        IconButton(
-          key: const ValueKey('home-source-picker'),
-          tooltip: sourcesLabel,
-          onPressed: onSources,
-          icon: const Icon(Icons.dns_outlined),
-        ),
-      ],
-    );
-  }
-}
-
-class _HomeTabs extends StatelessWidget {
-  const _HomeTabs({
-    required this.selected,
-    required this.onSelected,
-    required this.labels,
-  });
-
-  final _HomeFeed selected;
-  final ValueChanged<_HomeFeed> onSelected;
-  final Map<_HomeFeed, String> labels;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-      ),
-      child: SizedBox(
-        height: 54,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsetsDirectional.only(
-            start: BestLayout.gutter,
-            end: BestLayout.gutter,
-          ),
-          itemCount: _HomeFeed.values.length,
-          separatorBuilder: (context, index) => const SizedBox(width: 4),
-          itemBuilder: (context, index) {
-            final feed = _HomeFeed.values[index];
-            final isSelected = feed == selected;
-            return Semantics(
-              button: true,
-              selected: isSelected,
-              child: InkWell(
-                key: ValueKey('home-tab-${feed.name}'),
-                onTap: () => onSelected(feed),
-                child: AnimatedContainer(
-                  duration: BestMotionPolicy.of(context, BestMotion.normal),
-                  curve: BestMotion.curve,
-                  alignment: Alignment.center,
-                  padding: const EdgeInsetsDirectional.only(
-                    start: BestSpace.md,
-                    end: BestSpace.md,
-                    top: 2,
+            child: Row(
+              children: [
+                const BestMark(size: 40),
+                const SizedBox(width: BestSpace.md),
+                Expanded(
+                  child: Text(
+                    l10n.appName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontSize: 25,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                      letterSpacing: BestType.tracking(context, -0.7),
+                    ),
                   ),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        color: isSelected
-                            ? theme.colorScheme.primary
-                            : Colors.transparent,
-                        width: 4,
+                ),
+                IconButton(
+                  key: const ValueKey('home-unified-search'),
+                  tooltip: l10n.searchEverything,
+                  onPressed: () => context.push(Routes.metaSearch),
+                  icon: const Icon(Icons.search_rounded),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              BestLayout.gutter,
+              BestSpace.sm,
+              BestLayout.gutter,
+              0,
+            ),
+            child: _KindSwitch(
+              kind: _kind,
+              onChanged: _setKind,
+              readingLabel: l10n.kindManga,
+              watchingLabel: l10n.kindAnime,
+            ),
+          ),
+          const SizedBox(height: BestSpace.sm),
+          _SourceStrip(
+            sources: sources,
+            current: current,
+            onSelected: _selectSource,
+            onManage: () => _openSourcePicker(context, current, sources),
+            manageLabel: l10n.homeChooseSource,
+          ),
+          const SizedBox(height: BestSpace.sm),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: BestLayout.gutter),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _FeedTabs(
+                    selected: feed,
+                    latestAvailable: current is LatestSource,
+                    latestLabel: l10n.homeLatest,
+                    popularLabel: l10n.homePopular,
+                    onSelected: _setFeed,
+                  ),
+                ),
+                if (current != null) ...[
+                  const SizedBox(width: BestSpace.sm),
+                  Flexible(
+                    child: Text(
+                      current.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
-                  child: Text(
-                    labels[feed]!,
-                    maxLines: 1,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: isSelected
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
-                      fontSize: 17,
-                      fontWeight:
-                          isSelected ? FontWeight.w800 : FontWeight.w500,
-                      height: 1,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: BestSpace.sm),
+          Expanded(
+            child: _body(context, l10n, current, feed),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Empty states sit under a tall header on small phones. Letting them scroll
+  /// keeps large text and a 320 dp screen from overflowing.
+  Widget _scrollableEmpty(Widget child) {
+    return LayoutBuilder(
+      builder: (BuildContext context, BoxConstraints constraints) {
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _body(
+    BuildContext context,
+    AppLocalizations l10n,
+    SourceAdapter? current,
+    _Feed feed,
+  ) {
+    if (current == null) {
+      return _scrollableEmpty(
+        EmptyState(
+          icon: Icons.extension_outlined,
+          title: l10n.mangaNoSourcesTitle,
+          body: l10n.mangaNoSourcesBody,
+          action: FilledButton.icon(
+            onPressed: () => context.push(
+              Routes.sourcesFor(
+                _kind == HomeKind.watching ? 'anime' : 'manga',
               ),
-            );
-          },
+            ),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: Text(l10n.homeAddSources),
+          ),
         ),
+      );
+    }
+    if (_works.isEmpty && (_loading || !_initialised)) {
+      return const CustomScrollView(
+        physics: NeverScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(child: SizedBox(height: 8)),
+          SliverPosterGridSkeleton(),
+        ],
+      );
+    }
+    if (_works.isEmpty && _error != null) {
+      return _scrollableEmpty(
+        EmptyState(
+          icon: Icons.cloud_off_outlined,
+          title: l10n.sourceError,
+          body: _error!,
+          action: FilledButton.icon(
+            onPressed: () => _load(reset: true),
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: Text(l10n.retry),
+          ),
+        ),
+      );
+    }
+    if (_works.isEmpty) {
+      return _scrollableEmpty(
+        EmptyState(
+          icon: Icons.auto_stories_outlined,
+          title: feed == _Feed.latest ? l10n.homeNoLatest : l10n.homeNoResults,
+          body: l10n.homeDiscoveryBody,
+          action: OutlinedButton.icon(
+            onPressed: () => _load(reset: true),
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: Text(l10n.retry),
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => _load(reset: true),
+      child: CustomScrollView(
+        controller: _scroll,
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: BestLayout.gutter),
+            sliver: SliverLayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.crossAxisExtent;
+                final columns = width >= 840
+                    ? 5
+                    : width >= 600
+                        ? 4
+                        : 3;
+                final tileWidth =
+                    (width - (columns - 1) * BestSpace.md) / columns;
+                return SliverGrid(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    mainAxisSpacing: BestSpace.lg,
+                    crossAxisSpacing: BestSpace.md,
+                    mainAxisExtent: tileWidth * 1.5 + 50,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final media = _works[index];
+                      return PosterTile(
+                        title: media.displayTitle,
+                        coverUrl: media.coverUrl,
+                        badge: kindLabel(l10n, media.kind),
+                        genres: media.genres.isEmpty ? const [] : media.genres,
+                        rating: media.rating,
+                        inLibrary: media.inLibrary,
+                        onTap: () => openSeries(context, ref, media),
+                        onLongPress: () => _toggleShelf(media, l10n),
+                      );
+                    },
+                    childCount: _works.length,
+                  ),
+                );
+              },
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: _FeedFooter(
+              loading: _loadingMore,
+              hasMore: _hasMore,
+              failed: _error != null && _works.isNotEmpty,
+              retryLabel: l10n.retry,
+              onRetry: () => _load(),
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: BestSpace.xl)),
+        ],
       ),
     );
   }
 }
 
-class _HomeGridItem {
-  const _HomeGridItem({required this.media, this.slot});
-
-  final Media media;
-  final ResumeSlot? slot;
-}
-
-class _HomePosterGrid extends StatelessWidget {
-  const _HomePosterGrid({
-    required this.items,
-    required this.feed,
-    required this.onOpen,
+class _KindSwitch extends StatelessWidget {
+  const _KindSwitch({
+    required this.kind,
+    required this.onChanged,
+    required this.readingLabel,
+    required this.watchingLabel,
   });
 
-  final List<_HomeGridItem> items;
-  final _HomeFeed feed;
-  final ValueChanged<_HomeGridItem> onOpen;
+  final HomeKind kind;
+  final ValueChanged<HomeKind> onChanged;
+  final String readingLabel;
+  final String watchingLabel;
 
   @override
   Widget build(BuildContext context) {
-    return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: BestLayout.gutter),
-      sliver: SliverLayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.crossAxisExtent;
-          final columns = width >= 840
-              ? 5
-              : width >= 600
-                  ? 4
-                  : 3;
-          final tileWidth =
-              (width - (columns - 1) * BestSpace.md) / columns;
-          return SliverGrid(
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              mainAxisSpacing: BestSpace.xl,
-              crossAxisSpacing: BestSpace.md,
-              mainAxisExtent: tileWidth * 1.5 + 57,
-            ),
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final item = items[index];
-                final media = item.media;
-                final genres = media.genres.isEmpty
-                    ? <String>[kindLabel(AppLocalizations.of(context), media.kind)]
-                    : media.genres;
-                return PosterTile(
-                  title: media.displayTitle,
-                  coverUrl: media.coverUrl,
-                  badge: _badgeFor(
-                    AppLocalizations.of(context),
-                    media,
-                    item.slot,
+    final theme = Theme.of(context);
+    return Container(
+      height: 44,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(BestRadius.pill),
+      ),
+      child: Row(
+        children: [
+          for (final option in HomeKind.values)
+            Expanded(
+              child: Semantics(
+                button: true,
+                selected: option == kind,
+                child: InkWell(
+                  onTap: () => onChanged(option),
+                  borderRadius: BorderRadius.circular(BestRadius.pill),
+                  child: AnimatedContainer(
+                    duration: BestMotion.normal,
+                    curve: BestMotion.curve,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: option == kind
+                          ? theme.colorScheme.primary
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(BestRadius.pill),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          option == HomeKind.reading
+                              ? Icons.auto_stories_rounded
+                              : Icons.play_circle_outline_rounded,
+                          size: 17,
+                          color: option == kind
+                              ? theme.colorScheme.onPrimary
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 7),
+                        Text(
+                          option == HomeKind.reading
+                              ? readingLabel
+                              : watchingLabel,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: option == kind
+                                ? theme.colorScheme.onPrimary
+                                : theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  genres: genres,
-                  progress: item.slot?.fraction ?? 0,
-                  onTap: () => onOpen(item),
-                );
-              },
-              childCount: items.length,
+                ),
+              ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceStrip extends StatelessWidget {
+  const _SourceStrip({
+    required this.sources,
+    required this.current,
+    required this.onSelected,
+    required this.onManage,
+    required this.manageLabel,
+  });
+
+  final List<SourceAdapter> sources;
+  final SourceAdapter? current;
+  final ValueChanged<SourceAdapter> onSelected;
+  final VoidCallback onManage;
+  final String manageLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    if (sources.isEmpty) {
+      return const SizedBox(height: 4);
+    }
+    return SizedBox(
+      height: 46,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: BestLayout.gutter),
+        itemCount: sources.length + 1,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          if (index == sources.length) {
+            return IconButton.outlined(
+              tooltip: manageLabel,
+              onPressed: onManage,
+              icon: const Icon(Icons.tune_rounded, size: 19),
+            );
+          }
+          final source = sources[index];
+          final selected = source.id == current?.id;
+          return _SourceChip(
+            source: source,
+            selected: selected,
+            onTap: selected ? onManage : () => onSelected(source),
           );
         },
       ),
     );
   }
+}
 
-  String? _badgeFor(
-    AppLocalizations l10n,
-    Media media,
-    ResumeSlot? slot,
-  ) {
-    if (slot != null) return l10n.continueTitle;
-    if (media.status != MediaStatus.unknown) {
-      return statusLabel(l10n, media.status);
-    }
-    return feed == _HomeFeed.latest ? l10n.homeLatestBadge : null;
+class _SourceChip extends StatelessWidget {
+  const _SourceChip({
+    required this.source,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final SourceAdapter source;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: source.name,
+      child: Material(
+        color: selected
+            ? theme.colorScheme.primaryContainer
+            : theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(BestRadius.pill),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(BestRadius.pill),
+          child: Container(
+            padding: const EdgeInsetsDirectional.only(start: 6, end: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(BestRadius.pill),
+              border: Border.all(
+                color: selected
+                    ? theme.colorScheme.primary.withValues(alpha: 0.55)
+                    : theme.colorScheme.outlineVariant,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _SourceAvatar(source: source, size: 32),
+                const SizedBox(width: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 150),
+                  child: Text(
+                    source.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                      color: selected
+                          ? theme.colorScheme.onPrimaryContainer
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
-class _HomeEmpty extends StatelessWidget {
-  const _HomeEmpty({
-    required this.title,
-    required this.body,
-    required this.icon,
-    required this.actionLabel,
-    required this.onAction,
-  });
+/// A site's real icon when it has one, a typographic monogram otherwise. The
+/// anime side of the catalogue shipped text-only rows for months; an avatar is
+/// the fastest way to tell seven sites apart.
+class _SourceAvatar extends ConsumerWidget {
+  const _SourceAvatar({required this.source, this.size = 40});
 
-  final String title;
-  final String body;
-  final IconData icon;
-  final String actionLabel;
-  final VoidCallback onAction;
+  final SourceAdapter source;
+  final double size;
+
+  String? _iconUrl(WidgetRef ref) {
+    if (source is JsonSourceAdapter) {
+      return (source as JsonSourceAdapter).pack.iconUrl;
+    }
+    if (source is SuwayomiSource) {
+      return (source as SuwayomiSource).info.iconUrl;
+    }
+    if (source is ExtensionSourceAdapter) {
+      final package = (source as ExtensionSourceAdapter).info.packageName;
+      final entries =
+          ref.watch(extensionDirectoryProvider).value?.entries ?? const [];
+      for (final entry in entries) {
+        if (entry.packageName == package &&
+            entry.iconUrl != null &&
+            entry.iconUrl!.isNotEmpty) {
+          return entry.iconUrl;
+        }
+      }
+    }
+    return null;
+  }
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: BestLayout.gutter),
-        child: EmptyState(
-          icon: icon,
-          title: title,
-          body: body,
-          action: FilledButton.icon(
-            onPressed: onAction,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final url = _iconUrl(ref);
+    final initial = source.name.trim().isEmpty
+        ? '?'
+        : String.fromCharCode(source.name.trim().runes.first).toUpperCase();
+    final fallback = Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.14),
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        initial,
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: theme.colorScheme.primary,
+          fontWeight: FontWeight.w900,
+          fontSize: size * 0.42,
+        ),
+      ),
+    );
+    return ClipOval(
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: url == null
+            ? fallback
+            : Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stack) => fallback,
+              ),
+      ),
+    );
+  }
+}
+
+class _FeedTabs extends StatelessWidget {
+  const _FeedTabs({
+    required this.selected,
+    required this.latestAvailable,
+    required this.latestLabel,
+    required this.popularLabel,
+    required this.onSelected,
+  });
+
+  final _Feed selected;
+  final bool latestAvailable;
+  final String latestLabel;
+  final String popularLabel;
+  final ValueChanged<_Feed> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final options = <_Feed, String>{
+      if (latestAvailable) _Feed.latest: latestLabel,
+      _Feed.popular: popularLabel,
+    };
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final entry in options.entries)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(end: 6),
+            child: InkWell(
+              key: ValueKey('home-feed-${entry.key.name}'),
+              onTap: () => onSelected(entry.key),
+              borderRadius: BorderRadius.circular(BestRadius.pill),
+              child: AnimatedContainer(
+                duration: BestMotion.fast,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: entry.key == selected
+                      ? theme.colorScheme.primary.withValues(alpha: 0.14)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(BestRadius.pill),
+                ),
+                child: Text(
+                  entry.value,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: entry.key == selected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                    fontWeight: entry.key == selected
+                        ? FontWeight.w800
+                        : FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _FeedFooter extends StatelessWidget {
+  const _FeedFooter({
+    required this.loading,
+    required this.hasMore,
+    required this.failed,
+    required this.retryLabel,
+    required this.onRetry,
+  });
+
+  final bool loading;
+  final bool hasMore;
+  final bool failed;
+  final String retryLabel;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    if (failed) {
+      return Padding(
+        padding: const EdgeInsets.all(BestSpace.lg),
+        child: Center(
+          child: TextButton.icon(
+            onPressed: onRetry,
             icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: Text(actionLabel),
+            label: Text(retryLabel),
           ),
         ),
       );
+    }
+    if (loading) {
+      return const Padding(
+        padding: EdgeInsets.all(BestSpace.lg),
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.2),
+          ),
+        ),
+      );
+    }
+    return SizedBox(height: hasMore ? BestSpace.md : BestSpace.sm);
+  }
 }
 
-enum _SourceFilter { all, arabic, english }
-
-class _SourcePicker extends StatefulWidget {
+class _SourcePicker extends StatelessWidget {
   const _SourcePicker({
+    required this.current,
     required this.sources,
-    required this.onRefresh,
-    required this.onOpen,
-    required this.onManage,
+    required this.onSelected,
+    required this.onAdd,
   });
 
+  final SourceAdapter? current;
   final List<SourceAdapter> sources;
-  final Future<void> Function() onRefresh;
-  final ValueChanged<SourceAdapter> onOpen;
-  final VoidCallback onManage;
-
-  @override
-  State<_SourcePicker> createState() => _SourcePickerState();
-}
-
-class _SourcePickerState extends State<_SourcePicker> {
-  _SourceFilter _filter = _SourceFilter.all;
-
-  bool _matches(SourceAdapter source) {
-    final language = source.language.toLowerCase();
-    return switch (_filter) {
-      _SourceFilter.all => true,
-      _SourceFilter.arabic => language == 'all' || language.startsWith('ar'),
-      _SourceFilter.english => language == 'all' || language.startsWith('en'),
-    };
-  }
+  final ValueChanged<SourceAdapter> onSelected;
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final sources = widget.sources.where(_matches).toList(growable: false);
-    final labels = <_SourceFilter, String>{
-      _SourceFilter.arabic: l10n.homeSourcesArabic,
-      _SourceFilter.english: l10n.homeSourcesEnglish,
-      _SourceFilter.all: l10n.filterAll,
-    };
-
     return DraggableScrollableSheet(
-      initialChildSize: 0.62,
-      minChildSize: 0.44,
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
       maxChildSize: 0.9,
       builder: (context, controller) => Material(
         color: theme.colorScheme.surfaceContainerLow,
@@ -567,32 +960,13 @@ class _SourcePickerState extends State<_SourcePicker> {
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(BestRadius.lg),
-                      border: Border.all(
-                        color:
-                            theme.colorScheme.primary.withValues(alpha: 0.38),
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.dns_rounded,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(width: BestSpace.md),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           l10n.homeChooseSource,
-                          style: BestType.sectionTitle(context).copyWith(
-                            fontSize: 22,
-                          ),
+                          style: BestType.sectionTitle(context),
                         ),
                         const SizedBox(height: BestSpace.xs),
                         Text(
@@ -603,19 +977,13 @@ class _SourcePickerState extends State<_SourcePicker> {
                     ),
                   ),
                   IconButton(
-                    tooltip: l10n.homeRefreshSources,
-                    onPressed: () => widget.onRefresh(),
-                    icon: const Icon(Icons.refresh_rounded),
+                    tooltip: l10n.homeAddSources,
+                    onPressed: onAdd,
+                    icon: const Icon(Icons.add_rounded),
                   ),
                 ],
               ),
             ),
-            _SourceFilterTabs(
-              selected: _filter,
-              labels: labels,
-              onSelected: (filter) => setState(() => _filter = filter),
-            ),
-            const SizedBox(height: BestSpace.sm),
             Expanded(
               child: sources.isEmpty
                   ? Center(
@@ -639,10 +1007,42 @@ class _SourcePickerState extends State<_SourcePicker> {
                       itemCount: sources.length,
                       separatorBuilder: (context, index) =>
                           const SizedBox(height: BestSpace.xs),
-                      itemBuilder: (context, index) => _SourceRow(
-                        source: sources[index],
-                        onTap: () => widget.onOpen(sources[index]),
-                      ),
+                      itemBuilder: (context, index) {
+                        final source = sources[index];
+                        final selected = source.id == current?.id;
+                        return ListTile(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(BestRadius.lg),
+                            side: BorderSide(
+                              color: selected
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.outlineVariant,
+                            ),
+                          ),
+                          leading: _SourceAvatar(source: source),
+                          title: Text(
+                            source.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            [
+                              homeKindOf(source) == HomeKind.watching
+                                  ? l10n.kindAnime
+                                  : l10n.kindManga,
+                              if (source.language.trim().isNotEmpty)
+                                source.language.toUpperCase(),
+                            ].join(' · '),
+                          ),
+                          trailing: selected
+                              ? Icon(
+                                  Icons.check_circle_rounded,
+                                  color: theme.colorScheme.primary,
+                                )
+                              : null,
+                          onTap: () => onSelected(source),
+                        );
+                      },
                     ),
             ),
             SafeArea(
@@ -656,163 +1056,15 @@ class _SourcePickerState extends State<_SourcePicker> {
                 ),
                 child: SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: widget.onManage,
-                    icon: const Icon(Icons.tune_rounded, size: 18),
-                    label: Text(l10n.homeManageSources),
+                  child: FilledButton.icon(
+                    onPressed: onAdd,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: Text(l10n.homeAddSources),
                   ),
                 ),
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SourceFilterTabs extends StatelessWidget {
-  const _SourceFilterTabs({
-    required this.selected,
-    required this.labels,
-    required this.onSelected,
-  });
-
-  final _SourceFilter selected;
-  final Map<_SourceFilter, String> labels;
-  final ValueChanged<_SourceFilter> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: BestLayout.gutter),
-      child: Row(
-        children: [
-          for (final filter in _SourceFilter.values) ...[
-            if (filter != _SourceFilter.values.first)
-              const SizedBox(width: BestSpace.sm),
-            Expanded(
-              child: Semantics(
-                button: true,
-                selected: filter == selected,
-                child: InkWell(
-                  onTap: () => onSelected(filter),
-                  borderRadius: BorderRadius.circular(BestRadius.md),
-                  child: AnimatedContainer(
-                    duration: BestMotionPolicy.of(context, BestMotion.normal),
-                    curve: BestMotion.curve,
-                    height: 46,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: filter == selected
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(BestRadius.md),
-                      border: Border.all(
-                        color: filter == selected
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.outlineVariant,
-                      ),
-                    ),
-                    child: Text(
-                      labels[filter]!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: filter == selected
-                            ? theme.colorScheme.onPrimary
-                            : theme.colorScheme.onSurfaceVariant,
-                        fontWeight: filter == selected
-                            ? FontWeight.w800
-                            : FontWeight.w600,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SourceRow extends StatelessWidget {
-  const _SourceRow({required this.source, required this.onTap});
-
-  final SourceAdapter source;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final sourceName = source.name.trim();
-    final initial = sourceName.isEmpty ? '?' : sourceName.substring(0, 1);
-    final language = source.language.trim().isEmpty
-        ? 'ALL'
-        : source.language.trim().toUpperCase();
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(BestRadius.lg),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(BestRadius.lg),
-        child: Container(
-          padding: const EdgeInsets.all(BestSpace.sm),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(BestRadius.lg),
-            border: Border.all(color: theme.colorScheme.outlineVariant),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.13),
-                  borderRadius: BorderRadius.circular(BestRadius.md),
-                ),
-                child: Text(
-                  initial,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const SizedBox(width: BestSpace.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      source.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      language,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: BestType.meta(context),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.arrow_forward_rounded,
-                color: theme.colorScheme.primary,
-              ),
-            ],
-          ),
         ),
       ),
     );

@@ -184,11 +184,11 @@ const List<ReleaseNote> kReleaseNotes = [
           ar: 'دليل الإضافات الكامل',
         ),
         LocalizedText(
-          en: 'Every Mihon manga and Aniyomi anime extension is listed with '
-              'its language, version and publisher. Nothing installs until '
-              'you explicitly activate it.',
-          ar: 'كل إضافة مانجا من Mihon وإضافة أنمي من Aniyomi تظهر بلغتها '
-              'وإصدارها وناشرها. لا شيء يُثبَّت قبل تفعيلك الصريح.',
+          en: 'Every manga and anime extension is listed with its language, '
+              'version and publisher. Nothing installs until you explicitly '
+              'activate it.',
+          ar: 'كل إضافة مانجا أو أنمي تظهر بلغتها وإصدارها وناشرها. لا شيء '
+              'يُثبَّت قبل تفعيلك الصريح.',
         ),
       ),
       NewsLine(

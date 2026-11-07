@@ -26,6 +26,8 @@ final _work = Media(
   title: 'Blue Echo',
   kind: MediaKind.manhwa,
   inLibrary: true,
+  addedAt: 1,
+  lastOpenedAt: 2,
 );
 
 final _fresh = Media(
@@ -199,7 +201,7 @@ void main() {
 
   for (final locale in ['en', 'ar']) {
     testWidgets(
-        '$locale personal room, saved layout and download filters render coherently',
+        '$locale front door, shelf, history and settings render coherently',
         (tester) async {
       viewport(tester, width: locale == 'ar' ? 320 : 390);
       SharedPreferences.setMockInitialValues({});
@@ -236,10 +238,6 @@ void main() {
         networkProvider.overrideWith((ref) => Stream.value(NetworkKind.none)),
         sourceRegistryProvider
             .overrideWithValue(SourceRegistry.fixed([_Source()])),
-        discoverProvider.overrideWith((ref) async =>
-            DiscoverFeed(works: [_fresh], latest: [_fresh], live: true)),
-        rankingsProvider.overrideWith(
-            (ref) async => const Rankings(works: [], live: false)),
       ], child: RepaintBoundary(key: capture, child: const BestApp())));
       final container =
           ProviderScope.containerOf(tester.element(find.byType(BestApp)));
@@ -254,52 +252,38 @@ void main() {
       await tester.pumpAndSettle();
       final l10n =
           AppLocalizations.of(tester.element(find.byType(Scaffold).first));
-      expect(find.text('Blue Echo'), findsOneWidget);
+      // Home is the chosen source's catalogue, not a merged feed.
+      expect(find.text(_fresh.title), findsWidgets);
       expect(find.byKey(const ValueKey('home-unified-search')).hitTestable(),
           findsOneWidget);
       await image(tester, 'home-$locale');
-      await tester.scrollUntilVisible(find.text(_fresh.title).first, 180,
-          scrollable: find.byType(Scrollable).first);
-      await tester.pumpAndSettle();
-      await image(tester, 'discovery-$locale');
+
       await tester.tap(find.text(l10n.navLibrary).last);
       await tester.pumpAndSettle();
+      expect(find.text('Blue Echo'), findsWidgets);
+      // Finished downloads are part of the shelf now.
+      expect(find.text(l10n.downloadsFinished), findsOneWidget);
+      expect(find.text('Chapter 1'), findsWidgets);
+      await image(tester, 'library-$locale');
       await tester.tap(find.byTooltip(l10n.libraryListView));
       await tester.pumpAndSettle();
       expect(preferences.getBool('library.grid'), isFalse);
-      await image(tester, 'library-$locale');
-      await tester.tap(find.text(l10n.navDownloads).last);
+      await image(tester, 'library-list-$locale');
+
+      await tester.tap(find.text(l10n.navHistory).last);
       await tester.pumpAndSettle();
-      expect(find.text('Chapter 1'), findsWidgets);
-      await image(tester, 'downloads-$locale');
-      final queueFilter = find.text('${l10n.downloadsInProgress} · 0');
-      await tester.ensureVisible(queueFilter);
+      expect(find.text(l10n.historyTitle), findsWidgets);
+      expect(find.text('Blue Echo'), findsWidgets);
+      await image(tester, 'history-$locale');
+
+      await tester.tap(find.text(l10n.navSettings).last);
       await tester.pumpAndSettle();
-      await tester.tap(queueFilter);
-      await tester.pumpAndSettle();
-      expect(find.text(l10n.downloadFilterEmpty), findsOneWidget);
-      expect((await repository.downloads()).single.isFinished, isTrue);
-      await image(tester, 'downloads-filter-empty-$locale');
-      await tester.tap(find.text(l10n.downloadsClearSearch));
-      await tester.pumpAndSettle();
-      expect(find.text('Chapter 1'), findsWidgets);
-      await tester.tap(find.text(l10n.navMenu).last);
-      await tester.pumpAndSettle();
-      expect(find.text(l10n.openGuide).hitTestable(), findsOneWidget);
-      expect(find.text(l10n.mangaSourcesTitle).hitTestable(), findsOneWidget);
-      await image(tester, 'menu-$locale');
-      await tester.tap(find.text(l10n.navLibrary).last);
-      await tester.pumpAndSettle();
-      expect(find.byTooltip(l10n.libraryGridView), findsOneWidget);
+      expect(find.text(l10n.settingsTitle), findsWidgets);
+      expect(find.text(l10n.readerAutoAdvance), findsOneWidget);
+      await image(tester, 'settings-$locale');
+
       await tester.tap(find.text(l10n.navHome).last);
       await tester.pumpAndSettle();
-      // Home remembers its discovery scroll position. Scroll the lazy list
-      // back until the search entry is built, just as a reader would.
-      await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('home-unified-search')),
-        -240,
-        scrollable: find.byType(Scrollable).first,
-      );
       await tester.tap(find.byKey(const ValueKey('home-unified-search')));
       await tester.pumpAndSettle();
       expect(find.text(l10n.searchEverything), findsOneWidget);

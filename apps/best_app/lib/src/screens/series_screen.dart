@@ -189,94 +189,25 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
     final overviewSlivers = <Widget>[
       SliverToBoxAdapter(
         child: _Hero(
-          title: media.displayTitle,
-          coverUrl: media.coverUrl,
+          media: media,
+          sourceMissing: widget.sourceMissing,
+          offlineCount: offlineCount,
         ),
       ),
-      SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text(
-                media.displayTitle,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: BestType.tracking(context, -0.8),
-                  height: 1.08,
-                ),
-              ),
-              if (media.nativeTitle != null &&
-                  media.nativeTitle!.trim().isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  media.nativeTitle!,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
+      if (media.genres.isNotEmpty)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final genre in media.genres.take(6))
+                  _GenrePill(label: genre),
               ],
-              const SizedBox(height: 10),
-              Wrap(
-                alignment: WrapAlignment.center,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  _MetaDot(
-                      label: ref
-                              .watch(sourceRegistryProvider)
-                              .byId(media.ref.sourceId)
-                              ?.name ??
-                          (widget.sourceMissing
-                              ? l10n.sourceNotInstalledTitle
-                              : media.ref.sourceId)),
-                  _MetaDot(label: kindLabel(l10n, media.kind)),
-                  if (media.year != null) _MetaDot(label: '${media.year}'),
-                  if (media.rating != null) RatingBadge(score: media.rating!),
-                  _MetaDot(label: statusLabel(l10n, media.status)),
-                  if (offlineCount > 0)
-                    _MetaDot(
-                      label: l10n.offlineCount(offlineCount),
-                      accent: true,
-                    ),
-                ],
-              ),
-              if (media.author != null && media.author!.trim().isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  media.author!,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-              if (media.genres.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final genre in media.genres.take(5))
-                      _GenrePill(label: genre),
-                  ],
-                ),
-              ],
-            ],
+            ),
           ),
         ),
-      ),
       SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -910,46 +841,171 @@ class _CachedChapterNotice extends StatelessWidget {
   }
 }
 
-/// A cover floating over the blurred artwork. The 420px block is deliberately
-/// taller than the backdrop so the cover can sit half-in, half-out without a
-/// negative margin or an overflow.
-class _Hero extends StatelessWidget {
-  const _Hero({required this.title, required this.coverUrl});
+/// The work's front page: artwork, cover, title and the facts a reader checks
+/// before starting. Left-aligned and layered, never a centred poster on an
+/// empty background — a missing cover degrades to a themed gradient instead of
+/// a broken-looking blur.
+class _Hero extends ConsumerWidget {
+  const _Hero({
+    required this.media,
+    required this.sourceMissing,
+    required this.offlineCount,
+  });
 
-  final String title;
-  final String? coverUrl;
+  final Media media;
+  final bool sourceMissing;
+  final int offlineCount;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final source = ref.watch(sourceRegistryProvider).byId(media.ref.sourceId);
+    final sourceName = source?.name ??
+        (sourceMissing ? l10n.sourceNotInstalledTitle : media.ref.sourceId);
+    final gradient = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        Colors.transparent,
+        theme.colorScheme.surface.withValues(alpha: 0.28),
+        theme.colorScheme.surface.withValues(alpha: 0.82),
+        theme.colorScheme.surface,
+      ],
+      stops: const [0.0, 0.45, 0.8, 1.0],
+    );
+
     return SizedBox(
-      height: 216,
+      height: 312,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          SizedBox(
-            height: 216,
-            child: BestBackdrop(title: title, url: coverUrl),
-          ),
-          Positioned(
-            top: 20,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                width: 124,
-                height: 186,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(BestRadius.md),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.45),
-                      blurRadius: 26,
-                      offset: const Offset(0, 14),
-                    ),
+          if (media.coverUrl != null)
+            BestBackdrop(
+              title: media.displayTitle,
+              url: media.coverUrl,
+              blur: 32,
+              opacity: 0.5,
+            )
+          else
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: AlignmentDirectional.topStart,
+                  end: AlignmentDirectional.bottomEnd,
+                  colors: [
+                    theme.colorScheme.primary.withValues(alpha: 0.34),
+                    theme.colorScheme.secondary.withValues(alpha: 0.18),
+                    theme.colorScheme.surface,
                   ],
                 ),
-                child: BestCover(title: title, url: coverUrl),
               ),
+            ),
+          DecoratedBox(decoration: BoxDecoration(gradient: gradient)),
+          PositionedDirectional(
+            start: 20,
+            end: 20,
+            bottom: 18,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  width: 116,
+                  height: 174,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(BestRadius.md),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.16),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.42),
+                        blurRadius: 24,
+                        offset: const Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(BestRadius.md),
+                    child: BestCover(
+                      title: media.displayTitle,
+                      url: media.coverUrl,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        media.displayTitle,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          height: 1.08,
+                          letterSpacing: BestType.tracking(context, -0.7),
+                          shadows: const [
+                            Shadow(color: Colors.black54, blurRadius: 12),
+                          ],
+                        ),
+                      ),
+                      if (media.nativeTitle != null &&
+                          media.nativeTitle!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 5),
+                        Text(
+                          media.nativeTitle!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.white70,
+                            shadows: const [
+                              Shadow(color: Colors.black54, blurRadius: 8),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          _HeroTag(text: sourceName, accent: true),
+                          _HeroTag(text: kindLabel(l10n, media.kind)),
+                          if (media.year != null)
+                            _HeroTag(text: '${media.year}'),
+                          _HeroTag(text: statusLabel(l10n, media.status)),
+                          if (media.rating != null)
+                            _HeroTag(text: media.rating!.toStringAsFixed(1)),
+                          if (offlineCount > 0)
+                            _HeroTag(
+                              text: l10n.offlineCount(offlineCount),
+                              accent: true,
+                            ),
+                        ],
+                      ),
+                      if (media.author != null &&
+                          media.author!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          media.author!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.white70,
+                            shadows: const [
+                              Shadow(color: Colors.black54, blurRadius: 8),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -958,20 +1014,31 @@ class _Hero extends StatelessWidget {
   }
 }
 
-class _MetaDot extends StatelessWidget {
-  const _MetaDot({required this.label, this.accent = false});
+class _HeroTag extends StatelessWidget {
+  const _HeroTag({required this.text, this.accent = false});
 
-  final String label;
+  final String text;
   final bool accent;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Text(
-      label,
-      style: theme.textTheme.labelMedium?.copyWith(
-        color: accent ? BestColors.jade : theme.colorScheme.onSurfaceVariant,
-        fontWeight: accent ? FontWeight.w700 : FontWeight.w500,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: accent
+            ? BestColors.jade.withValues(alpha: 0.9)
+            : Colors.black.withValues(alpha: 0.42),
+        borderRadius: BorderRadius.circular(BestRadius.pill),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+      ),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: accent ? BestColors.ink : Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
       ),
     );
   }

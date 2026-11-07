@@ -49,7 +49,6 @@ class TopRatedScreen extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           children: [
             PageMasthead(
-              index: "06",
               title: l10n.topRatedRanking,
               subtitle: l10n.topRatedSubtitle,
             ),
@@ -59,7 +58,6 @@ class TopRatedScreen extends ConsumerWidget {
             _BadgesCard(rewards: rewards),
             const SizedBox(height: BestSpace.xl),
             SectionHeader(
-              index: "01",
               title: l10n.topRatedRanking,
             ),
             const SizedBox(height: BestSpace.sm),
