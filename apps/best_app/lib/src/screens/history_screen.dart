@@ -65,7 +65,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        l10n.navHistory,
+                        l10n.historySubtitle,
                         style: BestType.body(context),
                       ),
                     ],

@@ -661,6 +661,7 @@
   "homeNoRecommendations": "أضف أعمالًا إلى مكتبتك ليبدأ الاقتراح.",
   "homeNoResults": "لا توجد أعمال في هذا التبويب الآن.",
   "historyTitle": "السجل",
+  "historySubtitle": "آخر نشاطك، الأحدث أولًا",
   "historyContinue": "أكمل القراءة",
   "historyRecent": "آخر المشاهدات",
   "historyDownloads": "التحميلات الجارية",

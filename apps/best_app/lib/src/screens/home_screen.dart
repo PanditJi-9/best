@@ -365,32 +365,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(height: BestSpace.sm),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: BestLayout.gutter),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _FeedTabs(
-                    selected: feed,
-                    latestAvailable: current is LatestSource,
-                    latestLabel: l10n.homeLatest,
-                    popularLabel: l10n.homePopular,
-                    onSelected: _setFeed,
-                  ),
-                ),
-                if (current != null) ...[
-                  const SizedBox(width: BestSpace.sm),
-                  Flexible(
-                    child: Text(
-                      current.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.end,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
+            child: _FeedTabs(
+              selected: feed,
+              latestAvailable: current is LatestSource,
+              latestLabel: l10n.homeLatest,
+              popularLabel: l10n.homePopular,
+              onSelected: _setFeed,
             ),
           ),
           const SizedBox(height: BestSpace.sm),

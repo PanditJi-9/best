@@ -137,6 +137,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final liveDownloads = downloads
         .where((task) => task.isActive || task.isFailed)
         .toList(growable: false);
+    final shelfWorks = <String, Media>{
+      for (final entry in shelf.value ?? const <LibraryEntry>[])
+        entry.media.id: entry.media,
+    };
 
     return SafeArea(
       bottom: false,
@@ -232,49 +236,55 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             const SizedBox(height: 12),
             SizedBox(
               height: 46,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
                 children: [
-                  for (final filter in const [
-                    LibraryFilter.all,
-                    LibraryFilter.unread,
-                    LibraryFilter.inProgress,
-                    LibraryFilter.offline,
-                  ]) ...[
-                    ChoiceChip(
-                      label: Text(filterLabel(l10n, filter)),
-                      selected: query.filter == filter,
-                      visualDensity: VisualDensity.compact,
-                      onSelected: (_) => ref
-                          .read(libraryQueryProvider.notifier)
-                          .setFilter(filter),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
+                  const SizedBox(width: 12),
+                  // The complete filter list, including categories, lives in
+                  // this sheet; the chips are only the four common views.
                   IconButton(
                     tooltip: l10n.libraryFilter,
                     visualDensity: VisualDensity.compact,
                     onPressed: () => _showFilters(context, query),
-                    icon: const Icon(Icons.tune_rounded, size: 20),
-                  ),
-                  IconButton(
-                    tooltip: l10n.categoryManage,
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => _showCategories(context),
-                    icon: const Icon(Icons.folder_outlined, size: 20),
-                  ),
-                  if (query.tag != null)
-                    Padding(
-                      padding: const EdgeInsetsDirectional.only(start: 4),
-                      child: InputChip(
-                        label: Text(query.tag!),
-                        visualDensity: VisualDensity.compact,
-                        onDeleted: () => ref
-                            .read(libraryQueryProvider.notifier)
-                            .setTag(null),
-                      ),
+                    icon: Icon(
+                      Icons.tune_rounded,
+                      size: 20,
+                      color: query.filter == LibraryFilter.all
+                          ? null
+                          : Theme.of(context).colorScheme.primary,
                     ),
+                  ),
+                  Expanded(
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsetsDirectional.only(end: 20),
+                      children: [
+                        for (final filter in const [
+                          LibraryFilter.all,
+                          LibraryFilter.unread,
+                          LibraryFilter.inProgress,
+                          LibraryFilter.offline,
+                        ]) ...[
+                          ChoiceChip(
+                            label: Text(filterLabel(l10n, filter)),
+                            selected: query.filter == filter,
+                            visualDensity: VisualDensity.compact,
+                            onSelected: (_) => ref
+                                .read(libraryQueryProvider.notifier)
+                                .setFilter(filter),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        if (query.tag != null)
+                          InputChip(
+                            label: Text(query.tag!),
+                            visualDensity: VisualDensity.compact,
+                            onDeleted: () => ref
+                                .read(libraryQueryProvider.notifier)
+                                .setTag(null),
+                          ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -313,6 +323,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     SliverToBoxAdapter(
                       child: _DownloadedRail(
                         tasks: finishedDownloads,
+                        works: shelfWorks,
                         onOpen: (task) => context.push(
                           Routes.reader(
                             sourceId: task.sourceId,
@@ -377,30 +388,26 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   Future<void> _showFilters(BuildContext context, LibraryQuery query) async {
     final l10n = AppLocalizations.of(context);
-    final selected = await showModalBottomSheet<LibraryFilter>(
+    final result = await showModalBottomSheet<Object>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
-              child: Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: Text(
-                  l10n.libraryFilter,
-                  style: BestType.sectionTitle(context),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(
+                    l10n.libraryFilter,
+                    style: BestType.sectionTitle(context),
+                  ),
                 ),
               ),
-            ),
-            for (final filter in LibraryFilter.values)
-              if (!const [
-                LibraryFilter.all,
-                LibraryFilter.unread,
-                LibraryFilter.inProgress,
-                LibraryFilter.offline,
-              ].contains(filter))
+              for (final filter in LibraryFilter.values)
                 ListTile(
                   selected: query.filter == filter,
                   title: Text(filterLabel(l10n, filter)),
@@ -409,13 +416,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       : null,
                   onTap: () => Navigator.of(context).pop(filter),
                 ),
-            const SizedBox(height: 8),
-          ],
+              const Divider(height: 12),
+              ListTile(
+                leading: const Icon(Icons.folder_outlined, size: 20),
+                title: Text(l10n.categoryManage),
+                onTap: () => Navigator.of(context).pop('categories'),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
-    if (!mounted || selected == null) return;
-    ref.read(libraryQueryProvider.notifier).setFilter(selected);
+    if (!mounted || result == null) return;
+    if (result == 'categories') {
+      if (!context.mounted) return;
+      await _showCategories(context);
+      return;
+    }
+    ref.read(libraryQueryProvider.notifier).setFilter(result as LibraryFilter);
   }
 
   Future<void> _showCategories(BuildContext context) async {
@@ -990,11 +1009,13 @@ class _ContinueRail extends StatelessWidget {
 class _DownloadedRail extends StatelessWidget {
   const _DownloadedRail({
     required this.tasks,
+    required this.works,
     required this.onOpen,
     required this.onManage,
   });
 
   final List<DownloadTask> tasks;
+  final Map<String, Media> works;
   final ValueChanged<DownloadTask> onOpen;
   final VoidCallback onManage;
 
@@ -1027,6 +1048,7 @@ class _DownloadedRail extends StatelessWidget {
             separatorBuilder: (context, index) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
               final task = entries[index];
+              final work = works[task.mediaId];
               return SizedBox(
                 width: 230,
                 child: Material(
@@ -1039,16 +1061,24 @@ class _DownloadedRail extends StatelessWidget {
                       padding: const EdgeInsets.all(10),
                       child: Row(
                         children: [
-                          Container(
-                            width: 54,
-                            height: 74,
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primaryContainer,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(
-                              Icons.offline_pin_rounded,
-                              color: theme.colorScheme.onPrimaryContainer,
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: SizedBox(
+                              width: 54,
+                              height: 74,
+                              child: work == null
+                                  ? ColoredBox(
+                                      color: theme.colorScheme.primaryContainer,
+                                      child: Icon(
+                                        Icons.offline_pin_rounded,
+                                        color: theme
+                                            .colorScheme.onPrimaryContainer,
+                                      ),
+                                    )
+                                  : BestCover(
+                                      title: work.displayTitle,
+                                      url: work.coverUrl,
+                                    ),
                             ),
                           ),
                           const SizedBox(width: 10),

@@ -820,6 +820,7 @@
   "homeNoRecommendations": "Add works to your library to start recommendations.",
   "homeNoResults": "Nothing in this tab right now.",
   "historyTitle": "History",
+  "historySubtitle": "Your recent activity, newest first",
   "historyContinue": "Continue reading",
   "historyRecent": "Recently opened",
   "historyDownloads": "Active downloads",
