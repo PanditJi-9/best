@@ -7,13 +7,17 @@ does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
 **Status: 1.5.1 build 26 in development — clean downloads, a restored encyclopedia.**
-Build 26 keeps the source-first home and the offline reader, and rearranges the
-shell around five content tabs: Home, Library, Downloads, Encyclopedia and
-History. Settings opens from the home masthead. Downloads are no longer folded
-into the Library: they have a quiet grouped screen with one history control,
-and the Library keeps a single filter control instead of a chip row. The
-encyclopedia returns as a visible destination. CI verification for this build
-is in progress; see [the build notes](docs/releases/1.5.1-build26.md).
+Build 26 passed Flutter analysis, 172 serial widget and unit tests, 62 Python
+tool tests, the extension runtime JVM gate, and signed four-APK generation in
+[CI](https://github.com/PanditJi-9/best/actions/runs/42332008960). The universal,
+arm64-v8a, armeabi-v7a and x86_64 APKs share one application id, version and
+signing certificate. This build rearranges the shell around five content tabs —
+Home, Library, Downloads, Encyclopedia and History — with Settings pushed from
+the home masthead. Downloads are no longer folded into the Library: they have a
+quiet grouped screen, one download-history control and a chronological history
+screen, while the Library keeps a single filter control instead of a chip row.
+The encyclopedia returns as a visible destination, named Encyclopedia in
+English. See [the build notes](docs/releases/1.5.1-build26.md).
 No 1.5.1 release has been published.
 
 The shelf, the reader, the video player with captions, the bilingual UI, local
