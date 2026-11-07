@@ -52,6 +52,19 @@ class DownloadManager {
   bool _disposed = false;
   bool _needsDrain = false;
 
+  /// Includes an in-flight request finishing after a pause. Android must keep
+  /// the engine alive until that request has committed or stopped safely.
+  bool get isDraining => _active != null;
+  void Function()? onDrainChanged;
+
+  void _signalDrain() {
+    try {
+      onDrainChanged?.call();
+    } catch (_) {
+      // Display/lifetime observers cannot break the queue's writer.
+    }
+  }
+
   /// The app's network rule (for example "Wi-Fi only"). The queue asks before
   /// starting a unit, so a metered connection pauses instead of burning data;
   /// pages already in flight finish rather than leaving a half-written chapter.
@@ -60,6 +73,10 @@ class DownloadManager {
   /// The app's storage cap in bytes, `0` for none. Checked after a unit
   /// finishes, so the offline store never grows past the limit a person set.
   int Function() storageCap = () => 0;
+
+  /// Android may need to warm its installed extension catalogue before a cold
+  /// worker can resolve a saved source. No second manager or writer is created.
+  Future<void> Function() prepareSources = () async {};
 
   /// Mutations and file commits for one chapter are serialized. A generation
   /// changes immediately on cancellation, before waiting for IO: an old request
@@ -337,11 +354,13 @@ class DownloadManager {
     _needsDrain = false;
     final future = _drain().whenComplete(() {
       _active = null;
+      _signalDrain();
       // Enqueue can overlap the drain's last empty-queue read. Do not lose that
       // wakeup simply because a caller shared the drain that just ended.
       if (_needsDrain && !_disposed && mayDownload()) _schedule();
     });
     _active = future;
+    _signalDrain();
     return future;
   }
 
@@ -358,6 +377,10 @@ class DownloadManager {
   }
 
   Future<void> _drain() async {
+    if (_disposed || !mayDownload()) return;
+    if (!(await _repository.downloads()).any(
+        (task) => task.status == DownloadStatus.queued)) return;
+    await prepareSources();
     while (!_disposed) {
       if (!mayDownload()) return;
       final tasks = await _repository.downloads();

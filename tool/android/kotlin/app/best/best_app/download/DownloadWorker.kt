@@ -11,19 +11,23 @@ import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
+import app.best.best_app.BestEngine
+import app.best.best_app.MainActivity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import org.json.JSONArray
-import java.io.File
-import java.io.FileOutputStream
-import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.withTimeout
 
 /**
- * Background chapter downloader using WorkManager foreground service.
- * Continues downloading even after app swipe-kill or screen off.
- * Ported from HikariManga DownloadChapterWorker.
+ * A persisted foreground lifetime for the one existing Dart queue. A cold
+ * restart opens SQLite and resumes that queue through the normal bootstrap.
+ * Result.success() means this lifetime ended, not that any chapter succeeded:
+ * only DownloadManager's verified SQLite transitions can say that.
  */
 class DownloadWorker(
     private val context: Context,
@@ -34,76 +38,53 @@ class DownloadWorker(
         const val CHANNEL_ID = "best_downloads_channel"
         const val NOTIFICATION_ID = 8001
 
-        const val KEY_UNIT_ID = "unit_id"
-        const val KEY_MEDIA_TITLE = "media_title"
-        const val KEY_UNIT_TITLE = "unit_title"
-        const val KEY_PAGE_URLS_JSON = "page_urls_json"
-        const val KEY_TARGET_DIR = "target_dir"
-        const val KEY_HEADERS_JSON = "headers_json"
     }
 
     private val notificationManager =
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
-
-    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        val unitId = inputData.getString(KEY_UNIT_ID) ?: return@withContext Result.failure()
-        val mediaTitle = inputData.getString(KEY_MEDIA_TITLE) ?: "Manga"
-        val unitTitle = inputData.getString(KEY_UNIT_TITLE) ?: "Chapter"
-        val urlsJson = inputData.getString(KEY_PAGE_URLS_JSON) ?: return@withContext Result.failure()
-        val targetDirStr = inputData.getString(KEY_TARGET_DIR) ?: return@withContext Result.failure()
-
-        val targetDir = File(targetDirStr).apply { mkdirs() }
-        val urls = try {
-            val arr = JSONArray(urlsJson)
-            (0 until arr.length()).map { arr.getString(it) }
-        } catch (e: Exception) {
-            return@withContext Result.failure()
-        }
-
-        createNotificationChannel()
-
-        val foregroundInfo = createForegroundInfo(unitId, mediaTitle, unitTitle, 0, urls.size)
-        setForeground(foregroundInfo)
-
-        for (i in urls.indices) {
-            if (isStopped) {
-                return@withContext Result.retry()
-            }
-
-            val pageUrl = urls[i]
-            val destFile = File(targetDir, String.format("%03d.jpg", i + 1))
-
-            if (!destFile.exists() || destFile.length() == 0L) {
-                val downloaded = downloadPage(pageUrl, destFile)
-                if (!downloaded && !isStopped) {
-                    // One retry
-                    downloadPage(pageUrl, destFile)
+    @OptIn(FlowPreview::class)
+    override suspend fun doWork(): Result {
+        DownloadRuntime.workerCount.incrementAndGet()
+        try {
+            createNotificationChannel()
+            setForeground(createForegroundInfo(DownloadRuntime.state.value))
+            withContext(Dispatchers.Main) { BestEngine.get(context) }
+            withTimeout(6 * 60 * 60 * 1000L) {
+                coroutineScope {
+                    val updates = launch {
+                        DownloadRuntime.state.collect { snapshot ->
+                            if (snapshot.ready && snapshot.pending) {
+                                notificationManager.notify(
+                                    NOTIFICATION_ID, buildNotification(snapshot),
+                                )
+                            }
+                        }
+                    }
+                    // Debounce before filtering: new queued work must cancel an
+                    // in-flight idle timeout instead of ending its foreground life.
+                    DownloadRuntime.state.debounce(1200).first {
+                        it.canFinish
+                    }
+                    updates.cancel()
                 }
             }
-
-            updateProgressNotification(unitId, mediaTitle, unitTitle, i + 1, urls.size)
-        }
-
-        notificationManager.cancel(NOTIFICATION_ID)
-        Result.success()
-    }
-
-    private fun downloadPage(url: String, dest: File): Boolean {
-        return try {
-            val req = Request.Builder().url(url).build()
-            client.newCall(req).execute().use { response ->
-                if (!response.isSuccessful) return false
-                val bytes = response.body?.bytes() ?: return false
-                FileOutputStream(dest).use { it.write(bytes) }
-                true
+            return Result.success()
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            withContext(Dispatchers.Main) {
+                DownloadRuntime.failure(error.javaClass.simpleName)
             }
-        } catch (e: Exception) {
-            false
+            return Result.retry()
+        } finally {
+            DownloadRuntime.workerCount.decrementAndGet()
+            withContext(kotlinx.coroutines.NonCancellable + Dispatchers.Main) {
+                if (DownloadRuntime.workerCount.get() == 0) {
+                    notificationManager.cancel(NOTIFICATION_ID)
+                    BestEngine.releaseIfIdle()
+                }
+            }
         }
     }
 
@@ -121,14 +102,8 @@ class DownloadWorker(
         }
     }
 
-    private fun createForegroundInfo(
-        unitId: String,
-        mediaTitle: String,
-        unitTitle: String,
-        progress: Int,
-        total: Int
-    ): ForegroundInfo {
-        val notification = buildNotification(unitId, mediaTitle, unitTitle, progress, total)
+    private fun createForegroundInfo(snapshot: DownloadSnapshot): ForegroundInfo {
+        val notification = buildNotification(snapshot)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ForegroundInfo(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
@@ -136,46 +111,34 @@ class DownloadWorker(
         }
     }
 
-    private fun updateProgressNotification(
-        unitId: String,
-        mediaTitle: String,
-        unitTitle: String,
-        progress: Int,
-        total: Int
-    ) {
-        val notification = buildNotification(unitId, mediaTitle, unitTitle, progress, total)
-        notificationManager.notify(NOTIFICATION_ID, notification)
-    }
-
-    private fun buildNotification(
-        unitId: String,
-        mediaTitle: String,
-        unitTitle: String,
-        progress: Int,
-        total: Int
-    ): android.app.Notification {
-        val cancelIntent = Intent(context, DownloadNotificationReceiver::class.java).apply {
-            action = DownloadNotificationReceiver.ACTION_CANCEL
-            putExtra(DownloadNotificationReceiver.EXTRA_UNIT_ID, unitId)
+    private fun buildNotification(snapshot: DownloadSnapshot): android.app.Notification {
+        val pauseIntent = Intent(context, DownloadNotificationReceiver::class.java).apply {
+            action = DownloadNotificationReceiver.ACTION_PAUSE
         }
-        val cancelPendingIntent = PendingIntent.getBroadcast(
+        val pause = PendingIntent.getBroadcast(
             context,
-            unitId.hashCode(),
-            cancelIntent,
+            8001,
+            pauseIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
-        val title = "$mediaTitle — $unitTitle"
-        val content = if (total > 0) "جاري التحميل: $progress / $total صفحة" else "جاري بدء التحميل..."
+        val open = PendingIntent.getActivity(
+            context, 8002,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra("best_open_downloads", true)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
         return NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle(title)
-            .setContentText(content)
+            .setContentTitle(snapshot.title)
+            .setContentText(snapshot.detail)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setProgress(total, progress, total <= 0)
+            .setContentIntent(open)
+            .setProgress(snapshot.total, snapshot.progress.coerceAtMost(snapshot.total), snapshot.total <= 0)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "إلغاء", cancelPendingIntent)
+            .addAction(android.R.drawable.ic_media_pause, snapshot.pauseLabel, pause)
             .build()
     }
 }

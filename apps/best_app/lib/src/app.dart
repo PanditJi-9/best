@@ -10,6 +10,7 @@ import 'providers.dart';
 import 'router.dart';
 import 'network.dart';
 import 'updates.dart';
+import 'navigation.dart';
 
 class BestApp extends ConsumerStatefulWidget {
   const BestApp({super.key});
@@ -28,6 +29,7 @@ class _BestAppState extends ConsumerState<BestApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    _foreground = WidgetsBinding.instance.lifecycleState != AppLifecycleState.detached;
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkUpdates();
@@ -53,6 +55,7 @@ class _BestAppState extends ConsumerState<BestApp> with WidgetsBindingObserver {
   }
 
   Future<void> _checkBiometrics() async {
+    if (!_foreground) return;
     final enabled = ref.read(settingsProvider).biometricLockEnabled;
     if (!enabled || _authenticated || _authenticating) return;
 
@@ -76,7 +79,7 @@ class _BestAppState extends ConsumerState<BestApp> with WidgetsBindingObserver {
   /// platform without the connectivity plugin reports `unknown`; that is not
   /// enough evidence to spend the reader's data.
   void _checkAppUpdate() {
-    if (!mounted) return;
+    if (!mounted || !_foreground) return;
     final network = ref.read(networkProvider).value;
     if (network != NetworkKind.wifi && network != NetworkKind.mobile) return;
     unawaited(ref.read(updateProvider.notifier).check());
@@ -105,6 +108,12 @@ class _BestAppState extends ConsumerState<BestApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
+    ref.watch(backgroundDownloadsProvider);
+    ref.listen(backgroundDownloadsProvider, (previous, next) {
+      if (next.openRequests != (previous?.openRequests ?? 0)) {
+        _router.go(Routes.downloads);
+      }
+    });
     ref.listen(networkProvider, (previous, next) {
       if (next.value == NetworkKind.wifi && previous?.value != next.value) {
         _checkUpdates();

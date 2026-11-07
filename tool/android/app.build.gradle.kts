@@ -139,7 +139,7 @@ dependencies {
     implementation("com.google.mlkit:translate:17.0.3")
 
     // Android WorkManager for background downloads
-    implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
 
     // Biometric authentication for library lock
     implementation("androidx.biometric:biometric:1.1.0")

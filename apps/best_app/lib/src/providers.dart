@@ -18,6 +18,7 @@ import 'extension_host.dart';
 import 'network.dart';
 import 'ocr/ocr_client.dart';
 import 'security/biometric_client.dart';
+import 'l10n/generated/app_localizations.dart';
 
 // Keep existing settings-only imports source-compatible after moving these
 // framework-free choices into the domain layer.
@@ -85,6 +86,26 @@ final Provider<DownloadManager> downloadManagerProvider =
   );
   ref.onDispose(manager.dispose);
 
+  if (Platform.isAndroid) {
+    manager.prepareSources = () async {
+      // A cold worker must not confuse a still-loading extension catalogue
+      // with an uninstalled source.
+      try {
+        await ref.read(extensionCatalogProvider.future)
+            .timeout(const Duration(seconds: 20));
+      } catch (_) {
+        // DownloadManager reports an unavailable source honestly, per unit.
+      }
+      if (!ref.mounted) return;
+      if (ref.read(suwayomiClientProvider) != null) {
+        try {
+          await ref.read(suwayomiSourcesProvider.future)
+              .timeout(const Duration(seconds: 20));
+        } catch (_) {}
+      }
+    };
+  }
+
   // The queue obeys two app-level rules: the Wi-Fi-only setting and the storage
   // cap. Both are read through closures so changing a setting does not rebuild
   // the manager (and therefore does not drop a download in flight).
@@ -106,6 +127,149 @@ final Provider<DownloadManager> downloadManagerProvider =
   unawaited(manager.restore().catchError((Object _) {}));
   return manager;
 });
+
+/// Notification commands and display snapshots around the existing manager.
+/// There is no parallel queue, file store, database writer or polling timer.
+class BackgroundDownloadsController extends Notifier<BackgroundDownloadState> {
+  StreamSubscription<int>? _subscription;
+  bool _publishing = false;
+  bool _again = false;
+  Completer<void>? _publicationDone;
+  Future<void>? _startup;
+
+  Future<void> get ready => _startup ?? Future<void>.value();
+
+  @override
+  BackgroundDownloadState build() {
+    final client = ref.watch(backgroundDownloadClientProvider);
+    ref.onDispose(() {
+      unawaited(_subscription?.cancel());
+      client.dispose();
+    });
+    if (!client.isSupported) return const BackgroundDownloadState();
+    _startup = _start(client);
+    unawaited(_startup);
+    return const BackgroundDownloadState();
+  }
+
+  Future<void> _start(BackgroundDownloadClient client) async {
+    final repository = ref.read(repositoryProvider);
+    final manager = ref.read(downloadManagerProvider);
+    manager.onDrainChanged = () => unawaited(_publish());
+    ref.onDispose(() => manager.onDrainChanged = null);
+    try {
+      final available = await client.initialize(
+        onAction: notificationAction,
+        onFailure: (message) {
+          if (ref.mounted) {
+            state = BackgroundDownloadState(
+              error: message, openRequests: state.openRequests,
+            );
+          }
+        },
+      );
+      if (!ref.mounted) return;
+      state = BackgroundDownloadState(available: available,
+          openRequests: state.openRequests);
+      _subscription = repository.changes.listen((_) => unawaited(_publish()));
+      ref.listen(settingsProvider, (_, next) => unawaited(_publish()));
+      ref.listen(networkProvider, (_, next) => unawaited(_publish()));
+      await _publish();
+    } catch (error) {
+      if (ref.mounted) {
+        state = BackgroundDownloadState(
+            error: '$error', openRequests: state.openRequests);
+      }
+    }
+  }
+
+  Future<void> _publish() async {
+    if (!ref.mounted) return;
+    if (_publishing) {
+      _again = true;
+      await _publicationDone?.future;
+      return;
+    }
+    _publishing = true;
+    _publicationDone = Completer<void>();
+    try {
+      do {
+        _again = false;
+        final tasks = await ref.read(repositoryProvider).downloads();
+        if (!ref.mounted) return;
+        final pending = tasks.where((task) => task.isActive).toList();
+        pending.sort((a, b) {
+          if (a.status != b.status) {
+            if (a.status == DownloadStatus.running) return -1;
+            if (b.status == DownloadStatus.running) return 1;
+          }
+          return a.updatedAt.compareTo(b.updatedAt);
+        });
+        final settings = ref.read(settingsProvider);
+        final language = settings.languageCode ??
+            WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+        final l10n = await AppLocalizations.delegate.load(
+            Locale(language == 'ar' ? 'ar' : 'en'));
+        if (!ref.mounted) return;
+        final current = pending.isEmpty ? null : pending.first;
+        final busy = ref.read(downloadManagerProvider).isDraining;
+        final accepted = await ref.read(backgroundDownloadClientProvider).publish(
+          BackgroundDownloadSnapshot(
+            pending: pending.isNotEmpty || busy,
+            wifiOnly: settings.wifiOnly,
+            title: current?.mediaTitle ?? l10n.downloadsTitle,
+            detail: current == null
+                ? (busy ? l10n.downloadFinishingRequest : l10n.downloadDone) :
+                '${current.unitTitle} · ${l10n.downloadProgress(current.completed, current.total)}',
+            unitId: current?.unitId ?? '',
+            progress: current?.completed ?? 0,
+            total: current?.total ?? 0,
+            pauseLabel: l10n.downloadPauseAll,
+          ),
+        );
+        if (!accepted && ref.mounted) {
+          state = BackgroundDownloadState(error: 'Background service unavailable',
+              openRequests: state.openRequests);
+        }
+      } while (_again && ref.mounted);
+    } catch (error) {
+      if (ref.mounted) {
+        state = BackgroundDownloadState(error: '$error',
+            openRequests: state.openRequests);
+      }
+    } finally {
+      _publishing = false;
+      _publicationDone?.complete();
+      _publicationDone = null;
+    }
+  }
+
+  Future<void> notificationAction(String action, String? unitId) async {
+    if (!ref.mounted) return;
+    if (action == 'open') {
+      state = BackgroundDownloadState(available: state.available,
+          error: state.error, openRequests: state.openRequests + 1);
+      return;
+    }
+    if (!const {'pause', 'stop', 'resume'}.contains(action)) return;
+    final manager = ref.read(downloadManagerProvider);
+    final tasks = await ref.read(repositoryProvider).downloads();
+    for (final task in tasks) {
+      if (!ref.mounted) return;
+      if (unitId != null && unitId != task.unitId) continue;
+      if (action == 'resume' && unitId != null && task.isPaused) {
+        await manager.resume(task.unitId);
+      } else if (action != 'resume' && task.isActive) {
+        // Stop is non-destructive: the saved prefix and row stay available.
+        await manager.pause(task.unitId);
+      }
+    }
+    await _publish();
+  }
+}
+
+final backgroundDownloadsProvider = NotifierProvider<BackgroundDownloadsController,
+    BackgroundDownloadState>(BackgroundDownloadsController.new);
 
 /// Packs the person installed, newest last. Broken documents are dropped on
 /// load instead of blocking the app: a bad edit must never cost the library.
@@ -355,10 +519,25 @@ final Provider<SourceRegistry> sourceRegistryProvider =
         )))
       ExtensionSourceAdapter(host: extensionHost, info: info),
   ],
-      fallback: (id) => id == 'mangadex'
-          ? MangaDexSource(
-              client: client, language: language == 'ar' ? 'ar' : 'en')
-          : null);
+      fallback: (id) {
+        if (id == 'mangadex') {
+          return MangaDexSource(
+              client: client, language: language == 'ar' ? 'ar' : 'en');
+        }
+        // Display-language filtering must not strand stored works/downloads.
+        for (final info in extensions.sources) {
+          if (id == 'mihon:${info.sourceId}') {
+            return ExtensionSourceAdapter(host: extensionHost, info: info);
+          }
+        }
+        if (suwayomi != null) {
+          for (final info in remoteSources) {
+            final source = SuwayomiSource(client: suwayomi, info: info);
+            if (source.id == id) return source;
+          }
+        }
+        return null;
+      });
 });
 
 class AppSettings {

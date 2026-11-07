@@ -31,13 +31,17 @@ void main() {
       final preferences = await _openPreferences();
       final downloads = await _openDownloadRoot();
 
+      final container = ProviderContainer(overrides: [
+        repositoryProvider.overrideWithValue(repository),
+        preferencesProvider.overrideWithValue(preferences),
+        downloadRootProvider.overrideWithValue(downloads),
+      ]);
+      // A WorkManager engine has no FlutterView. Start its queue independently
+      // of the first rendered widget/frame; the UI shares this same container.
+      if (Platform.isAndroid) container.read(backgroundDownloadsProvider);
       runApp(
-        ProviderScope(
-          overrides: [
-            repositoryProvider.overrideWithValue(repository),
-            preferencesProvider.overrideWithValue(preferences),
-            downloadRootProvider.overrideWithValue(downloads),
-          ],
+        UncontrolledProviderScope(
+          container: container,
           child: const BestApp(),
         ),
       );

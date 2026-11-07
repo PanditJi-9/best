@@ -53,6 +53,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     };
     final totalBytes = current.fold<int>(0, (sum, task) => sum + task.bytes);
     final settings = ref.watch(settingsProvider);
+    final background = ref.watch(backgroundDownloadsProvider);
     final waitingForWifi = settings.wifiOnly &&
         ref.watch(networkProvider).value == NetworkKind.mobile;
 
@@ -75,7 +76,9 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                       Text(
                         totalBytes > 0
                             ? l10n.downloadsStorage(formatBytes(totalBytes))
-                            : l10n.downloadsNote,
+                            : background.available
+                                ? l10n.downloadsBackgroundNote
+                                : l10n.downloadsNote,
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -90,6 +93,16 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
               ],
             ),
           ),
+          if (background.error != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+              child: Text(
+                l10n.downloadsBackgroundFailed,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ),
           Expanded(
             child: downloads.when(
               loading: () => const SingleChildScrollView(

@@ -1,52 +1,90 @@
-import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/services.dart';
 
-/// Client to trigger and manage Android WorkManager background foreground downloads.
-/// Matches HikariManga 1.4.2 WorkManager download architecture.
+/// Android protects the lifetime of the existing Dart manager. It receives
+/// display snapshots, never a second set of URLs or file paths to download.
 class BackgroundDownloadClient {
-  const BackgroundDownloadClient();
+  const BackgroundDownloadClient({this.enabled});
+
+  final bool? enabled;
+  bool get isSupported => enabled ?? Platform.isAndroid;
 
   static const MethodChannel _channel =
       MethodChannel('app.best/background_download');
 
-  /// Enqueues a chapter download with native Android WorkManager,
-  /// creating a persistent foreground notification with Pause/Cancel actions.
-  Future<bool> enqueue({
-    required String chapterId,
-    required String mangaTitle,
-    required String chapterTitle,
-    required int totalPages,
-    required List<Map<String, dynamic>> pages,
+  Future<bool> initialize({
+    required Future<void> Function(String, String?) onAction,
+    required void Function(String) onFailure,
   }) async {
-    try {
-      final res = await _channel.invokeMethod<bool>('enqueueBackgroundDownload', {
-        'chapterId': chapterId,
-        'mangaTitle': mangaTitle,
-        'chapterTitle': chapterTitle,
-        'totalPages': totalPages,
-        'pagesJson': jsonEncode(pages),
-      });
-      return res ?? false;
-    } catch (_) {
-      return false;
-    }
+    if (!isSupported) return false;
+    _channel.setMethodCallHandler((call) async {
+      if (call.method == 'notificationAction' && call.arguments is Map) {
+        final arguments = call.arguments as Map;
+        final action = arguments['action'];
+        final unitId = arguments['unitId'];
+        if (action is String) {
+          await onAction(action, unitId is String ? unitId : null);
+        }
+      } else if (call.method == 'backgroundFailure') {
+        onFailure('${call.arguments}');
+      }
+    });
+    return await _channel.invokeMethod<bool>('ready') ?? false;
   }
 
-  Future<void> cancel(String chapterId) async {
-    try {
-      await _channel.invokeMethod<void>('cancelDownload', {'chapterId': chapterId});
-    } catch (_) {}
+  Future<bool> publish(BackgroundDownloadSnapshot snapshot) async {
+    if (!isSupported) return false;
+    return await _channel.invokeMethod<bool>(
+          'updateDownloadState', snapshot.toMap()) ??
+        false;
   }
 
-  Future<void> pause(String chapterId) async {
-    try {
-      await _channel.invokeMethod<void>('pauseDownload', {'chapterId': chapterId});
-    } catch (_) {}
+  void dispose() {
+    if (isSupported) _channel.setMethodCallHandler(null);
   }
+}
 
-  Future<void> resume(String chapterId) async {
-    try {
-      await _channel.invokeMethod<void>('resumeDownload', {'chapterId': chapterId});
-    } catch (_) {}
-  }
+class BackgroundDownloadSnapshot {
+  const BackgroundDownloadSnapshot({
+    required this.pending,
+    required this.wifiOnly,
+    required this.title,
+    required this.detail,
+    required this.pauseLabel,
+    this.unitId = '',
+    this.progress = 0,
+    this.total = 0,
+  });
+
+  final bool pending;
+  final bool wifiOnly;
+  final String unitId;
+  final String title;
+  final String detail;
+  final String pauseLabel;
+  final int progress;
+  final int total;
+
+  Map<String, Object> toMap() => {
+        'pending': pending,
+        'wifiOnly': wifiOnly,
+        'unitId': unitId,
+        'title': title,
+        'detail': detail,
+        'pauseLabel': pauseLabel,
+        'progress': progress,
+        'total': total,
+      };
+}
+
+class BackgroundDownloadState {
+  const BackgroundDownloadState({
+    this.available = false,
+    this.error,
+    this.openRequests = 0,
+  });
+
+  final bool available;
+  final String? error;
+  final int openRequests;
 }
