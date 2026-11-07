@@ -65,7 +65,14 @@ void main() {
       networkProvider.overrideWith((ref) => Stream.value(NetworkKind.mobile)),
     ]);
     addTearDown(container.dispose);
+    // Riverpod 3 pauses unobserved streams. Keep the same listeners the app's
+    // root owns instead of waiting on an unobserved network Future forever.
+    final networkSubscription = container.listen(networkProvider, (_, next) {});
+    addTearDown(networkSubscription.close);
     await container.read(networkProvider.future);
+    final backgroundSubscription = container.listen(backgroundDownloadsProvider,
+        (_, next) {});
+    addTearDown(backgroundSubscription.close);
     final notifier = container.read(backgroundDownloadsProvider.notifier);
     await notifier.ready;
     expect(bridge.snapshots.last.pending, isTrue);
