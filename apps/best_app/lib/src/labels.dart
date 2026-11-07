@@ -94,6 +94,17 @@ String shortDate(int epochMillis) {
   return ltrIsolate('${date.year}-$month-$day');
 }
 
+/// Date and 24-hour time for source health evidence.
+String shortDateTime(int epochMillis) {
+  if (epochMillis <= 0) return '';
+  final date = DateTime.fromMillisecondsSinceEpoch(epochMillis);
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  final hour = date.hour.toString().padLeft(2, '0');
+  final minute = date.minute.toString().padLeft(2, '0');
+  return ltrIsolate('${date.year}-$month-$day $hour:$minute');
+}
+
 /// Storage sizes are units, not prose: the same "12.4 MB" reads correctly in
 /// both languages and matches what the system settings show.
 String formatBytes(int bytes) {

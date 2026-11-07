@@ -94,6 +94,15 @@
   },
   "pageImage": "Page image",
   "pageImageError": "This page did not load",
+  "pageImageErrorBody": "The image could not be downloaded. Check the connection, then try again.",
+  "pageImageErrorPage": "Page {page}",
+  "@pageImageErrorPage": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      }
+    }
+  },
   "readerEnd": "End of this unit",
   "pages": "{count} pages",
   "@pages": {
@@ -913,6 +922,63 @@
   "sourcesKeepOne": "Keep at least one source visible.",
   "sourcesHiddenEmptyTitle": "All sources are hidden",
   "sourcesHiddenEmptyBody": "Show a source in Manage sources to bring catalogues and news back.",
+  "sourceHealthUnknown": "Not tested yet",
+  "sourceHealthOk": "Last success: {when}",
+  "@sourceHealthOk": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "sourceHealthSlow": "Slow: {latency}",
+  "@sourceHealthSlow": {
+    "placeholders": {
+      "latency": {
+        "type": "String"
+      }
+    }
+  },
+  "sourceHealthFailed": "Failed: {when}",
+  "@sourceHealthFailed": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "sourceTest": "Test now",
+  "sourceTesting": "Testing…",
+  "sourceTestSuccess": "{name} answered in {ms} ms",
+  "@sourceTestSuccess": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "sourceTestFailed": "{name} failed: {error}",
+  "@sourceTestFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "sourceTestTimeout": "{name} did not answer within 15 seconds",
+  "@sourceTestTimeout": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "homeLatestBadge": "New",
   "homeForYou": "Picked for you",
   "homeSource": "Source",

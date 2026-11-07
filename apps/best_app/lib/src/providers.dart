@@ -1107,6 +1107,142 @@ final NotifierProvider<SourceVisibilityController, Set<String>>
   SourceVisibilityController.new,
 );
 
+/// What the last request to a source did.
+///
+/// A catalogue can fail while the app is otherwise healthy. This is the small
+/// amount of evidence Manage sources needs to say "this one is down" without
+/// pretending the whole app is broken, and without silently switching away
+/// from the source the reader chose.
+class SourceHealth {
+  const SourceHealth({
+    this.lastSuccessAt = 0,
+    this.lastFailureAt = 0,
+    this.lastError,
+    this.lastLatencyMs = 0,
+  });
+
+  final int lastSuccessAt;
+  final int lastFailureAt;
+  final String? lastError;
+  final int lastLatencyMs;
+
+  bool get tested => lastSuccessAt > 0 || lastFailureAt > 0;
+  bool get failed => lastFailureAt > lastSuccessAt;
+  bool get slow => !failed && lastSuccessAt > 0 && lastLatencyMs >= 4000;
+
+  Map<String, Object?> toJson() => {
+        's': lastSuccessAt,
+        'f': lastFailureAt,
+        'e': lastError,
+        'l': lastLatencyMs,
+      };
+
+  static SourceHealth? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    int read(String key) => (raw[key] as num?)?.toInt() ?? 0;
+    final error = raw['e'];
+    return SourceHealth(
+      lastSuccessAt: read('s'),
+      lastFailureAt: read('f'),
+      lastError: error is String && error.trim().isNotEmpty ? error : null,
+      lastLatencyMs: read('l'),
+    );
+  }
+}
+
+class SourceHealthController extends Notifier<Map<String, SourceHealth>> {
+  static const String _key = 'source_health_v1';
+  Timer? _saveTimer;
+
+  @override
+  Map<String, SourceHealth> build() {
+    ref.onDispose(() => _saveTimer?.cancel());
+    final raw = ref.watch(preferencesProvider)?.getString(_key);
+    if (raw == null || raw.trim().isEmpty) return const {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return const {};
+      final result = <String, SourceHealth>{};
+      for (final entry in decoded.entries) {
+        final health = SourceHealth.fromJson(entry.value);
+        if (health != null) result['${entry.key}'] = health;
+      }
+      return Map.unmodifiable(result);
+    } catch (_) {
+      // A corrupt health cache is disposable: it is evidence, not user data.
+      return const {};
+    }
+  }
+
+  SourceHealth? healthOf(String sourceId) => state[sourceId];
+
+  void recordSuccess(String sourceId, Duration latency) {
+    final previous = state[sourceId];
+    final failureAt = previous?.lastFailureAt ?? 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final next = <String, SourceHealth>{
+      ...state,
+      sourceId: SourceHealth(
+        // A success in the same millisecond as a failure still has to win.
+        lastSuccessAt: now > failureAt ? now : failureAt + 1,
+        lastFailureAt: failureAt,
+        lastLatencyMs: latency.inMilliseconds,
+      ),
+    };
+    state = Map.unmodifiable(next);
+    _scheduleSave();
+  }
+
+  void recordFailure(String sourceId, Object error) {
+    final previous = state[sourceId];
+    final successAt = previous?.lastSuccessAt ?? 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final next = <String, SourceHealth>{
+      ...state,
+      sourceId: SourceHealth(
+        lastSuccessAt: successAt,
+        lastFailureAt: now > successAt ? now : successAt + 1,
+        lastError: _shortError(error),
+        lastLatencyMs: previous?.lastLatencyMs ?? 0,
+      ),
+    };
+    state = Map.unmodifiable(next);
+    _scheduleSave();
+  }
+
+  /// Writes the current evidence immediately, for tests and explicit actions.
+  Future<void> flush() async {
+    _saveTimer?.cancel();
+    await _save();
+  }
+
+  void _scheduleSave() {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(seconds: 1), () {
+      unawaited(_save());
+    });
+  }
+
+  Future<void> _save() async {
+    final encoded = jsonEncode({
+      for (final entry in state.entries) entry.key: entry.value.toJson(),
+    });
+    await ref.read(preferencesProvider)?.setString(_key, encoded);
+  }
+
+  static String _shortError(Object error) {
+    final first = error.toString().split('\n').first.trim();
+    if (first.isEmpty) return 'Unknown error';
+    return first.length > 180 ? '${first.substring(0, 177)}…' : first;
+  }
+}
+
+final NotifierProvider<SourceHealthController, Map<String, SourceHealth>>
+    sourceHealthProvider =
+    NotifierProvider<SourceHealthController, Map<String, SourceHealth>>(
+  SourceHealthController.new,
+);
+
 /// Categories are tags with a first-class name.
 ///
 /// The assignment still lives on the work (`media.tags`), so a backup made by
@@ -1446,7 +1582,19 @@ final browseProvider = FutureProvider.family<List<Media>, BrowseKey>((
   final source = ref.watch(sourceRegistryProvider).byId(key.sourceId);
   if (source == null) return const <Media>[];
   final query = key.query.trim();
-  return query.isEmpty ? source.popular() : source.search(query);
+  final started = DateTime.now();
+  try {
+    final result =
+        query.isEmpty ? await source.popular() : await source.search(query);
+    ref.read(sourceHealthProvider.notifier).recordSuccess(
+          source.id,
+          DateTime.now().difference(started),
+        );
+    return result;
+  } catch (error) {
+    ref.read(sourceHealthProvider.notifier).recordFailure(source.id, error);
+    rethrow;
+  }
 });
 
 /// What the front door shows: the live catalogue of every enabled source,
@@ -1815,18 +1963,29 @@ final searchAllProvider =
   final query = rawQuery.trim();
   if (query.isEmpty) return const <Media>[];
   final registry = ref.watch(sourceRegistryProvider);
+  Future<List<Media>> ask(SourceAdapter source) async {
+    final started = DateTime.now();
+    try {
+      // An extension that hangs must not hold the whole search box open.
+      final page = await source
+          .search(query)
+          .timeout(const Duration(seconds: 15));
+      ref.read(sourceHealthProvider.notifier).recordSuccess(
+            source.id,
+            DateTime.now().difference(started),
+          );
+      return page;
+    } catch (error) {
+      ref.read(sourceHealthProvider.notifier).recordFailure(source.id, error);
+      return const <Media>[];
+    }
+  }
+
   final pages = await Future.wait(<Future<List<Media>>>[
     for (final source in registry.all)
       if (source.id != DemoSource.sourceId &&
           !source.id.startsWith('suwayomi:'))
-        source
-            .search(query)
-            // An extension that hangs must not hold the whole search box open.
-            .timeout(
-              const Duration(seconds: 15),
-              onTimeout: () => const <Media>[],
-            )
-            .catchError((Object _) => const <Media>[]),
+        ask(source),
   ]);
 
   final merged = <Media>[];
@@ -1969,9 +2128,20 @@ final seriesProvider = FutureProvider.family<SeriesData, SeriesKey>((
     // enough to open the work and read its chapters.
   }
 
-  final units = UnitNavigation.readingOrder(await source.units(media).timeout(
-        const Duration(seconds: 20),
-      ));
+  final started = DateTime.now();
+  final List<MediaUnit> units;
+  try {
+    units = UnitNavigation.readingOrder(await source.units(media).timeout(
+          const Duration(seconds: 20),
+        ));
+    ref.read(sourceHealthProvider.notifier).recordSuccess(
+          source.id,
+          DateTime.now().difference(started),
+        );
+  } catch (error) {
+    ref.read(sourceHealthProvider.notifier).recordFailure(source.id, error);
+    rethrow;
+  }
   await repository.saveUnits(units);
 
   final progress = <String, UnitProgress>{};

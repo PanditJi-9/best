@@ -139,8 +139,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       setState(() => _loadingMore = true);
     }
 
+    final started = DateTime.now();
     try {
       final works = await _fetch(source, feed, page);
+      if (mounted) {
+        ref.read(sourceHealthProvider.notifier).recordSuccess(
+              source.id,
+              DateTime.now().difference(started),
+            );
+      }
       if (!mounted || generation != _generation) return;
       final seen = {for (final work in _works) work.id};
       final fresh = <Media>[];
@@ -160,6 +167,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _boundFeed = feed;
       });
     } catch (error) {
+      if (mounted) {
+        ref.read(sourceHealthProvider.notifier).recordFailure(source.id, error);
+      }
       if (!mounted || generation != _generation) return;
       setState(() {
         _loading = false;
@@ -458,11 +468,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         EmptyState(
           icon: Icons.cloud_off_outlined,
           title: l10n.sourceError,
-          body: _error!,
-          action: FilledButton.icon(
-            onPressed: () => _load(reset: true),
-            icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: Text(l10n.retry),
+          body: '${current.name}\n$_error',
+          action: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: BestSpace.sm,
+            runSpacing: BestSpace.xs,
+            children: [
+              FilledButton.icon(
+                onPressed: () => _load(reset: true),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: Text(l10n.retry),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => context.push(Routes.manageSources),
+                icon: const Icon(Icons.tune_rounded, size: 18),
+                label: Text(l10n.sourcesManage),
+              ),
+            ],
           ),
         ),
       );

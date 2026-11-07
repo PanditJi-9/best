@@ -1571,6 +1571,7 @@ Widget _networkImage(
   double? width,
   Key? key,
   VoidCallback? onRetry,
+  VoidCallback? onError,
   bool reserveHeight = false,
   int? index,
   int? total,
@@ -1612,22 +1613,43 @@ Widget _networkImage(
       BuildContext context,
       Object error,
       StackTrace? stack,
-    ) =>
-        _PageError(message: '$error', onRetry: onRetry),
+    ) {
+      onError?.call();
+      return _PageError(
+        message: '$error',
+        onRetry: onRetry,
+        index: index,
+        total: total,
+      );
+    },
   );
 }
 
 class _PageError extends StatelessWidget {
-  const _PageError({this.message, this.onRetry});
+  const _PageError({
+    this.message,
+    this.onRetry,
+    this.index,
+    this.total,
+  });
 
   final String? message;
   final VoidCallback? onRetry;
+  final int? index;
+  final int? total;
 
   @override
   Widget build(BuildContext context) {
-    final text = message;
+    final l10n = AppLocalizations.of(context);
+    final text = message?.trim();
+    final pageLabel = switch (index) {
+      null => l10n.pageImageError,
+      final page when total != null && total! > 0 =>
+        l10n.pageOf(page + 1, total!),
+      final page => l10n.pageImageErrorPage(page + 1),
+    };
     return Semantics(
-      label: AppLocalizations.of(context).pageImageError,
+      label: '$pageLabel. ${l10n.pageImageErrorBody}',
       container: true,
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -1644,12 +1666,30 @@ class _PageError extends StatelessWidget {
                 color: Colors.white38,
                 size: 40,
               ),
+              const SizedBox(height: 12),
+              Text(
+                pageLabel,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                l10n.pageImageErrorBody,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+              ),
               if (text != null && text.isNotEmpty) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 6),
                 Text(
                   text,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  style: const TextStyle(color: Colors.white30, fontSize: 10),
                 ),
               ],
               if (onRetry != null) ...[
@@ -1660,7 +1700,7 @@ class _PageError extends StatelessWidget {
                     foregroundColor: BestColors.jade,
                   ),
                   icon: const Icon(Icons.refresh_rounded, size: 16),
-                  label: Text(AppLocalizations.of(context).retry),
+                  label: Text(l10n.retry),
                 ),
               ],
             ],
@@ -1920,6 +1960,11 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
   /// replaying the failed image from the flutter image cache.
   int _attempt = 0;
 
+  /// A transient failure gets one quiet retry before the reader is asked to
+  /// act. More than one would hammer a source that is genuinely down.
+  bool _autoRetried = false;
+  Timer? _retryTimer;
+
   @override
   void initState() {
     super.initState();
@@ -1927,14 +1972,31 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
   }
 
   @override
+  void dispose() {
+    _retryTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   void didUpdateWidget(_ResourcePage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.resource != widget.resource ||
         oldWidget.sourceId != widget.sourceId) {
+      _retryTimer?.cancel();
+      _autoRetried = false;
       _attempt++;
       _bytes = null;
       _loadSignedImage();
     }
+  }
+
+  void _handleImageError() {
+    if (_autoRetried) return;
+    _autoRetried = true;
+    _retryTimer?.cancel();
+    _retryTimer = Timer(const Duration(milliseconds: 800), () {
+      if (mounted) _retry();
+    });
   }
 
   void _loadSignedImage() {
@@ -1986,6 +2048,7 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
   double? get _imageWidth => _fitsWidth ? double.infinity : null;
 
   void _retry() {
+    _retryTimer?.cancel();
     setState(() {
       _attempt++;
       _bytes = null;
@@ -2051,6 +2114,7 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                     width: _imageWidth,
                     key: ValueKey('network-$url-$_attempt'),
                     onRetry: retry,
+                    onError: _handleImageError,
                     reserveHeight: _fitsWidth,
                     index: widget.index,
                     total: widget.total,
@@ -2060,9 +2124,12 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                     future: _bytes,
                     builder: (context, snapshot) {
                       if (snapshot.hasError) {
+                        _handleImageError();
                         return _PageError(
                           message: '${snapshot.error}',
                           onRetry: retry,
+                          index: widget.index,
+                          total: widget.total,
                         );
                       }
                       if (snapshot.connectionState == ConnectionState.waiting) {
@@ -2082,6 +2149,7 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                           width: _imageWidth,
                           key: ValueKey('fallback-$url-$_attempt'),
                           onRetry: retry,
+                          onError: _handleImageError,
                           reserveHeight: _fitsWidth,
                           index: widget.index,
                           total: widget.total,
@@ -2111,8 +2179,15 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                           BuildContext context,
                           Object error,
                           StackTrace? stack,
-                        ) =>
-                            _PageError(onRetry: retry),
+                        ) {
+                          _handleImageError();
+                          return _PageError(
+                            message: '$error',
+                            onRetry: retry,
+                            index: widget.index,
+                            total: widget.total,
+                          );
+                        },
                       );
                     },
                   ),
@@ -2144,8 +2219,15 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                 BuildContext context,
                 Object error,
                 StackTrace? stack,
-              ) =>
-                  _PageError(onRetry: retry),
+              ) {
+                _handleImageError();
+                return _PageError(
+                  message: '$error',
+                  onRetry: retry,
+                  index: widget.index,
+                  total: widget.total,
+                );
+              },
             ),
           ),
         ),

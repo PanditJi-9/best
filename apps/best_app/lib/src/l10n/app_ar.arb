@@ -94,6 +94,15 @@
   },
   "pageImage": "صورة الصفحة",
   "pageImageError": "لم تُحمَّل هذه الصفحة",
+  "pageImageErrorBody": "تعذّر تنزيل الصورة. تحقّق من الاتصال ثم أعد المحاولة.",
+  "pageImageErrorPage": "الصفحة {page}",
+  "@pageImageErrorPage": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      }
+    }
+  },
   "readerEnd": "نهاية هذه الوحدة",
   "pages": "{count, plural, zero{لا صفحات} one{صفحة واحدة} two{صفحتان} few{{count} صفحات} many{{count} صفحة} other{{count} صفحة}}",
   "@pages": {
@@ -754,6 +763,63 @@
   "sourcesKeepOne": "أبقِ مصدرًا واحدًا ظاهرًا على الأقل.",
   "sourcesHiddenEmptyTitle": "كل المصادر مخفية",
   "sourcesHiddenEmptyBody": "أظهر مصدرًا من إدارة المصادر لتعود الكتالوجات والأخبار.",
+  "sourceHealthUnknown": "لم يُختبر بعد",
+  "sourceHealthOk": "آخر نجاح: {when}",
+  "@sourceHealthOk": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "sourceHealthSlow": "استجاب ببطء: {latency}",
+  "@sourceHealthSlow": {
+    "placeholders": {
+      "latency": {
+        "type": "String"
+      }
+    }
+  },
+  "sourceHealthFailed": "فشل: {when}",
+  "@sourceHealthFailed": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "sourceTest": "اختبر الآن",
+  "sourceTesting": "جارٍ الاختبار…",
+  "sourceTestSuccess": "استجاب {name} في {ms} مللي",
+  "@sourceTestSuccess": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "sourceTestFailed": "فشل {name}: {error}",
+  "@sourceTestFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "sourceTestTimeout": "لم يستجب {name} خلال 15 ثانية",
+  "@sourceTestTimeout": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "homeLatestBadge": "جديد",
   "homeForYou": "مختارات لك",
   "homeSource": "المصدر",
