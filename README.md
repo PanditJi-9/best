@@ -6,19 +6,19 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 1.5.2 build 27 in development — honest dates, a readable reader, a player that explains itself, and sources you can hide.**
-Build 26 passed Flutter analysis, 172 serial widget and unit tests, 62 Python
+**Status: 1.5.2 build 27 — honest dates, a readable reader, a player that explains itself, and sources you can hide.**
+Build 27 passed Flutter analysis, 180 serial widget and unit tests, 62 Python
 tool tests, the extension runtime JVM gate, and signed four-APK generation in
-[CI](https://github.com/PanditJi-9/best/actions/runs/42332008960). The universal,
+[CI](https://github.com/PanditJi-9/best/actions/runs/42365045411). The universal,
 arm64-v8a, armeabi-v7a and x86_64 APKs share one application id, version and
-signing certificate. This build rearranges the shell around five content tabs —
-Home, Library, Downloads, Encyclopedia and History — with Settings pushed from
+signing certificate. This build keeps the five content tabs — Home, Library,
+Downloads, Encyclopedia and History — with Settings pushed from
 the home masthead. Downloads are no longer folded into the Library: they have a
 quiet grouped screen, one download-history control and a chronological history
 screen, while the Library keeps a single filter control instead of a chip row.
 The encyclopedia returns as a visible destination, named Encyclopedia in
-English. See [the build notes](docs/releases/1.5.1-build26.md).
-No 1.5.1 release has been published.
+English. See [the build notes](docs/releases/1.5.2-build27.md).
+No 1.5.2 release has been published.
 
 The shelf, the reader, the video player with captions, the bilingual UI, local
 progress, statistics, JSON backup/restore, one real catalogue (MangaDex),
