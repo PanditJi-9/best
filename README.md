@@ -11,8 +11,9 @@ Build 24 passed Flutter analysis, tests and signed-APK generation in
 [CI](https://github.com/PanditJi-9/best/actions/runs/42313388842), and produced
 universal, arm64-v8a, armeabi-v7a and x86_64 APKs that share one application id
 and signing certificate. Build 25 reorganises navigation around four tabs
-(Home, Library, History, Settings), makes Home strictly source-scoped with a
-Manga/Anime switch, folds finished downloads into the Library, removes the
+(Home, Library, History, Settings), makes Home strictly source-scoped — the
+chosen source's own kind decides whether it shows manga or anime, with no
+global switch — folds finished downloads into the Library, removes the
 Database/Discover/Menu screens, and streamlines the reader chrome with
 automatic chapter advance. See [the build notes](docs/releases/1.5.0-build25.md).
 No 1.5.0 release has been published.
@@ -39,10 +40,12 @@ Suwayomi remains as an optional alternative for readers who already run one.
 
 ## What works today
 
-- **A source-first front door.** Home shows one source at a time, never a
-  mixed manga/anime grid: a Manga/Anime switch, pinned source chips with the
-  site's own icon, and Latest/Popular feeds with infinite scroll. Long-press a
-  poster to shelve it. Four tabs: Home, Library, History, Settings.
+- **A source-first front door.** Home shows one installed source at a time,
+  never a mixed manga/anime grid. Each source already knows what it publishes,
+  so a manga-only reader never sees an anime control, and an anime-only reader
+  never sees a manga one. Pinned source chips use the site's own icon, with
+  Latest/Popular feeds, infinite scroll, and long-press to shelve a poster.
+  Four tabs: Home, Library, History, Settings.
 - **Offline belongs to the shelf.** Finished downloads appear in a Ready
   offline rail above the Library, while active and failed transfers collapse
   into one banner that opens the download manager. There is no separate

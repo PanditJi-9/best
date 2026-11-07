@@ -130,8 +130,10 @@ branch on a source name.
 
 ### Why these four
 
-Home is source-first: a pinned source strip and a Manga/Anime switch scope one
-catalogue at a time, so manga and anime never mix in one grid. Library now owns
+Home is source-first: a pinned source strip scopes one catalogue at a time, so
+manga and anime never mix in one grid. The source itself declares its kind, so
+there is no global Manga/Anime switch taking space from a reader who only uses
+one half. Library now owns
 offline content too — a finished-download rail sits above the shelf, and active
 or failed transfers appear as one quiet banner that opens the manager. History
 takes the old Database position because recent activity is the thing a reader
@@ -155,15 +157,14 @@ intermediate screen. Database, Discover and the old Menu are no longer tabs.
 ### Home — the front door
 
 1. **Wordmark and one search box** — the only global action on the page.
-2. **Manga / Anime switch** — changes which half of the catalogue is shown;
-   the choice is persisted, never mixed in one grid.
-3. **Pinned source strip** — compact chips with the source's own image open
-   that catalogue directly. Changing source keeps the scroll position and
-   reloads in place; Add source opens the directory already narrowed to the
-   current kind.
-4. **Latest / Popular** — the two feeds a source can actually answer.
+2. **Pinned source strip** — compact chips with the source's own image open
+   that catalogue directly, and the remembered source is restored on launch.
+   A source declares whether it publishes manga or anime, so a reader who
+   installs only manga sources never sees an anime control — and the same is
+   true in reverse. Add source opens the directory without forcing a half.
+3. **Latest / Popular** — the two feeds a source can actually answer.
    Infinite scroll pages past the first batch; pull to refresh.
-5. **Long-press** — adds the work to the library, or removes it, without
+4. **Long-press** — adds the work to the library, or removes it, without
    opening the details page.
 
 The hero adapts its height to the available width. On wide layouts the tab

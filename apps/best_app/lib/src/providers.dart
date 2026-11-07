@@ -1011,8 +1011,8 @@ final NotifierProvider<LibraryQueryController, LibraryQuery>
   LibraryQueryController.new,
 );
 
-/// The two halves of Best. A source belongs to one of them, and so does the
-/// home feed: manga and anime are never presented as one undifferentiated pile.
+/// The two halves of Best. A source belongs to one of them, which is why Home
+/// needs no separate switch: choosing a source already chooses the half.
 enum HomeKind { reading, watching }
 
 /// Which half a source serves. Extensions declare it; a JSON pack declares its
@@ -1030,44 +1030,28 @@ HomeKind homeKindOf(SourceAdapter source) {
 }
 
 /// The front door remembers the last source, so reopening Best lands on the
-/// catalogue the person actually uses instead of a merged list.
+/// catalogue the person actually uses instead of a merged list. The source's
+/// own kind decides whether the feed reads manga or anime; there is no global
+/// switch taking room on a screen a manga-only reader may never need.
 class HomeScope {
-  const HomeScope({this.sourceId, this.kind = HomeKind.reading});
+  const HomeScope({this.sourceId});
 
   final String? sourceId;
-  final HomeKind kind;
 }
 
 class HomeScopeController extends Notifier<HomeScope> {
   static const String _sourceKey = 'home.source';
-  static const String _kindKey = 'home.kind';
 
   @override
   HomeScope build() {
     final prefs = ref.watch(preferencesProvider);
-    return HomeScope(
-      sourceId: prefs?.getString(_sourceKey),
-      kind: prefs?.getString(_kindKey) == 'watching'
-          ? HomeKind.watching
-          : HomeKind.reading,
-    );
+    return HomeScope(sourceId: prefs?.getString(_sourceKey));
   }
 
   void selectSource(String? sourceId) {
-    unawaited(
-        ref.read(preferencesProvider)?.setString(_sourceKey, sourceId ?? ''));
-    state = HomeScope(
-      sourceId: sourceId == null || sourceId.isEmpty ? null : sourceId,
-      kind: state.kind,
-    );
-  }
-
-  void setKind(HomeKind kind, {String? sourceId}) {
-    unawaited(ref.read(preferencesProvider)?.setString(_kindKey, kind.name));
-    unawaited(ref
-        .read(preferencesProvider)
-        ?.setString(_sourceKey, sourceId ?? state.sourceId ?? ''));
-    state = HomeScope(sourceId: sourceId ?? state.sourceId, kind: kind);
+    final next = sourceId == null || sourceId.isEmpty ? null : sourceId;
+    unawaited(ref.read(preferencesProvider)?.setString(_sourceKey, next ?? ''));
+    state = HomeScope(sourceId: next);
   }
 }
 

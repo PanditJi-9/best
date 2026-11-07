@@ -33,7 +33,6 @@ enum _Feed { latest, popular }
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final ScrollController _scroll = ScrollController();
 
-  HomeKind _kind = HomeKind.reading;
   String? _sourceId;
   _Feed _feed = _Feed.latest;
 
@@ -52,7 +51,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     final scope = ref.read(homeScopeProvider);
-    _kind = scope.kind;
     _sourceId = scope.sourceId;
     _scroll.addListener(_onScroll);
   }
@@ -73,12 +71,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  List<SourceAdapter> _sourcesFor(HomeKind kind) {
-    return ref
-        .read(sourceRegistryProvider)
-        .all
-        .where((source) => homeKindOf(source) == kind)
-        .toList(growable: false);
+  /// Every source the reader installed, manga and anime alike. No switch is
+  /// shown: a source already knows what it publishes, and a reader who never
+  /// adds an anime extension should never see an anime control.
+  List<SourceAdapter> _sources() {
+    return ref.read(sourceRegistryProvider).all.toList(growable: false);
   }
 
   Future<List<Media>> _fetch(SourceAdapter source, _Feed feed, int page) {
@@ -89,7 +86,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _load({bool reset = false}) async {
-    final sources = _sourcesFor(_kind);
+    final sources = _sources();
     if (sources.isEmpty) {
       setState(() {
         _works = const [];
@@ -177,22 +174,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     unawaited(_load(reset: true));
   }
 
-  void _setKind(HomeKind kind) {
-    if (kind == _kind) return;
-    final sources = _sourcesFor(kind);
-    final nextId = sources.isEmpty ? null : sources.first.id;
-    setState(() {
-      _kind = kind;
-      _sourceId = nextId;
-      _boundSourceId = null;
-      _boundFeed = null;
-      _works = const [];
-      _initialised = false;
-    });
-    ref.read(homeScopeProvider.notifier).setKind(kind, sourceId: nextId);
-    unawaited(_load(reset: true));
-  }
-
   void _setFeed(_Feed feed) {
     if (feed == _feed) return;
     setState(() {
@@ -221,9 +202,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         },
         onAdd: () {
           Navigator.of(sheetContext).pop();
-          context.push(Routes.sourcesFor(
-            _kind == HomeKind.watching ? 'anime' : 'manga',
-          ));
+          context.push(Routes.sources);
         },
       ),
     );
@@ -275,7 +254,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final sources = _sourcesFor(_kind);
+    final sources = _sources();
     SourceAdapter? current;
     for (final source in sources) {
       if (source.id == _sourceId) {
@@ -340,20 +319,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              BestLayout.gutter,
-              BestSpace.sm,
-              BestLayout.gutter,
-              0,
-            ),
-            child: _KindSwitch(
-              kind: _kind,
-              onChanged: _setKind,
-              readingLabel: l10n.kindManga,
-              watchingLabel: l10n.kindAnime,
-            ),
-          ),
           const SizedBox(height: BestSpace.sm),
           _SourceStrip(
             sources: sources,
@@ -412,9 +377,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           body: l10n.mangaNoSourcesBody,
           action: FilledButton.icon(
             onPressed: () => context.push(
-              Routes.sourcesFor(
-                _kind == HomeKind.watching ? 'anime' : 'manga',
-              ),
+              Routes.sources,
             ),
             icon: const Icon(Icons.add_rounded, size: 18),
             label: Text(l10n.homeAddSources),
@@ -515,85 +478,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: BestSpace.xl)),
-        ],
-      ),
-    );
-  }
-}
-
-class _KindSwitch extends StatelessWidget {
-  const _KindSwitch({
-    required this.kind,
-    required this.onChanged,
-    required this.readingLabel,
-    required this.watchingLabel,
-  });
-
-  final HomeKind kind;
-  final ValueChanged<HomeKind> onChanged;
-  final String readingLabel;
-  final String watchingLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(BestRadius.pill),
-      ),
-      child: Row(
-        children: [
-          for (final option in HomeKind.values)
-            Expanded(
-              child: Semantics(
-                button: true,
-                selected: option == kind,
-                child: InkWell(
-                  onTap: () => onChanged(option),
-                  borderRadius: BorderRadius.circular(BestRadius.pill),
-                  child: AnimatedContainer(
-                    duration: BestMotion.normal,
-                    curve: BestMotion.curve,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: option == kind
-                          ? theme.colorScheme.primary
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(BestRadius.pill),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          option == HomeKind.reading
-                              ? Icons.auto_stories_rounded
-                              : Icons.play_circle_outline_rounded,
-                          size: 17,
-                          color: option == kind
-                              ? theme.colorScheme.onPrimary
-                              : theme.colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 7),
-                        Text(
-                          option == HomeKind.reading
-                              ? readingLabel
-                              : watchingLabel,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: option == kind
-                                ? theme.colorScheme.onPrimary
-                                : theme.colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     );

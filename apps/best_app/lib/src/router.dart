@@ -139,9 +139,7 @@ GoRouter buildRouter() => GoRouter(
         ),
         GoRoute(
           path: Routes.sources,
-          builder: (context, state) => SourceDirectoryScreen(
-            initialKind: state.uri.queryParameters['kind'] ?? 'all',
-          ),
+          builder: (context, state) => const SourceDirectoryScreen(),
         ),
         GoRoute(
           path: Routes.downloads,
