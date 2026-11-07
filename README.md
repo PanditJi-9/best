@@ -6,19 +6,19 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 1.5.2 build 27 — honest dates, a readable reader, a player that explains itself, and sources you can hide.**
-Build 27 passed Flutter analysis, 180 serial widget and unit tests, 62 Python
+**Status: 1.5.3 build 28 — source-health evidence and page-level reader recovery.**
+Build 28 passed Flutter analysis, 182 widget and unit tests, 62 Python
 tool tests, the extension runtime JVM gate, and signed four-APK generation in
-[CI](https://github.com/PanditJi-9/best/actions/runs/42365045411). The universal,
+[CI](https://github.com/PanditJi-9/best/actions/runs/42378435894). The universal,
 arm64-v8a, armeabi-v7a and x86_64 APKs share one application id, version and
-signing certificate. This build keeps the five content tabs — Home, Library,
-Downloads, Encyclopedia and History — with Settings pushed from
-the home masthead. Downloads are no longer folded into the Library: they have a
-quiet grouped screen, one download-history control and a chronological history
-screen, while the Library keeps a single filter control instead of a chip row.
-The encyclopedia returns as a visible destination, named Encyclopedia in
-English. See [the build notes](docs/releases/1.5.2-build27.md).
-No 1.5.2 release has been published.
+signing certificate. Manage sources records recent request successes, failures
+and response times, with an explicit Test now action; a failed source never
+silently changes the selected catalogue. Reader errors name the affected page,
+keep technical details visible and offer a page-only retry after one bounded
+automatic attempt. Library data, progress, downloads and backup formats are
+unchanged. See [the build notes](docs/releases/1.5.3-build28.md).
+No 1.5.3 release has been published. Automated checks are not an Android-device
+or external-source playback verification.
 
 The shelf, the reader, the video player with captions, the bilingual UI, local
 progress, statistics, JSON backup/restore, one real catalogue (MangaDex),
@@ -47,11 +47,15 @@ Suwayomi remains as an optional alternative for readers who already run one.
   so a manga-only reader never sees an anime control, and an anime-only reader
   never sees a manga one. Pinned source chips use the site's own icon, with
   Latest/Popular feeds, infinite scroll, and long-press to shelve a poster.
-  Four tabs: Home, Library, History, Settings.
-- **Offline belongs to the shelf.** Finished downloads appear in a Ready
-  offline rail above the Library, while active and failed transfers collapse
-  into one banner that opens the download manager. There is no separate
-  Downloads tab.
+  Five content tabs: Home, Library, Downloads, Encyclopedia and History;
+  Settings opens from the Home masthead.
+- **Downloads have their own destination.** Active and finished chapters are
+  grouped by work, with pause, resume, retry and download-history controls.
+  The Library remains a shelf rather than a second download manager.
+- **Source health is evidence, not a promise.** Manage sources shows the last
+  request result and lets the reader test a catalogue with a 15-second limit.
+  Slow successes are distinguished from failures. Hiding a source does not
+  remove it from the Library or downloads, and at least one stays visible.
 - **One search, every source.** Browse opens on **All sources** and searches
   them in parallel, so a slow pack cannot hold back the catalogue.
 - **Best picks, without a store update.** A curated shelf (`assets/curated.json`)
@@ -93,7 +97,8 @@ Suwayomi remains as an optional alternative for readers who already run one.
   fit-screen/fit-width/original scaling, RTL-aware tap zones and a centre
   control toggle, auto-hiding immersive chrome, keep-screen-on,
   black/charcoal/sepia/white backgrounds, a persisted colour filter with
-  dimming, pinch zoom and panning in original size, retry for failed pages,
+  dimming, pinch zoom and panning in original size, numbered localized errors
+  and one automatic retry before manual retry for failed pages,
   page restore, completion tracking, and previous/next chapter controls. The
   page grid jumps anywhere with thumbnails, bookmarks persist per chapter,
   chapter search/sort handles long serials, upcoming pages preload, webtoon
