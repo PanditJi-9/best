@@ -131,7 +131,7 @@ final Provider<DownloadManager> downloadManagerProvider =
 /// Notification commands and display snapshots around the existing manager.
 /// There is no parallel queue, file store, database writer or polling timer.
 class BackgroundDownloadsController extends Notifier<BackgroundDownloadState> {
-  StreamSubscription<int>? _subscription;
+  StreamSubscription<void>? _subscription;
   bool _publishing = false;
   bool _again = false;
   Completer<void>? _publicationDone;
