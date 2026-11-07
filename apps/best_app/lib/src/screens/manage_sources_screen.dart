@@ -36,13 +36,13 @@ class _ManageSourcesScreenState extends ConsumerState<ManageSourcesScreen> {
         .read(sourceVisibilityProvider.notifier)
         .setVisible(source.id, visible, allIds: all.map((entry) => entry.id));
     if (!accepted) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(l10n.sourcesKeepOne)));
       }
       return;
     }
-    if (visible || !context.mounted) return;
+    if (visible || !mounted) return;
 
     // The hidden source may be the one Home remembered. Move the remembered
     // choice to a source that is still visible so reopening Home is coherent.
