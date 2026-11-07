@@ -7,10 +7,11 @@ import 'package:go_router/go_router.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../providers.dart';
 
-/// The four rooms of the app: the chosen catalogue, the shelf, the reading
-/// history, and the person's own settings.
+/// The five rooms of the app: the chosen catalogue, the shelf, offline
+/// downloads, the encyclopedia, and the reading history. Settings is a pushed
+/// screen from the home masthead, so the dock stays for content only.
 ///
-/// A quiet, full-width dock keeps all four destinations legible in either
+/// A quiet, full-width dock keeps all five destinations legible in either
 /// language. Switching tabs eases the new page in (a short fade, never a
 /// slide: tabs are peers, not steps) and gives a light haptic tick.
 class ShellScreen extends ConsumerStatefulWidget {
@@ -77,14 +78,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
         selectedIcon: Icons.collections_bookmark_rounded,
       ),
       _Destination(
+        label: l10n.navDownloads,
+        icon: Icons.download_for_offline_outlined,
+        selectedIcon: Icons.download_for_offline_rounded,
+      ),
+      _Destination(
+        label: l10n.navDatabase,
+        icon: Icons.explore_outlined,
+        selectedIcon: Icons.explore_rounded,
+      ),
+      _Destination(
         label: l10n.navHistory,
         icon: Icons.history_rounded,
         selectedIcon: Icons.history_rounded,
-      ),
-      _Destination(
-        label: l10n.navSettings,
-        icon: Icons.tune_rounded,
-        selectedIcon: Icons.tune_rounded,
       ),
     ];
 

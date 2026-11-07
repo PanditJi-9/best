@@ -15,6 +15,7 @@ abstract final class Routes {
   static const String metaSearch = '/meta/search';
   static const String library = '/library';
   static const String downloads = '/downloads';
+  static const String downloadsHistory = '/downloads/history';
   static const String history = '/history';
   static const String menu = '/menu';
   static const String browse = '/browse';

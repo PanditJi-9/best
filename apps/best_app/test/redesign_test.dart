@@ -261,14 +261,19 @@ void main() {
       await tester.tap(find.text(l10n.navLibrary).last);
       await tester.pumpAndSettle();
       expect(find.text('Blue Echo'), findsWidgets);
-      // Finished downloads are part of the shelf now.
-      expect(find.text(l10n.downloadsFinished), findsOneWidget);
-      expect(find.text('Chapter 1'), findsWidgets);
+      // The shelf is a shelf again: downloads have their own destination.
+      expect(find.text(l10n.downloadsFinished), findsNothing);
       await image(tester, 'library-$locale');
       await tester.tap(find.byTooltip(l10n.libraryListView));
       await tester.pumpAndSettle();
       expect(preferences.getBool('library.grid'), isFalse);
       await image(tester, 'library-list-$locale');
+
+      await tester.tap(find.text(l10n.navDownloads).last);
+      await tester.pumpAndSettle();
+      expect(find.text(l10n.downloadsFinished), findsOneWidget);
+      expect(find.text('Chapter 1'), findsWidgets);
+      await image(tester, 'downloads-$locale');
 
       await tester.tap(find.text(l10n.navHistory).last);
       await tester.pumpAndSettle();
@@ -276,11 +281,15 @@ void main() {
       expect(find.text('Blue Echo'), findsWidgets);
       await image(tester, 'history-$locale');
 
-      await tester.tap(find.text(l10n.navSettings).last);
+      await tester.tap(find.text(l10n.navHome).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('home-settings')));
       await tester.pumpAndSettle();
       expect(find.text(l10n.settingsTitle), findsWidgets);
       expect(find.text(l10n.readerAutoAdvance), findsOneWidget);
       await image(tester, 'settings-$locale');
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text(l10n.navHome).last);
       await tester.pumpAndSettle();

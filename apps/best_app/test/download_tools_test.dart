@@ -229,6 +229,12 @@ Future<_Fixture> _open(
     GoRoute(
         path: '/read',
         builder: (_, state) => const Scaffold(body: Text('Offline reader'))),
+    GoRoute(
+        path: '/downloads/history',
+        builder: (context, state) => Scaffold(
+            appBar: AppBar(
+                title: Text(AppLocalizations.of(context).downloadsHistory)),
+            body: const SizedBox.shrink())),
   ]);
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
@@ -314,7 +320,7 @@ void main() {
     expect(find.text('Repair download'), findsNothing);
   });
 
-  testWidgets('download search and failed filter leave saved rows untouched',
+  testWidgets('finished chapters fold into one work card and history opens',
       (tester) async {
     const arabic = Media(
         ref: SourceRef('test', 'forest'),
@@ -326,23 +332,18 @@ void main() {
     final paused = _task(chapter: 3, status: DownloadStatus.paused);
     final fixture = await _open(tester, tasks: [done, failed, paused]);
     await captureRender(tester, fixture.capture, 'download-tools-list-en.png');
-    await tester.enterText(
-        find.byKey(const ValueKey('downloads-search')), 'اسرار');
-    await tester.pumpAndSettle();
+
+    // One work card carries its finished chapter; the running and failed rows
+    // stay in the transfer section above it.
+    expect(find.byKey(ValueKey('download-${done.unitId}')), findsOneWidget);
     expect(find.byKey(ValueKey('download-${failed.unitId}')), findsOneWidget);
-    expect(find.byKey(ValueKey('download-${done.unitId}')), findsNothing);
-    await tester.enterText(
-        find.byKey(const ValueKey('downloads-search')), 'الفصل ٢');
+    expect(find.byKey(ValueKey('download-${paused.unitId}')), findsOneWidget);
+    expect(find.text('1 chapter · 11.7 KB'), findsOneWidget);
+    expect(find.byKey(const ValueKey('downloads-history')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('downloads-history')));
     await tester.pumpAndSettle();
-    expect(find.byKey(ValueKey('download-${failed.unitId}')), findsOneWidget);
-    await tester.enterText(find.byKey(const ValueKey('downloads-search')), '');
-    final chip = find.text('Failed · 1');
-    await tester.ensureVisible(chip);
-    await tester.pumpAndSettle();
-    await tester.tap(chip);
-    await tester.pumpAndSettle();
-    expect(find.byKey(ValueKey('download-${failed.unitId}')), findsOneWidget);
-    expect(find.byKey(ValueKey('download-${paused.unitId}')), findsNothing);
+    expect(find.text('Download history'), findsOneWidget);
     expect(await fixture.repository.downloads(), hasLength(3));
   });
 

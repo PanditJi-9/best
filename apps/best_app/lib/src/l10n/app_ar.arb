@@ -137,6 +137,12 @@
   "downloadDeleteBody": "تُحذف الصفحات من هذا الجهاز. يمكنك تحميل الفصل مرة أخرى لاحقاً.",
   "downloadOpen": "اقرأ دون اتصال",
   "downloadsNote": "أبقِ «بست» مفتوحاً أثناء تحميل الفصل. إذا أُغلق التطبيق، يستأنف من آخر صفحة محفوظة.",
+  "downloadsHistory": "سجل التنزيلات",
+  "downloadsHistorySubtitle": "أحدث الفصول المكتملة أولًا",
+  "downloadsHistoryEmptyTitle": "لا يوجد سجل تنزيلات بعد",
+  "downloadsHistoryEmptyBody": "تظهر هنا الفصول التي يكتمل تنزيلها مع تاريخ اكتمالها.",
+  "downloadChaptersCount": "{count, plural, zero{لا فصول} one{فصل واحد} two{فصلان} few{{count} فصول} many{{count} فصلاً} other{{count} فصل}}",
+  "@downloadChaptersCount": {"placeholders": {"count": {"type": "int"}}},
   "offlineBadge": "دون اتصال",
   "downloadProgress": "{done} من {total} صفحة",
   "@downloadProgress": {

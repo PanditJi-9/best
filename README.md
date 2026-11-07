@@ -6,18 +6,15 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 1.5.0 build 25 in development — a source-first front door and an offline shelf.**
-Build 25 passed Flutter analysis, 172 serial widget and unit tests, 62 Python
-tool tests, and signed four-APK generation in
-[CI](https://github.com/PanditJi-9/best/actions/runs/42327073500). The universal,
-arm64-v8a, armeabi-v7a and x86_64 APKs share one application id, version and
-signing certificate. This build reorganises navigation around four tabs
-(Home, Library, History, Settings), makes Home strictly source-scoped — the
-chosen source's own kind decides whether it shows manga or anime, with no
-global switch — folds finished downloads into the Library, removes the
-Database/Discover/Menu screens, and streamlines the reader chrome with
-automatic chapter advance. See [the build notes](docs/releases/1.5.0-build25.md).
-No 1.5.0 release has been published.
+**Status: 1.5.1 build 26 in development — clean downloads, a restored encyclopedia.**
+Build 26 keeps the source-first home and the offline reader, and rearranges the
+shell around five content tabs: Home, Library, Downloads, Encyclopedia and
+History. Settings opens from the home masthead. Downloads are no longer folded
+into the Library: they have a quiet grouped screen with one history control,
+and the Library keeps a single filter control instead of a chip row. The
+encyclopedia returns as a visible destination. CI verification for this build
+is in progress; see [the build notes](docs/releases/1.5.1-build26.md).
+No 1.5.1 release has been published.
 
 The shelf, the reader, the video player with captions, the bilingual UI, local
 progress, statistics, JSON backup/restore, one real catalogue (MangaDex),

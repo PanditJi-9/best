@@ -130,17 +130,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final continuing = ref.watch(resumeProvider);
     final continueEntries = continuing.value ?? const <ResumeSlot>[];
     final shelfCount = shelf.value?.length;
-    final downloads =
-        ref.watch(downloadsProvider).value ?? const <DownloadTask>[];
-    final finishedDownloads =
-        downloads.where((task) => task.isFinished).toList(growable: false);
-    final liveDownloads = downloads
-        .where((task) => task.isActive || task.isFailed)
-        .toList(growable: false);
-    final shelfWorks = <String, Media>{
-      for (final entry in shelf.value ?? const <LibraryEntry>[])
-        entry.media.id: entry.media,
-    };
+    final filtering = query.filter != LibraryFilter.all || query.tag != null;
 
     return SafeArea(
       bottom: false,
@@ -184,6 +174,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                   : l10n.librarySummary(shelfCount),
                               style: BestType.body(context)),
                         ])),
+                    IconButton(
+                      tooltip: l10n.libraryFilter,
+                      onPressed: () => _showFilters(context, query),
+                      icon: Icon(
+                        Icons.tune_rounded,
+                        color: filtering
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
+                      ),
+                    ),
                     IconButton(
                       tooltip:
                           _grid ? l10n.libraryListView : l10n.libraryGridView,
@@ -233,61 +233,32 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 46,
-              child: Row(
-                children: [
-                  const SizedBox(width: 12),
-                  // The complete filter list, including categories, lives in
-                  // this sheet; the chips are only the four common views.
-                  IconButton(
-                    tooltip: l10n.libraryFilter,
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => _showFilters(context, query),
-                    icon: Icon(
-                      Icons.tune_rounded,
-                      size: 20,
-                      color: query.filter == LibraryFilter.all
-                          ? null
-                          : Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                  Expanded(
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsetsDirectional.only(end: 20),
-                      children: [
-                        for (final filter in const [
-                          LibraryFilter.all,
-                          LibraryFilter.unread,
-                          LibraryFilter.inProgress,
-                          LibraryFilter.offline,
-                        ]) ...[
-                          ChoiceChip(
-                            label: Text(filterLabel(l10n, filter)),
-                            selected: query.filter == filter,
-                            visualDensity: VisualDensity.compact,
-                            onSelected: (_) => ref
-                                .read(libraryQueryProvider.notifier)
-                                .setFilter(filter),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        if (query.tag != null)
-                          InputChip(
-                            label: Text(query.tag!),
-                            visualDensity: VisualDensity.compact,
-                            onDeleted: () => ref
-                                .read(libraryQueryProvider.notifier)
-                                .setTag(null),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
+            if (filtering)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    if (query.filter != LibraryFilter.all)
+                      InputChip(
+                        label: Text(filterLabel(l10n, query.filter)),
+                        visualDensity: VisualDensity.compact,
+                        onDeleted: () => ref
+                            .read(libraryQueryProvider.notifier)
+                            .setFilter(LibraryFilter.all),
+                      ),
+                    if (query.tag != null)
+                      InputChip(
+                        label: Text(query.tag!),
+                        visualDensity: VisualDensity.compact,
+                        onDeleted: () => ref
+                            .read(libraryQueryProvider.notifier)
+                            .setTag(null),
+                      ),
+                  ],
+                ),
               ),
-            ),
           ],
           const SizedBox(height: 4),
           Expanded(
@@ -306,32 +277,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         entries: continueEntries,
                         onOpen: (entry) =>
                             openUnit(context, ref, entry.media, entry.unit),
-                      ),
-                    ),
-                  if (!_selecting && liveDownloads.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: _DownloadsBanner(
-                        tasks: liveDownloads,
-                        onOpen: () => context.push(Routes.downloads),
-                      ),
-                    ),
-                  if (!_selecting &&
-                      query.search.isEmpty &&
-                      query.filter == LibraryFilter.all &&
-                      query.tag == null &&
-                      finishedDownloads.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: _DownloadedRail(
-                        tasks: finishedDownloads,
-                        works: shelfWorks,
-                        onOpen: (task) => context.push(
-                          Routes.reader(
-                            sourceId: task.sourceId,
-                            url: task.mediaUrl,
-                            unitUrl: task.unitUrl,
-                          ),
-                        ),
-                        onManage: () => context.push(Routes.downloads),
                       ),
                     ),
                   const SliverToBoxAdapter(child: SizedBox(height: 12)),
@@ -1000,196 +945,6 @@ class _ContinueRail extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
               child: ReadingCard(slot: entry, onOpen: () => onOpen(entry))),
       ],
-    );
-  }
-}
-
-/// Finished downloads belong to the shelf, not to a second screen. This rail
-/// shows what is already readable offline and opens the reader directly.
-class _DownloadedRail extends StatelessWidget {
-  const _DownloadedRail({
-    required this.tasks,
-    required this.works,
-    required this.onOpen,
-    required this.onManage,
-  });
-
-  final List<DownloadTask> tasks;
-  final Map<String, Media> works;
-  final ValueChanged<DownloadTask> onOpen;
-  final VoidCallback onManage;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final byMedia = <String, DownloadTask>{};
-    for (final task in tasks) {
-      byMedia.putIfAbsent(task.mediaId, () => task);
-    }
-    final entries = byMedia.values.toList(growable: false);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: SectionHeader(
-            title: l10n.downloadsFinished,
-            actionLabel: l10n.downloadsTitle,
-            onAction: onManage,
-          ),
-        ),
-        SizedBox(
-          height: 96,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: entries.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 10),
-            itemBuilder: (context, index) {
-              final task = entries[index];
-              final work = works[task.mediaId];
-              return SizedBox(
-                width: 230,
-                child: Material(
-                  color: theme.colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(BestRadius.md),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: () => onOpen(task),
-                    child: Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: Row(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: SizedBox(
-                              width: 54,
-                              height: 74,
-                              child: work == null
-                                  ? ColoredBox(
-                                      color: theme.colorScheme.primaryContainer,
-                                      child: Icon(
-                                        Icons.offline_pin_rounded,
-                                        color: theme
-                                            .colorScheme.onPrimaryContainer,
-                                      ),
-                                    )
-                                  : BestCover(
-                                      title: work.displayTitle,
-                                      url: work.coverUrl,
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  task.mediaTitle,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.labelLarge?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  task.unitTitle,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// A quiet strip for downloads that are still moving or failed. It replaces the
-/// old second "Downloads" tab: the manager is one tap from the shelf.
-class _DownloadsBanner extends StatelessWidget {
-  const _DownloadsBanner({required this.tasks, required this.onOpen});
-
-  final List<DownloadTask> tasks;
-  final VoidCallback onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final done = tasks.fold<int>(0, (sum, task) => sum + task.completed);
-    final total = tasks.fold<int>(0, (sum, task) => sum + task.total);
-    final failed = tasks.where((task) => task.isFailed).length;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
-      child: Material(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(BestRadius.md),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(BestRadius.md),
-          onTap: onOpen,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-            child: Row(
-              children: [
-                Icon(
-                  failed > 0
-                      ? Icons.error_outline_rounded
-                      : Icons.downloading_rounded,
-                  size: 20,
-                  color: failed > 0
-                      ? theme.colorScheme.error
-                      : theme.colorScheme.primary,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        failed > 0
-                            ? l10n.downloadFailed
-                            : l10n.downloadsInProgress,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      if (total > 0) ...[
-                        const SizedBox(height: 6),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: (done / total).clamp(0.0, 1.0),
-                            minHeight: 5,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Icon(Icons.chevron_right_rounded),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

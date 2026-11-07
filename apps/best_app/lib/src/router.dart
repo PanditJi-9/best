@@ -7,6 +7,8 @@ import 'screens/about_screen.dart';
 import 'screens/backup_screen.dart';
 import 'screens/browse_screen.dart';
 import 'screens/contributors_screen.dart';
+import 'screens/database_screen.dart';
+import 'screens/download_history_screen.dart';
 import 'screens/downloads_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
@@ -57,16 +59,24 @@ GoRouter buildRouter() => GoRouter(
             StatefulShellBranch(
               routes: [
                 GoRoute(
-                  path: Routes.history,
-                  builder: (context, state) => const HistoryScreen(),
+                  path: Routes.downloads,
+                  builder: (context, state) => const DownloadsScreen(),
                 ),
               ],
             ),
             StatefulShellBranch(
               routes: [
                 GoRoute(
-                  path: Routes.settings,
-                  builder: (context, state) => const SettingsScreen(),
+                  path: Routes.database,
+                  builder: (context, state) => const DatabaseScreen(),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: Routes.history,
+                  builder: (context, state) => const HistoryScreen(),
                 ),
               ],
             ),
@@ -142,8 +152,12 @@ GoRouter buildRouter() => GoRouter(
           builder: (context, state) => const SourceDirectoryScreen(),
         ),
         GoRoute(
-          path: Routes.downloads,
-          builder: (context, state) => const DownloadsScreen(),
+          path: Routes.downloadsHistory,
+          builder: (context, state) => const DownloadHistoryScreen(),
+        ),
+        GoRoute(
+          path: Routes.settings,
+          builder: (context, state) => const SettingsScreen(),
         ),
         GoRoute(
           path: '/series',

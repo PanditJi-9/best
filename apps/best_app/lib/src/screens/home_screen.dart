@@ -316,6 +316,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   onPressed: () => context.push(Routes.metaSearch),
                   icon: const Icon(Icons.search_rounded),
                 ),
+                IconButton(
+                  key: const ValueKey('home-settings'),
+                  tooltip: l10n.navSettings,
+                  onPressed: () => context.push(Routes.settings),
+                  icon: const Icon(Icons.settings_outlined),
+                ),
               ],
             ),
           ),

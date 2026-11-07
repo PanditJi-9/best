@@ -45,6 +45,11 @@ class SettingsScreen extends ConsumerWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
         children: [
+          if (context.canPop())
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: BackButton(onPressed: () => context.pop()),
+            ),
           PageMasthead(
             title: l10n.settingsTitle,
             subtitle: l10n.settingsSubtitle,

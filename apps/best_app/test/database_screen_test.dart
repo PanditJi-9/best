@@ -101,7 +101,7 @@ void main() {
       ),
     );
 
-    expect(find.text('The Database'), findsOneWidget);
+    expect(find.text('Encyclopedia'), findsOneWidget);
 
     // The same work leads the hero and the MAL ranking, so the title appears
     // more than once. The hero already carries its community's score.
@@ -177,7 +177,7 @@ void main() {
       manhwa: const [_solo],
     );
 
-    expect(find.text('The Database'), findsOneWidget);
+    expect(find.text('Encyclopedia'), findsOneWidget);
     await _reveal(tester, 'Manhwa spotlight');
     expect(find.text('Solo Leveling'), findsWidgets);
     expect(find.textContaining('MangaUpdates'), findsWidgets);
