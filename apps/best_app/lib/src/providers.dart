@@ -1152,11 +1152,14 @@ class SourceHealth {
 
 class SourceHealthController extends Notifier<Map<String, SourceHealth>> {
   static const String _key = 'source_health_v1';
-  Timer? _saveTimer;
+
+  /// Writes are chained instead of timed: a widget test that ends immediately
+  /// after a source request must not leave a pending debounce timer behind, and
+  /// a later snapshot must never overwrite an older one out of order.
+  Future<void> _saveChain = Future<void>.value();
 
   @override
   Map<String, SourceHealth> build() {
-    ref.onDispose(() => _saveTimer?.cancel());
     final raw = ref.watch(preferencesProvider)?.getString(_key);
     if (raw == null || raw.trim().isEmpty) return const {};
     try {
@@ -1210,24 +1213,20 @@ class SourceHealthController extends Notifier<Map<String, SourceHealth>> {
     _scheduleSave();
   }
 
-  /// Writes the current evidence immediately, for tests and explicit actions.
-  Future<void> flush() async {
-    _saveTimer?.cancel();
-    await _save();
-  }
+  /// Waits for every queued write, for tests and explicit actions.
+  Future<void> flush() => _saveChain;
 
   void _scheduleSave() {
-    _saveTimer?.cancel();
-    _saveTimer = Timer(const Duration(seconds: 1), () {
-      unawaited(_save());
-    });
-  }
-
-  Future<void> _save() async {
+    final preferences = ref.read(preferencesProvider);
     final encoded = jsonEncode({
       for (final entry in state.entries) entry.key: entry.value.toJson(),
     });
-    await ref.read(preferencesProvider)?.setString(_key, encoded);
+    _saveChain = _saveChain.then((_) async {
+      await preferences?.setString(_key, encoded);
+    }).catchError((Object _) {
+      // Evidence is disposable; a failed preference write must not break a
+      // catalogue request or surface as an unhandled async error.
+    });
   }
 
   static String _shortError(Object error) {
