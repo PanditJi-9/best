@@ -64,32 +64,45 @@ class MetaScore extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          Icons.star_rounded,
-          size: large ? 20 : 13,
-          color: BestColors.gold,
-        ),
-        const SizedBox(width: 3),
-        Text(
-          metaScoreText(score),
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: BestColors.gold,
-            fontWeight: FontWeight.w900,
-            fontSize: large ? 24 : 12.5,
-            height: 1,
-            fontFeatures: const [FontFeature.tabularFigures()],
+        // A score is a machine number, not prose. Without this isolation RTL
+        // reorders "8.5 /10" into "10/ 8.5" and the star drifts to the wrong
+        // side of the number.
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.star_rounded,
+                size: large ? 20 : 13,
+                color: BestColors.gold,
+              ),
+              const SizedBox(width: 3),
+              Text(
+                metaScoreText(score),
+                textDirection: TextDirection.ltr,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: BestColors.gold,
+                  fontWeight: FontWeight.w900,
+                  fontSize: large ? 24 : 12.5,
+                  height: 1,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              if (large) ...[
+                const SizedBox(width: 2),
+                Text(
+                  '/10',
+                  textDirection: TextDirection.ltr,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
-        if (large) ...[
-          const SizedBox(width: 2),
-          Text(
-            '/10',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontSize: 11,
-            ),
-          ),
-        ],
         if (source != null && !large) ...[
           const SizedBox(width: 4),
           Flexible(

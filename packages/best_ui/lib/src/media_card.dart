@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'bidi.dart';
 import 'cover.dart';
 import 'press_scale.dart';
 import 'rating.dart';
@@ -125,6 +126,10 @@ class MediaCard extends StatelessWidget {
                 title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
+                textDirection: autoTextDirection(
+                  title,
+                  Directionality.of(context),
+                ),
                 style: BestType.cardTitle(context),
               ),
             ),
@@ -133,6 +138,10 @@ class MediaCard extends StatelessWidget {
               subtitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              textDirection: autoTextDirection(
+                subtitle,
+                Directionality.of(context),
+              ),
               style: BestType.meta(context),
             ),
             if (progress > 0) ...[

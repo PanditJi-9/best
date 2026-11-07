@@ -6,7 +6,7 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 1.5.1 build 26 in development — clean downloads, a restored encyclopedia.**
+**Status: 1.5.2 build 27 in development — honest dates, a readable reader, a player that explains itself, and sources you can hide.**
 Build 26 passed Flutter analysis, 172 serial widget and unit tests, 62 Python
 tool tests, the extension runtime JVM gate, and signed four-APK generation in
 [CI](https://github.com/PanditJi-9/best/actions/runs/42332008960). The universal,

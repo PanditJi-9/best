@@ -411,6 +411,10 @@ class _RecentRow extends ConsumerWidget {
                       media.displayTitle,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      textDirection: autoTextDirection(
+                        media.displayTitle,
+                        Directionality.of(context),
+                      ),
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w600,
                         fontSize: 13,

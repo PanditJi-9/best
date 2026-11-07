@@ -81,7 +81,16 @@ class BestCover extends StatelessWidget {
       borderRadius: BorderRadius.circular(radius),
       child: ColoredBox(
         color: scheme.surfaceContainerHighest,
-        child: content,
+        // The derived artwork sits behind the network image. While the image
+        // downloads (or when it never arrives) the slot still has an identity
+        // instead of a flat grey box that reads as a broken cover.
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            fallback,
+            content,
+          ],
+        ),
       ),
     );
   }

@@ -326,9 +326,13 @@ class _ChapterListSheetState extends State<ChapterListSheet> {
                                       const SizedBox(width: BestSpace.md),
                                       Expanded(
                                           child: Text(
-                                        unit.displayTitle,
+                                        unitTitle(l10n, unit),
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
+                                        textDirection: autoTextDirection(
+                                          unitTitle(l10n, unit),
+                                          Directionality.of(context),
+                                        ),
                                         style: theme.textTheme.bodyMedium
                                             ?.copyWith(
                                           height: 1.5,

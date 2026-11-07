@@ -47,9 +47,24 @@ class WatchScreen extends ConsumerWidget {
     return Theme(
       data: bestTheme(Brightness.dark),
       child: data.when(
-        loading: () => const _PlayerScaffold(
-          child:
-              Center(child: CircularProgressIndicator(color: Colors.white70)),
+        loading: () => _PlayerScaffold(
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(color: Colors.white70),
+                const SizedBox(height: 18),
+                Text(
+                  l10n.playbackPreparing,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
         error: (error, stack) => Scaffold(
           backgroundColor: Colors.black,
@@ -64,7 +79,9 @@ class WatchScreen extends ConsumerWidget {
                 : l10n.playbackError,
             body: error is SourceNotInstalled
                 ? l10n.sourceNotInstalledBody
-                : '$error',
+                : error is TimeoutException
+                    ? l10n.playbackTimeoutBody
+                    : l10n.playbackErrorHint,
             action: FilledButton.icon(
               onPressed: error is SourceNotInstalled
                   ? () => context.push(Routes.sources)
@@ -128,6 +145,7 @@ class _WatchViewState extends ConsumerState<_WatchView> {
   late final LibraryRepository _repository;
   VideoPlayerController? _controller;
   bool _ready = false;
+  bool _timedOut = false;
   String? _error;
   bool _controlsVisible = true;
   bool _fullscreen = false;
@@ -193,6 +211,7 @@ class _WatchViewState extends ConsumerState<_WatchView> {
     if (!mounted) return;
     setState(() {
       _ready = false;
+      _timedOut = false;
       _error = null;
       _dragSeconds = null;
     });
@@ -206,7 +225,9 @@ class _WatchViewState extends ConsumerState<_WatchView> {
     unawaited(_loadSubtitles());
 
     try {
-      await controller.initialize();
+      // A codec that never reports ready must not leave the viewer on a black
+      // screen forever. Thirty seconds is already generous for a slow source.
+      await controller.initialize().timeout(const Duration(seconds: 30));
       if (!mounted || attempt != _attempt) {
         await controller.dispose();
         return;
@@ -228,6 +249,12 @@ class _WatchViewState extends ConsumerState<_WatchView> {
 
       setState(() => _ready = true);
       _scheduleHide();
+    } on TimeoutException catch (error) {
+      if (!mounted || attempt != _attempt) return;
+      setState(() {
+        _timedOut = true;
+        _error = '$error';
+      });
     } catch (error) {
       if (!mounted || attempt != _attempt) return;
       setState(() => _error = '$error');
@@ -591,10 +618,87 @@ class _WatchViewState extends ConsumerState<_WatchView> {
   }
 
   Widget _loading(AppLocalizations l10n) {
+    final media = widget.data.media;
     return Stack(
+      fit: StackFit.expand,
       children: [
-        const Center(
-          child: CircularProgressIndicator(color: Colors.white70),
+        BestBackdrop(
+          title: media.displayTitle,
+          url: media.coverUrl,
+          blur: 30,
+          opacity: 0.34,
+        ),
+        ColoredBox(color: Colors.black.withValues(alpha: 0.58)),
+        Center(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              32,
+              MediaQuery.paddingOf(context).top + 72,
+              32,
+              48,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 46,
+                  height: 46,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.8,
+                    color: Colors.white70,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  l10n.playbackPreparing,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  media.displayTitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  textDirection: autoTextDirection(
+                    media.displayTitle,
+                    Directionality.of(context),
+                  ),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  unitTitle(l10n, widget.data.unit),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white54,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  l10n.playbackPreparingBody,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white38,
+                    fontSize: 11.5,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
         Positioned(
           top: MediaQuery.paddingOf(context).top + 4,
@@ -631,14 +735,41 @@ class _WatchViewState extends ConsumerState<_WatchView> {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
-              _error ?? '',
+              widget.data.media.displayTitle,
               textAlign: TextAlign.center,
-              maxLines: 4,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white54, fontSize: 12),
+              textDirection: autoTextDirection(
+                widget.data.media.displayTitle,
+                Directionality.of(context),
+              ),
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
             ),
+            const SizedBox(height: 10),
+            Text(
+              _timedOut ? l10n.playbackTimeoutBody : l10n.playbackErrorHint,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 12,
+                height: 1.5,
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white30,
+                  fontSize: 9.5,
+                ),
+              ),
+            ],
             const SizedBox(height: 22),
             FilledButton.icon(
               onPressed: _open,
@@ -712,6 +843,10 @@ class _WatchViewState extends ConsumerState<_WatchView> {
                                 widget.data.media.displayTitle,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
+                                textDirection: autoTextDirection(
+                                  widget.data.media.displayTitle,
+                                  Directionality.of(context),
+                                ),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 15,
@@ -722,9 +857,13 @@ class _WatchViewState extends ConsumerState<_WatchView> {
                               Row(children: [
                                 Flexible(
                                     child: Text(
-                                  widget.data.unit.displayTitle,
+                                  unitTitle(l10n, widget.data.unit),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
+                                  textDirection: autoTextDirection(
+                                    unitTitle(l10n, widget.data.unit),
+                                    Directionality.of(context),
+                                  ),
                                   style: const TextStyle(
                                       color: Colors.white60, fontSize: 12),
                                 )),

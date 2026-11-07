@@ -1,4 +1,5 @@
 import 'package:best_domain/best_domain.dart';
+import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
 
 import 'l10n/generated/app_localizations.dart';
@@ -59,12 +60,38 @@ String shortNumber(double value) {
   return value.toString();
 }
 
+/// A chapter or episode label that speaks the app's language.
+///
+/// Sources often ship "Episode 1" or "Chapter 12" as a title. In an Arabic
+/// interface that is a raw English fallback, not a title, so a generic label
+/// is rebuilt from the unit's number. A real title is left untouched.
+final RegExp _genericUnitTitle = RegExp(
+  r'^(?:chapter|episode|ch|ep|chap)\.?\s*#?\s*(\d+(?:\.\d+)?)$',
+  caseSensitive: false,
+);
+
+String unitTitle(AppLocalizations l10n, MediaUnit unit) {
+  final title = unit.title.trim();
+  final match = _genericUnitTitle.firstMatch(title);
+  final number = match == null
+      ? shortNumber(unit.number)
+      : shortNumber(double.tryParse(match.group(1)!) ?? unit.number);
+  if (title.isEmpty || match != null) {
+    return unit.kind == UnitKind.chapter
+        ? l10n.unitChapterTitle(number)
+        : l10n.unitEpisodeTitle(number);
+  }
+  return title;
+}
+
 String shortDate(int epochMillis) {
   if (epochMillis <= 0) return '';
   final date = DateTime.fromMillisecondsSinceEpoch(epochMillis);
   final month = date.month.toString().padLeft(2, '0');
   final day = date.day.toString().padLeft(2, '0');
-  return '${date.year}-$month-$day';
+  // A machine date is LTR even inside an Arabic paragraph: without the
+  // isolate, bidi reorders 2026-11-07 into 07-11-2026.
+  return ltrIsolate('${date.year}-$month-$day');
 }
 
 /// Storage sizes are units, not prose: the same "12.4 MB" reads correctly in

@@ -81,6 +81,10 @@ class DownloadHistoryScreen extends ConsumerWidget {
                                   task.mediaTitle,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
+                                  textDirection: autoTextDirection(
+                                    task.mediaTitle,
+                                    Directionality.of(context),
+                                  ),
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     fontWeight: FontWeight.w700,
                                   ),

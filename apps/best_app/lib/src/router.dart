@@ -13,6 +13,7 @@ import 'screens/downloads_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
+import 'screens/manage_sources_screen.dart';
 import 'screens/manga_screen.dart';
 import 'screens/meta_detail_screen.dart';
 import 'screens/meta_list_screen.dart';
@@ -150,6 +151,10 @@ GoRouter buildRouter() => GoRouter(
         GoRoute(
           path: Routes.sources,
           builder: (context, state) => const SourceDirectoryScreen(),
+        ),
+        GoRoute(
+          path: Routes.manageSources,
+          builder: (context, state) => const ManageSourcesScreen(),
         ),
         GoRoute(
           path: Routes.downloadsHistory,

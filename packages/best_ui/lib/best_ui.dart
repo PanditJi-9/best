@@ -1,4 +1,5 @@
 export 'src/ambient_surface.dart';
+export 'src/bidi.dart';
 export 'src/brand.dart';
 export 'src/cards.dart';
 export 'src/cover.dart';

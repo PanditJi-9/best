@@ -111,6 +111,38 @@
       }
     }
   },
+  "chapterCount": "{count, plural, =0{No chapters} =1{1 chapter} other{{count} chapters}}",
+  "@chapterCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "episodeCount": "{count, plural, =0{No episodes} =1{1 episode} other{{count} episodes}}",
+  "@episodeCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unitChapterTitle": "Chapter {number}",
+  "@unitChapterTitle": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "unitEpisodeTitle": "Episode {number}",
+  "@unitEpisodeTitle": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
   "sourcePacks": "Source packs",
   "sourcePacksBody": "Built-in catalogues plus the packs you add. A pack is declarative JSON: no code runs, and it can only reach the host it names.",
   "addSourcePack": "Add a source pack",
@@ -205,6 +237,10 @@
   "continueTitle": "Continue",
   "watchProgress": "{position} of {duration}",
   "playbackError": "This video could not be played.",
+  "playbackPreparing": "Preparing the episode…",
+  "playbackPreparingBody": "The source is resolving the stream. The picture appears as soon as it is ready.",
+  "playbackTimeoutBody": "The stream did not start in time. The source may be slow or the link may be unavailable right now.",
+  "playbackErrorHint": "The source did not respond or the format could not be played. Try again, or go back and use another source.",
   "sampleStream": "Sample video · Blender Foundation",
   "videoInPlayer": "This episode plays in the video player.",
   "playbackSpeed": "Playback speed",
@@ -274,6 +310,14 @@
     }
   },
   "downloadsInProgress": "In progress",
+  "downloadActiveCount": "{count, plural, =0{No downloads} =1{1 download} other{{count} downloads}}",
+  "@downloadActiveCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "downloadsFinished": "Ready offline",
   "browseSubtitle": "{count} sources ready",
   "@browseSubtitle": {
@@ -855,10 +899,20 @@
   "detailRating": "Rating",
   "open": "Open",
   "homeSubtitle": "Your smart reading room",
+  "homeRole": "Live catalogues from your sources",
   "homeNewFromSources": "New from your sources",
   "homePickUp": "Pick up where you left off",
   "homeNothingKind": "Nothing of this kind right now.",
   "homeAddSources": "Add sources",
+  "sourcesManage": "Manage sources",
+  "sourcesManageBody": "Choose which sources appear on Home. Hidden sources stay available for works already in your library and downloads.",
+  "sourcesManageHint": "The default source is the one selected in the Home source strip.",
+  "sourcesShow": "Show on Home",
+  "sourcesHide": "Hide from Home",
+  "sourcesCurrent": "Current",
+  "sourcesKeepOne": "Keep at least one source visible.",
+  "sourcesHiddenEmptyTitle": "All sources are hidden",
+  "sourcesHiddenEmptyBody": "Show a source in Manage sources to bring catalogues and news back.",
   "homeLatestBadge": "New",
   "homeForYou": "Picked for you",
   "homeSource": "Source",
@@ -967,7 +1021,7 @@
   "metaChShort": "ch",
   "metaMembersShort": "members",
   "metaDetails": "Details",
-  "metaSources": "Sources",
+  "metaSources": "Data from",
   "metaErrorBody": "Check your connection; all four sources need the internet.",
   "metaOpenFailed": "Couldn't open the link.",
   "metaStoryCredit": "Story",

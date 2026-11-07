@@ -316,7 +316,9 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
                 Text(
                   _query.trim().isNotEmpty || _filter != UnitFilter.all
                       ? l10n.seriesVisibleCount(visible.length, units.length)
-                      : l10n.unitCount(units.length),
+                      : media.kind.isReading
+                          ? l10n.chapterCount(units.length)
+                          : l10n.episodeCount(units.length),
                   textDirection:
                       _query.trim().isNotEmpty || _filter != UnitFilter.all
                           ? TextDirection.ltr
@@ -409,8 +411,15 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
     ];
     return Scaffold(
       appBar: AppBar(
-        title: Text(media.displayTitle,
-            maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: Text(
+          media.displayTitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textDirection: autoTextDirection(
+            media.displayTitle,
+            Directionality.of(context),
+          ),
+        ),
         actions: [
           _GlassCircle(
             tooltip: media.favorite ? l10n.unfavorite : l10n.favorite,
@@ -552,12 +561,12 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
   String _primaryDescription(
       AppLocalizations l10n, Media media, UnitContinuation next) {
     if (next.kind == UnitContinuationKind.resume && next.progress != null) {
-      return '${next.unit.displayTitle} · ${continueProgressLabel(
+      return '${unitTitle(l10n, next.unit)} · ${continueProgressLabel(
         l10n,
         ContinueEntry(media: media, unit: next.unit, progress: next.progress!),
       )}';
     }
-    return next.unit.displayTitle;
+    return unitTitle(l10n, next.unit);
   }
 
   Widget _chapterTools(
@@ -619,26 +628,26 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
           ),
         ]),
         const SizedBox(height: BestSpace.sm),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(children: [
+        // Wrap instead of a horizontal scroller: every filter is visible at
+        // once, and the first chip can never be clipped at the screen edge.
+        Wrap(
+          spacing: BestSpace.sm,
+          runSpacing: BestSpace.xs,
+          children: [
             for (final filter in UnitFilter.values)
               if (filter != UnitFilter.downloaded || media.kind.isReading)
-                Padding(
-                  padding: const EdgeInsetsDirectional.only(end: BestSpace.sm),
-                  child: ChoiceChip(
-                    label: Text(switch (filter) {
-                      UnitFilter.all => l10n.seriesAllUnits,
-                      UnitFilter.unread => l10n.seriesUnreadUnits,
-                      UnitFilter.inProgress => l10n.seriesStartedUnits,
-                      UnitFilter.downloaded => l10n.seriesDownloadedUnits,
-                    }),
-                    selected: _filter == filter,
-                    onSelected: (selected) =>
-                        _setFilter(selected ? filter : UnitFilter.all),
-                  ),
+                ChoiceChip(
+                  label: Text(switch (filter) {
+                    UnitFilter.all => l10n.seriesAllUnits,
+                    UnitFilter.unread => l10n.seriesUnreadUnits,
+                    UnitFilter.inProgress => l10n.seriesStartedUnits,
+                    UnitFilter.downloaded => l10n.seriesDownloadedUnits,
+                  }),
+                  selected: _filter == filter,
+                  onSelected: (selected) =>
+                      _setFilter(selected ? filter : UnitFilter.all),
                 ),
-          ]),
+          ],
         ),
       ]),
     );
@@ -943,6 +952,10 @@ class _Hero extends ConsumerWidget {
                         media.displayTitle,
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
+                        textDirection: autoTextDirection(
+                          media.displayTitle,
+                          Directionality.of(context),
+                        ),
                         style: theme.textTheme.headlineSmall?.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.w900,
@@ -1239,9 +1252,13 @@ class _UnitTile extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        unit.displayTitle,
+                        unitTitle(l10n, unit),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                        textDirection: autoTextDirection(
+                          unitTitle(l10n, unit),
+                          Directionality.of(context),
+                        ),
                         style: theme.textTheme.bodyLarge?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),

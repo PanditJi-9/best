@@ -1058,6 +1058,55 @@ class HomeScopeController extends Notifier<HomeScope> {
 final NotifierProvider<HomeScopeController, HomeScope> homeScopeProvider =
     NotifierProvider<HomeScopeController, HomeScope>(HomeScopeController.new);
 
+/// Sources the reader hid from Home.
+///
+/// Hiding is a front-door decision, not an uninstall: a hidden source keeps
+/// resolving works already on the shelf and files already downloaded, it just
+/// stops taking a chip on Home. At least one source always stays visible, so a
+/// mistap cannot leave the front door empty.
+class SourceVisibilityController extends Notifier<Set<String>> {
+  static const String _key = 'hidden_sources_v1';
+
+  @override
+  Set<String> build() {
+    final raw =
+        ref.watch(preferencesProvider)?.getStringList(_key) ?? const <String>[];
+    return Set.unmodifiable(raw.where((id) => id.trim().isNotEmpty));
+  }
+
+  bool isVisible(String sourceId) => !state.contains(sourceId);
+
+  /// Returns false when hiding [sourceId] would hide the last visible source.
+  Future<bool> setVisible(
+    String sourceId,
+    bool visible, {
+    required Iterable<String> allIds,
+  }) async {
+    final next = {...state};
+    if (visible) {
+      next.remove(sourceId);
+    } else {
+      next.add(sourceId);
+      final visibleCount = allIds.where((id) => !next.contains(id)).length;
+      if (visibleCount == 0) return false;
+    }
+    await _write(next);
+    return true;
+  }
+
+  Future<void> _write(Set<String> ids) async {
+    final list = ids.where((id) => id.isNotEmpty).toList()..sort();
+    await ref.read(preferencesProvider)?.setStringList(_key, list);
+    state = Set.unmodifiable(list);
+  }
+}
+
+final NotifierProvider<SourceVisibilityController, Set<String>>
+    sourceVisibilityProvider =
+    NotifierProvider<SourceVisibilityController, Set<String>>(
+  SourceVisibilityController.new,
+);
+
 /// Categories are tags with a first-class name.
 ///
 /// The assignment still lives on the work (`media.tags`), so a backup made by
@@ -2184,11 +2233,13 @@ final watchProvider = FutureProvider.family<WatchData, WatchKey>((
     repository,
     ref.watch(sourceRegistryProvider),
     key,
-  );
+  ).timeout(const Duration(seconds: 45));
 
   final source = resolved.source;
   if (source == null) throw SourceNotInstalled(key.sourceId);
-  final resources = await source.resources(resolved.unit);
+  final resources = await source
+      .resources(resolved.unit)
+      .timeout(const Duration(seconds: 45));
   VideoResource? stream;
   for (final resource in resources) {
     if (resource is VideoResource) {

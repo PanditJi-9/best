@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:best_data/best_data.dart';
 import 'package:best_domain/best_domain.dart';
 import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
@@ -8,11 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../actions.dart';
-import '../extension_host.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../labels.dart';
 import '../navigation.dart';
 import '../providers.dart';
+import '../widgets/source_avatar.dart';
 
 /// The front door is one source at a time.
 ///
@@ -71,12 +70,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  /// Every source the reader installed, manga and anime alike. No switch is
-  /// shown: a source already knows what it publishes, and a reader who never
-  /// adds an anime extension should never see an anime control.
+  /// Every source the reader installed, manga and anime alike, minus the ones
+  /// they hid from Home. No switch is shown: a source already knows what it
+  /// publishes, and a reader who never adds an anime extension should never see
+  /// an anime control.
   List<SourceAdapter> _sources() {
-    return ref.read(sourceRegistryProvider).all.toList(growable: false);
+    final hidden = ref.read(sourceVisibilityProvider);
+    return ref
+        .read(sourceRegistryProvider)
+        .all
+        .where((source) => !hidden.contains(source.id))
+        .toList(growable: false);
   }
+
+  bool get _hasInstalledSources =>
+      ref.read(sourceRegistryProvider).all.isNotEmpty;
 
   Future<List<Media>> _fetch(SourceAdapter source, _Feed feed, int page) {
     if (feed == _Feed.latest && source is LatestSource) {
@@ -200,6 +208,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Navigator.of(sheetContext).pop();
           _selectSource(source);
         },
+        onManage: () {
+          Navigator.of(sheetContext).pop();
+          context.push(Routes.manageSources);
+        },
         onAdd: () {
           Navigator.of(sheetContext).pop();
           context.push(Routes.sources);
@@ -254,6 +266,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    // Rebuild when a source is hidden or shown in Manage sources.
+    ref.watch(sourceVisibilityProvider);
     final sources = _sources();
     SourceAdapter? current;
     for (final source in sources) {
@@ -263,6 +277,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     }
     current ??= sources.isEmpty ? null : sources.first;
+    // The remembered source was hidden. Move to the first visible source after
+    // this frame instead of showing a chip that is no longer there.
+    if (_sourceId != null && current != null && current.id != _sourceId) {
+      final fallback = current;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _sourceId != fallback.id) _selectSource(fallback);
+      });
+    }
     final feed = _feed == _Feed.latest && current is LatestSource
         ? _Feed.latest
         : _Feed.popular;
@@ -298,16 +320,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 const BestMark(size: 40),
                 const SizedBox(width: BestSpace.md),
                 Expanded(
-                  child: Text(
-                    l10n.appName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontSize: 25,
-                      fontWeight: FontWeight.w900,
-                      height: 1,
-                      letterSpacing: BestType.tracking(context, -0.7),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        l10n.appName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontSize: 25,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                          letterSpacing: BestType.tracking(context, -0.7),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        l10n.homeRole,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 IconButton(
@@ -376,6 +415,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _Feed feed,
   ) {
     if (current == null) {
+      if (_hasInstalledSources) {
+        return _scrollableEmpty(
+          EmptyState(
+            icon: Icons.visibility_off_outlined,
+            title: l10n.sourcesHiddenEmptyTitle,
+            body: l10n.sourcesHiddenEmptyBody,
+            action: FilledButton.icon(
+              onPressed: () => context.push(Routes.manageSources),
+              icon: const Icon(Icons.tune_rounded, size: 18),
+              label: Text(l10n.sourcesManage),
+            ),
+          ),
+        );
+      }
       return _scrollableEmpty(
         EmptyState(
           icon: Icons.extension_outlined,
@@ -440,30 +493,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             sliver: SliverLayoutBuilder(
               builder: (context, constraints) {
                 final width = constraints.crossAxisExtent;
-                final columns = width >= 840
-                    ? 5
-                    : width >= 600
-                        ? 4
-                        : 3;
-                final tileWidth =
-                    (width - (columns - 1) * BestSpace.md) / columns;
+                // One density on every phone: two readable posters per row,
+                // the same card the shelf uses. Three columns made the covers
+                // and one-line titles too small to scan.
+                final columns = (width / 170).floor().clamp(2, 6).toInt();
+                final tileWidth = (width - (columns - 1) * 14) / columns;
                 return SliverGrid(
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: columns,
-                    mainAxisSpacing: BestSpace.lg,
-                    crossAxisSpacing: BestSpace.md,
-                    mainAxisExtent: tileWidth * 1.5 + 50,
+                    mainAxisSpacing: 22,
+                    crossAxisSpacing: 14,
+                    mainAxisExtent: tileWidth * 1.5 + 104,
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final media = _works[index];
-                      return PosterTile(
+                      return WorkCard(
                         title: media.displayTitle,
+                        subtitle: media.genres.isEmpty
+                            ? null
+                            : media.genres.take(2).join(' · '),
                         coverUrl: media.coverUrl,
-                        badge: kindLabel(l10n, media.kind),
-                        genres: media.genres.isEmpty ? const [] : media.genres,
+                        badge: media.inLibrary
+                            ? '${kindLabel(l10n, media.kind)} ✓'
+                            : kindLabel(l10n, media.kind),
                         rating: media.rating,
-                        inLibrary: media.inLibrary,
                         onTap: () => openSeries(context, ref, media),
                         onLongPress: () => _toggleShelf(media, l10n),
                       );
@@ -577,7 +631,7 @@ class _SourceChip extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _SourceAvatar(source: source, size: 32),
+                SourceAvatar(source: source, size: 32),
                 const SizedBox(width: 8),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 150),
@@ -597,77 +651,6 @@ class _SourceChip extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// A site's real icon when it has one, a typographic monogram otherwise. The
-/// anime side of the catalogue shipped text-only rows for months; an avatar is
-/// the fastest way to tell seven sites apart.
-class _SourceAvatar extends ConsumerWidget {
-  const _SourceAvatar({required this.source, this.size = 40});
-
-  final SourceAdapter source;
-  final double size;
-
-  String? _iconUrl(WidgetRef ref) {
-    if (source is JsonSourceAdapter) {
-      return (source as JsonSourceAdapter).pack.iconUrl;
-    }
-    if (source is SuwayomiSource) {
-      return (source as SuwayomiSource).info.iconUrl;
-    }
-    if (source is ExtensionSourceAdapter) {
-      final package = (source as ExtensionSourceAdapter).info.packageName;
-      final entries =
-          ref.watch(extensionDirectoryProvider).value?.entries ?? const [];
-      for (final entry in entries) {
-        if (entry.packageName == package &&
-            entry.iconUrl != null &&
-            entry.iconUrl!.isNotEmpty) {
-          return entry.iconUrl;
-        }
-      }
-    }
-    return null;
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final url = _iconUrl(ref);
-    final initial = source.name.trim().isEmpty
-        ? '?'
-        : String.fromCharCode(source.name.trim().runes.first).toUpperCase();
-    final fallback = Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withValues(alpha: 0.14),
-        shape: BoxShape.circle,
-      ),
-      child: Text(
-        initial,
-        style: theme.textTheme.labelLarge?.copyWith(
-          color: theme.colorScheme.primary,
-          fontWeight: FontWeight.w900,
-          fontSize: size * 0.42,
-        ),
-      ),
-    );
-    return ClipOval(
-      child: SizedBox(
-        width: size,
-        height: size,
-        child: url == null
-            ? fallback
-            : Image.network(
-                url,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stack) => fallback,
-              ),
       ),
     );
   }
@@ -786,12 +769,14 @@ class _SourcePicker extends StatelessWidget {
     required this.current,
     required this.sources,
     required this.onSelected,
+    required this.onManage,
     required this.onAdd,
   });
 
   final SourceAdapter? current;
   final List<SourceAdapter> sources;
   final ValueChanged<SourceAdapter> onSelected;
+  final VoidCallback onManage;
   final VoidCallback onAdd;
 
   @override
@@ -847,6 +832,11 @@ class _SourcePicker extends StatelessWidget {
                     ),
                   ),
                   IconButton(
+                    tooltip: l10n.sourcesManage,
+                    onPressed: onManage,
+                    icon: const Icon(Icons.tune_rounded),
+                  ),
+                  IconButton(
                     tooltip: l10n.homeAddSources,
                     onPressed: onAdd,
                     icon: const Icon(Icons.add_rounded),
@@ -889,7 +879,7 @@ class _SourcePicker extends StatelessWidget {
                                   : theme.colorScheme.outlineVariant,
                             ),
                           ),
-                          leading: _SourceAvatar(source: source),
+                          leading: SourceAvatar(source: source),
                           title: Text(
                             source.name,
                             maxLines: 1,

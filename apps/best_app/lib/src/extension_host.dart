@@ -346,7 +346,7 @@ class ExtensionHost {
           number: number > 0 ? number : _numberFromTitle(title, units.length),
           title: title.isEmpty ? 'Chapter ${units.length + 1}' : title,
           kind: media.kind.isReading ? UnitKind.chapter : UnitKind.episode,
-          publishedAt: ((map['dateUpload'] as num?)?.toInt() ?? 0) * 1000,
+          publishedAt: normalizeEpochMillis(map['dateUpload']),
           memo: (map['memo'] as String?) ?? '',
         ),
       );
@@ -625,6 +625,27 @@ class SourceSetting {
       values: strings(map['values']),
     );
   }
+}
+
+/// Normalizes a source timestamp to epoch milliseconds.
+///
+/// Mihon's `date_upload` is already in milliseconds. Older bridges and some
+/// source packs used seconds, and a few hosts have leaked microseconds. The
+/// old reader multiplied every value by 1000, which turned 2025 into the year
+/// 58342. Detect the unit instead of assuming one.
+int normalizeEpochMillis(Object? raw) {
+  var value = (raw as num?)?.toInt() ?? 0;
+  if (value <= 0) return 0;
+  // 2100-01-01 in milliseconds. Anything larger is a finer unit.
+  const maxMillis = 4102444800000;
+  while (value > maxMillis) {
+    value ~/= 1000;
+  }
+  // Seconds are ~1.7e9 today; milliseconds are ~1.7e12. The gap is wide.
+  if (value < 100000000000) {
+    value *= 1000;
+  }
+  return value;
 }
 
 /// A [SourceAdapter] over one extension source.

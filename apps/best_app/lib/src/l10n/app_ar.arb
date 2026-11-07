@@ -111,6 +111,38 @@
       }
     }
   },
+  "chapterCount": "{count, plural, zero{لا فصول} one{فصل واحد} two{فصلان} few{{count} فصول} many{{count} فصلاً} other{{count} فصل}}",
+  "@chapterCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "episodeCount": "{count, plural, zero{لا حلقات} one{حلقة واحدة} two{حلقتان} few{{count} حلقات} many{{count} حلقة} other{{count} حلقة}}",
+  "@episodeCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "unitChapterTitle": "الفصل {number}",
+  "@unitChapterTitle": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
+  "unitEpisodeTitle": "الحلقة {number}",
+  "@unitEpisodeTitle": {
+    "placeholders": {
+      "number": {
+        "type": "String"
+      }
+    }
+  },
   "sourcePacks": "حزم المصادر",
   "sourcePacksBody": "كتالوجات مدمجة مع الحزم التي تضيفها. الحزمة JSON تصريحية: لا يُشغَّل أي كود، ولا تصل إلا إلى المضيف المذكور فيها.",
   "addSourcePack": "أضف حزمة مصدر",
@@ -205,6 +237,10 @@
   "continueTitle": "متابعة",
   "watchProgress": "{position} من {duration}",
   "playbackError": "تعذّر تشغيل هذا الفيديو.",
+  "playbackPreparing": "جارٍ تجهيز الحلقة…",
+  "playbackPreparingBody": "يستغرق المصدر لحظة لاستخراج رابط البث. تظهر الصورة فور جاهزيتها.",
+  "playbackTimeoutBody": "لم يبدأ البث خلال الوقت المتوقع. قد يكون المصدر بطيئًا أو الرابط غير متاح الآن.",
+  "playbackErrorHint": "لم يستجب المصدر أو تعذّر تشغيل الصيغة. أعد المحاولة، أو ارجع وجرّب مصدرًا آخر.",
   "sampleStream": "فيديو تجريبي · مؤسسة بليندر",
   "videoInPlayer": "هذه الحلقة تُشغَّل في مشغل الفيديو.",
   "playbackSpeed": "سرعة التشغيل",
@@ -257,6 +293,14 @@
     }
   },
   "downloadsInProgress": "قيد التنزيل",
+  "downloadActiveCount": "{count, plural, zero{لا تنزيلات} one{تنزيل واحد} two{تنزيلان} few{{count} تنزيلات} many{{count} تنزيلاً} other{{count} تنزيل}}",
+  "@downloadActiveCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "downloadsFinished": "جاهز دون اتصال",
   "browseSubtitle": "{count, plural, zero{لا مصادر جاهزة} one{مصدر واحد جاهز} two{مصدران جاهزان} few{{count} مصادر جاهزة} many{{count} مصدراً جاهزاً} other{{count} مصدر جاهز}}",
   "@browseSubtitle": {
@@ -696,10 +740,20 @@
   "detailRating": "التقييم",
   "open": "فتح",
   "homeSubtitle": "رفّك الذكي للقراءة",
+  "homeRole": "كتالوجات مباشرة من مصادرك",
   "homeNewFromSources": "جديد من مصادرك",
   "homePickUp": "واصل من حيث توقفت",
   "homeNothingKind": "لا أعمال من هذا النوع الآن.",
   "homeAddSources": "أضف مصادر",
+  "sourcesManage": "إدارة المصادر",
+  "sourcesManageBody": "اختر المصادر التي تظهر في الرئيسية. المصادر المخفية تبقى متاحة لأعمال مكتبتك وتنزيلاتك.",
+  "sourcesManageHint": "المصدر الافتراضي هو المصدر المحدد في شريط الرئيسية.",
+  "sourcesShow": "إظهار في الرئيسية",
+  "sourcesHide": "إخفاء من الرئيسية",
+  "sourcesCurrent": "الحالي",
+  "sourcesKeepOne": "أبقِ مصدرًا واحدًا ظاهرًا على الأقل.",
+  "sourcesHiddenEmptyTitle": "كل المصادر مخفية",
+  "sourcesHiddenEmptyBody": "أظهر مصدرًا من إدارة المصادر لتعود الكتالوجات والأخبار.",
   "homeLatestBadge": "جديد",
   "homeForYou": "مختارات لك",
   "homeSource": "المصدر",
@@ -802,7 +856,7 @@
   "metaChShort": "فصل",
   "metaMembersShort": "عضو",
   "metaDetails": "التفاصيل",
-  "metaSources": "المصادر",
+  "metaSources": "بيانات من",
   "metaErrorBody": "تحقّق من اتصالك؛ المصادر الأربعة تحتاج الإنترنت.",
   "metaOpenFailed": "تعذّر فتح الرابط.",
   "metaStoryCredit": "القصة",

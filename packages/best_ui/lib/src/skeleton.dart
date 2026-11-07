@@ -113,6 +113,8 @@ class PosterSkeleton extends StatelessWidget {
         SizedBox(height: BestSpace.sm),
         BestSkeletonBox(height: 12, radius: 4),
         SizedBox(height: 6),
+        BestSkeletonBox(height: 12, radius: 4),
+        SizedBox(height: 6),
         FractionallySizedBox(
           widthFactor: 0.55,
           child: BestSkeletonBox(height: 10, radius: 4),
@@ -170,12 +172,12 @@ class SliverPosterGridSkeleton extends StatelessWidget {
           sliver: SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: BestLayout.gutter),
             sliver: SliverGrid(
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              mainAxisSpacing: 22,
-              crossAxisSpacing: 14,
-              mainAxisExtent: tileWidth * 1.5 + 88,
-            ),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                mainAxisSpacing: 22,
+                crossAxisSpacing: 14,
+                mainAxisExtent: tileWidth * 1.5 + 104,
+              ),
               delegate: SliverChildBuilderDelegate(
                 (BuildContext context, int index) => const PosterSkeleton(),
                 childCount: count,

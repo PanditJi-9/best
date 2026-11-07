@@ -13,6 +13,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../extension_host.dart';
 import '../l10n/generated/app_localizations.dart';
+import '../labels.dart';
 import '../navigation.dart';
 import '../ocr/bubble_overlay_widget.dart';
 import '../providers.dart';
@@ -1077,9 +1078,13 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                           children: [
                             Flexible(
                               child: Text(
-                                unit.displayTitle,
+                                unitTitle(l10n, unit),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
+                                textDirection: autoTextDirection(
+                                  unitTitle(l10n, unit),
+                                  Directionality.of(context),
+                                ),
                                 style: const TextStyle(
                                     fontSize: 15, fontWeight: FontWeight.w700),
                               ),
@@ -1316,7 +1321,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                                           ),
                                           label: Text(
                                             '${l10n.readerNextChapter} · '
-                                            '${_nextUnit!.displayTitle}',
+                                            '${unitTitle(l10n, _nextUnit!)}',
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
@@ -1481,11 +1486,16 @@ Widget _pageFrame(
   BuildContext context,
   Widget child,
   int? frame,
-  bool wasSynchronouslyLoaded,
-) {
+  bool wasSynchronouslyLoaded, {
+  bool reserveHeight = false,
+  int? index,
+  int? total,
+}) {
   if (frame == null && !wasSynchronouslyLoaded) {
-    return const Center(
-      child: CircularProgressIndicator(color: BestColors.jade),
+    return _PageLoading(
+      index: index,
+      total: total,
+      fill: !reserveHeight,
     );
   }
   // Announced by screen readers, and the smoke gate waits for it so a page
@@ -1497,6 +1507,63 @@ Widget _pageFrame(
   );
 }
 
+/// The page slot while its image is still arriving.
+///
+/// Continuous mode reserves a page-shaped box so the strip keeps its scroll
+/// extent; a spinner per page turned the reader into a column of tiny rings.
+/// The page number tells the reader where they are without pretending the
+/// page has loaded.
+class _PageLoading extends StatelessWidget {
+  const _PageLoading({
+    this.index,
+    this.total,
+    required this.fill,
+  });
+
+  final int? index;
+  final int? total;
+  final bool fill;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final content = ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (index != null && total != null && total! > 0)
+              Text(
+                l10n.pageOf(index! + 1, total!),
+                style: const TextStyle(
+                  color: Colors.white38,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: 44,
+              child: LinearProgressIndicator(
+                minHeight: 2,
+                color: BestColors.jade,
+                backgroundColor: Colors.white12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (fill) return SizedBox.expand(child: content);
+    return SizedBox(
+      width: double.infinity,
+      height: MediaQuery.sizeOf(context).width * 1.4,
+      child: content,
+    );
+  }
+}
+
 Widget _networkImage(
   String url,
   Map<String, String> headers, {
@@ -1504,6 +1571,9 @@ Widget _networkImage(
   double? width,
   Key? key,
   VoidCallback? onRetry,
+  bool reserveHeight = false,
+  int? index,
+  int? total,
 }) {
   return Image.network(
     url,
@@ -1511,27 +1581,31 @@ Widget _networkImage(
     headers: headers.isEmpty ? null : headers,
     width: width,
     fit: fit,
-    frameBuilder: _pageFrame,
+    frameBuilder: (
+      BuildContext context,
+      Widget child,
+      int? frame,
+      bool wasSynchronouslyLoaded,
+    ) =>
+        _pageFrame(
+      context,
+      child,
+      frame,
+      wasSynchronouslyLoaded,
+      reserveHeight: reserveHeight,
+      index: index,
+      total: total,
+    ),
     loadingBuilder: (
       BuildContext context,
       Widget child,
       ImageChunkEvent? progress,
     ) {
       if (progress == null) return child;
-      if (width == double.infinity) {
-        // A page that has not decoded yet has no intrinsic height. Reserving
-        // a page-shaped box keeps the strip scrollable while the first images
-        // arrive instead of collapsing to zero height.
-        return SizedBox(
-          width: double.infinity,
-          height: MediaQuery.sizeOf(context).width * 1.4,
-          child: const Center(
-            child: CircularProgressIndicator(color: BestColors.jade),
-          ),
-        );
-      }
-      return const Center(
-        child: CircularProgressIndicator(color: BestColors.jade),
+      return _PageLoading(
+        index: index,
+        total: total,
+        fill: !reserveHeight,
       );
     },
     errorBuilder: (
@@ -1977,6 +2051,9 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                     width: _imageWidth,
                     key: ValueKey('network-$url-$_attempt'),
                     onRetry: retry,
+                    reserveHeight: _fitsWidth,
+                    index: widget.index,
+                    total: widget.total,
                   )
                 : FutureBuilder<Uint8List?>(
                     key: ValueKey('bytes-$_attempt'),
@@ -1989,10 +2066,10 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                         );
                       }
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            color: BestColors.jade,
-                          ),
+                        return _PageLoading(
+                          index: widget.index,
+                          total: widget.total,
+                          fill: !_fitsWidth,
                         );
                       }
                       final bytes = snapshot.data;
@@ -2005,6 +2082,9 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                           width: _imageWidth,
                           key: ValueKey('fallback-$url-$_attempt'),
                           onRetry: retry,
+                          reserveHeight: _fitsWidth,
+                          index: widget.index,
+                          total: widget.total,
                         );
                       }
                       return Image.memory(
@@ -2012,7 +2092,21 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                         width: _imageWidth,
                         fit: _imageFit,
                         gaplessPlayback: true,
-                        frameBuilder: _pageFrame,
+                        frameBuilder: (
+                          context,
+                          child,
+                          frame,
+                          wasSynchronouslyLoaded,
+                        ) =>
+                            _pageFrame(
+                          context,
+                          child,
+                          frame,
+                          wasSynchronouslyLoaded,
+                          reserveHeight: _fitsWidth,
+                          index: widget.index,
+                          total: widget.total,
+                        ),
                         errorBuilder: (
                           BuildContext context,
                           Object error,
@@ -2031,7 +2125,21 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
               key: ValueKey('file-$path-$_attempt'),
               width: _imageWidth,
               fit: _imageFit,
-              frameBuilder: _pageFrame,
+              frameBuilder: (
+                context,
+                child,
+                frame,
+                wasSynchronouslyLoaded,
+              ) =>
+                  _pageFrame(
+                context,
+                child,
+                frame,
+                wasSynchronouslyLoaded,
+                reserveHeight: _fitsWidth,
+                index: widget.index,
+                total: widget.total,
+              ),
               errorBuilder: (
                 BuildContext context,
                 Object error,

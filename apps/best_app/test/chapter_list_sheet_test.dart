@@ -196,7 +196,7 @@ void main() {
     await tester.enterText(
         find.byKey(const ValueKey('chapter-picker-search')), '٢٥٠');
     await tester.pumpAndSettle();
-    expect(find.text('Chapter 250'), findsOneWidget);
+    expect(find.text('الفصل 250'), findsOneWidget);
     await captureRender(
         tester, fixture.capture, 'chapter-tools-keyboard-ar.png');
     expect(tester.takeException(), isNull);

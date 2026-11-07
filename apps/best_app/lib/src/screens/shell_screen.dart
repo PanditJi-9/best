@@ -53,6 +53,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
     final shell = widget.navigationShell;
     if (index != shell.currentIndex) {
       HapticFeedback.selectionClick();
+      // A snackbar belongs to the action that raised it. Carrying "removed
+      // from shelf" into Downloads makes the new tab look like it failed.
+      ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
     }
     shell.goBranch(index, initialLocation: index == shell.currentIndex);
   }

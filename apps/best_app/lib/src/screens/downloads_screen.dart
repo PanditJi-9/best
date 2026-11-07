@@ -40,6 +40,12 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     for (final task in finished) {
       groups.putIfAbsent(task.mediaId, () => <DownloadTask>[]).add(task);
     }
+    // One card per work while downloading too: three chapters of the same
+    // series must not repeat the work title three times.
+    final activeGroups = <String, List<DownloadTask>>{};
+    for (final task in active) {
+      activeGroups.putIfAbsent(task.mediaId, () => <DownloadTask>[]).add(task);
+    }
     final works = <String, Media>{
       for (final entry
           in ref.watch(libraryProvider).value ?? const <LibraryEntry>[])
@@ -123,32 +129,31 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                       _WifiBanner(text: l10n.wifiWaiting),
                     if (active.isNotEmpty) ...[
                       SectionHeader(title: l10n.downloadsInProgress),
-                      for (final task in active)
+                      for (final group in activeGroups.values)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _DownloadTile(
-                            key: ValueKey('download-${task.unitId}'),
-                            task: task,
-                            busy: _busyTasks.contains(task.unitId),
-                            onPause: () => _change(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _ActiveGroup(
+                            tasks: group,
+                            work: works[group.first.mediaId],
+                            busyTasks: _busyTasks,
+                            onPause: (task) => _change(
                                 task,
                                 () => ref
                                     .read(downloadManagerProvider)
                                     .pause(task.unitId)),
-                            onResume: () => _change(
+                            onResume: (task) => _change(
                                 task,
                                 () => ref
                                     .read(downloadManagerProvider)
                                     .resume(task.unitId)),
-                            onRetry: () => _change(
+                            onRetry: (task) => _change(
                                 task,
                                 () => ref
                                     .read(downloadManagerProvider)
                                     .retry(task.unitId)),
-                            onCheck: () =>
+                            onCheck: (task) =>
                                 showDownloadIntegrityDialog(context, task),
-                            onDelete: () => _delete(context, ref, task),
-                            onOpen: null,
+                            onDelete: (task) => _delete(context, ref, task),
                           ),
                         ),
                     ],
@@ -265,6 +270,115 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(l10n.downloadRemoved)),
+    );
+  }
+}
+
+/// One work with its running downloads folded inside a single card.
+///
+/// The work title appears once, then each chapter is a row with its own
+/// progress and controls. A queue of three chapters used to be three cards
+/// that repeated the same title and cover.
+class _ActiveGroup extends StatelessWidget {
+  const _ActiveGroup({
+    required this.tasks,
+    required this.work,
+    required this.busyTasks,
+    required this.onPause,
+    required this.onResume,
+    required this.onRetry,
+    required this.onCheck,
+    required this.onDelete,
+  });
+
+  final List<DownloadTask> tasks;
+  final Media? work;
+  final Set<String> busyTasks;
+  final ValueChanged<DownloadTask> onPause;
+  final ValueChanged<DownloadTask> onResume;
+  final ValueChanged<DownloadTask> onRetry;
+  final ValueChanged<DownloadTask> onCheck;
+  final ValueChanged<DownloadTask> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final bytes = tasks.fold<int>(0, (sum, task) => sum + task.bytes);
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(BestRadius.lg),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(BestRadius.lg),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 44,
+                      height: 60,
+                      child: BestCover(
+                        title: tasks.first.mediaTitle,
+                        url: work?.coverUrl,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          tasks.first.mediaTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textDirection: autoTextDirection(
+                            tasks.first.mediaTitle,
+                            Directionality.of(context),
+                          ),
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${l10n.downloadActiveCount(tasks.length)} · '
+                          '${formatBytes(bytes)}',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: theme.colorScheme.outlineVariant),
+            for (final task in tasks)
+              _DownloadTile(
+                key: ValueKey('download-${task.unitId}'),
+                task: task,
+                busy: busyTasks.contains(task.unitId),
+                embedded: true,
+                onPause: () => onPause(task),
+                onResume: () => onResume(task),
+                onRetry: () => onRetry(task),
+                onCheck: () => onCheck(task),
+                onDelete: () => onDelete(task),
+                onOpen: null,
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -448,6 +562,7 @@ class _DownloadTile extends StatelessWidget {
     required this.onDelete,
     required this.onOpen,
     required this.onCheck,
+    this.embedded = false,
   });
 
   final DownloadTask task;
@@ -459,6 +574,9 @@ class _DownloadTile extends StatelessWidget {
   final VoidCallback? onOpen;
   final VoidCallback onCheck;
 
+  /// True when this tile is a row inside [_ActiveGroup], not a card of its own.
+  final bool embedded;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -467,23 +585,28 @@ class _DownloadTile extends StatelessWidget {
     final failed = task.isFailed;
 
     return Material(
-      color: theme.colorScheme.surfaceContainerLow,
+      color:
+          embedded ? Colors.transparent : theme.colorScheme.surfaceContainerLow,
       borderRadius: BorderRadius.circular(BestRadius.md),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onOpen,
         child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(BestRadius.md),
-            border: Border.all(color: theme.colorScheme.outlineVariant),
-          ),
-          padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+          decoration: embedded
+              ? null
+              : BoxDecoration(
+                  borderRadius: BorderRadius.circular(BestRadius.md),
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                ),
+          padding: embedded
+              ? const EdgeInsets.fromLTRB(12, 8, 4, 8)
+              : const EdgeInsets.fromLTRB(12, 12, 4, 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: embedded ? 36 : 44,
+                height: embedded ? 36 : 44,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   gradient: done
@@ -506,24 +629,34 @@ class _DownloadTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      task.mediaTitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
+                    if (!embedded) ...[
+                      Text(
+                        task.mediaTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
+                      const SizedBox(height: 2),
+                    ],
                     Text(
                       task.unitTitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                      textDirection: autoTextDirection(
+                        task.unitTitle,
+                        Directionality.of(context),
                       ),
+                      style: embedded
+                          ? theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            )
+                          : theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                     ),
-                    const SizedBox(height: 9),
+                    SizedBox(height: embedded ? 6 : 9),
                     if (failed)
                       Text(
                         downloadFailureLabel(l10n, task.error),
@@ -567,6 +700,7 @@ class _DownloadTile extends StatelessWidget {
               _Actions(
                 task: task,
                 busy: busy,
+                compact: embedded,
                 onPause: onPause,
                 onResume: onResume,
                 onRetry: onRetry,
@@ -648,6 +782,7 @@ class _Actions extends StatelessWidget {
     required this.onDelete,
     required this.onCheck,
     required this.onOpen,
+    this.compact = false,
   });
 
   final DownloadTask task;
@@ -659,58 +794,82 @@ class _Actions extends StatelessWidget {
   final VoidCallback onCheck;
   final VoidCallback? onOpen;
 
+  /// Horizontal, tighter controls for a row inside [_ActiveGroup].
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
 
-    return Column(
+    final IconButton primary;
+    if (task.isFinished) {
+      primary = IconButton(
+        tooltip: l10n.downloadOpen,
+        onPressed: busy ? null : onOpen,
+        icon: const Icon(Icons.menu_book_outlined, size: 20),
+      );
+    } else if (task.isFailed) {
+      primary = IconButton(
+        tooltip: l10n.downloadRetry,
+        onPressed: busy ? null : onRetry,
+        icon: const Icon(Icons.refresh_rounded, size: 20),
+      );
+    } else if (task.isPaused) {
+      primary = IconButton(
+        tooltip: l10n.downloadResume,
+        onPressed: busy ? null : onResume,
+        icon: const Icon(Icons.play_arrow_rounded, size: 22),
+      );
+    } else {
+      primary = IconButton(
+        tooltip: l10n.downloadPause,
+        onPressed: busy ? null : onPause,
+        icon: const Icon(Icons.pause_rounded, size: 20),
+      );
+    }
+
+    final menu = PopupMenuButton<_DownloadAction>(
+      enabled: !busy,
+      tooltip: l10n.more,
+      iconSize: compact ? 20 : 24,
+      padding: compact ? EdgeInsets.zero : const EdgeInsets.all(8),
+      onSelected: (action) {
+        switch (action) {
+          case _DownloadAction.check:
+            onCheck();
+          case _DownloadAction.delete:
+            onDelete();
+        }
+      },
+      itemBuilder: (_) => [
+        if (!task.isActive)
+          PopupMenuItem(
+              value: _DownloadAction.check, child: Text(l10n.downloadCheck)),
+        PopupMenuItem(
+            value: _DownloadAction.delete, child: Text(l10n.downloadDelete)),
+      ],
+    );
+
+    if (!compact) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [primary, menu],
+      );
+    }
+
+    return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (task.isFinished)
-          IconButton(
-            tooltip: l10n.downloadOpen,
-            onPressed: busy ? null : onOpen,
-            icon: const Icon(Icons.menu_book_outlined, size: 20),
-          )
-        else if (task.isFailed)
-          IconButton(
-            tooltip: l10n.downloadRetry,
-            onPressed: busy ? null : onRetry,
-            icon: const Icon(Icons.refresh_rounded, size: 20),
-          )
-        else if (task.isPaused)
-          IconButton(
-            tooltip: l10n.downloadResume,
-            onPressed: busy ? null : onResume,
-            icon: const Icon(Icons.play_arrow_rounded, size: 22),
-          )
-        else
-          IconButton(
-            tooltip: l10n.downloadPause,
-            onPressed: busy ? null : onPause,
-            icon: const Icon(Icons.pause_rounded, size: 20),
-          ),
-        PopupMenuButton<_DownloadAction>(
-          enabled: !busy,
-          tooltip: l10n.more,
-          onSelected: (action) {
-            switch (action) {
-              case _DownloadAction.check:
-                onCheck();
-              case _DownloadAction.delete:
-                onDelete();
-            }
-          },
-          itemBuilder: (_) => [
-            if (!task.isActive)
-              PopupMenuItem(
-                  value: _DownloadAction.check,
-                  child: Text(l10n.downloadCheck)),
-            PopupMenuItem(
-                value: _DownloadAction.delete,
-                child: Text(l10n.downloadDelete)),
-          ],
+        IconButton(
+          tooltip: primary.tooltip,
+          onPressed: primary.onPressed,
+          icon: primary.icon,
+          iconSize: 20,
+          padding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints.tightFor(width: 38, height: 38),
         ),
+        menu,
       ],
     );
   }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'bidi.dart';
 import 'cover.dart';
 import 'press_scale.dart';
+import 'rating.dart';
 import 'tokens.dart';
 
 /// The shape of a work, at the two densities the app actually uses.
@@ -23,6 +25,7 @@ class WorkCard extends StatelessWidget {
     this.subtitle,
     this.coverUrl,
     this.badge,
+    this.rating,
     this.progress = 0,
     this.progressLabel,
     this.density = WorkCardDensity.poster,
@@ -41,6 +44,9 @@ class WorkCard extends StatelessWidget {
 
   /// A short label printed on the cover: the kind of work, or "New".
   final String? badge;
+
+  /// The source's own score, when it publishes one.
+  final double? rating;
 
   /// A quieter third line under the subtitle, e.g. "MangaDex · EN".
   final String? footnote;
@@ -75,6 +81,7 @@ class WorkCard extends StatelessWidget {
               subtitle: subtitle,
               coverUrl: coverUrl,
               badge: badge,
+              rating: rating,
               footnote: footnote,
               selected: selected,
               progress: progress,
@@ -106,6 +113,7 @@ class _Poster extends StatelessWidget {
     required this.subtitle,
     required this.coverUrl,
     required this.badge,
+    required this.rating,
     required this.footnote,
     required this.selected,
     required this.progress,
@@ -118,6 +126,7 @@ class _Poster extends StatelessWidget {
   final String? subtitle;
   final String? coverUrl;
   final String? badge;
+  final double? rating;
   final String? footnote;
   final bool selected;
   final double progress;
@@ -181,6 +190,12 @@ class _Poster extends StatelessWidget {
                     end: BestSpace.sm,
                     child: CoverBadge(label: badge!),
                   ),
+                if (rating != null)
+                  PositionedDirectional(
+                    bottom: BestSpace.sm,
+                    start: BestSpace.sm,
+                    child: RatingBadge(score: rating!, compact: true),
+                  ),
                 if (progress > 0)
                   PositionedDirectional(
                     start: 0,
@@ -207,6 +222,10 @@ class _Poster extends StatelessWidget {
               title,
               maxLines: maxTitleLines,
               overflow: TextOverflow.ellipsis,
+              textDirection: autoTextDirection(
+                title,
+                Directionality.of(context),
+              ),
               style: BestType.cardTitle(context),
             ),
           ),
@@ -216,6 +235,10 @@ class _Poster extends StatelessWidget {
               subtitle!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              textDirection: autoTextDirection(
+                subtitle!,
+                Directionality.of(context),
+              ),
               style: BestType.meta(context),
             ),
           ],
@@ -225,6 +248,10 @@ class _Poster extends StatelessWidget {
               footnote!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              textDirection: autoTextDirection(
+                footnote!,
+                Directionality.of(context),
+              ),
               style: BestType.meta(context).copyWith(
                 fontSize: 10.5,
                 color: theme.colorScheme.onSurfaceVariant,
@@ -327,6 +354,10 @@ class _Row extends StatelessWidget {
                       title,
                       maxLines: maxTitleLines,
                       overflow: TextOverflow.ellipsis,
+                      textDirection: autoTextDirection(
+                        title,
+                        Directionality.of(context),
+                      ),
                       style: BestType.cardTitle(context),
                     ),
                     if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
@@ -335,6 +366,10 @@ class _Row extends StatelessWidget {
                         subtitle!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                        textDirection: autoTextDirection(
+                          subtitle!,
+                          Directionality.of(context),
+                        ),
                         style: BestType.meta(context),
                       ),
                     ],
@@ -344,6 +379,10 @@ class _Row extends StatelessWidget {
                         footnote!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                        textDirection: autoTextDirection(
+                          footnote!,
+                          Directionality.of(context),
+                        ),
                         style: BestType.meta(context).copyWith(
                           fontSize: 10.5,
                           color: theme.colorScheme.onSurfaceVariant,

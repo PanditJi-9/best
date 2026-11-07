@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'bidi.dart';
 import 'cover.dart';
 import 'rating.dart';
 import 'tokens.dart';
@@ -162,6 +163,10 @@ class PosterTile extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              textDirection: autoTextDirection(
+                title,
+                Directionality.of(context),
+              ),
               style: theme.textTheme.titleSmall?.copyWith(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
@@ -174,6 +179,10 @@ class PosterTile extends StatelessWidget {
                 genres.take(3).join(' • '),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                textDirection: autoTextDirection(
+                  genres.first,
+                  Directionality.of(context),
+                ),
                 style: theme.textTheme.labelSmall?.copyWith(
                   fontSize: 10,
                   height: 1.2,
