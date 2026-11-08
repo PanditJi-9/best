@@ -118,19 +118,11 @@ void main() {
     final fresh = _media('fresh', title: 'Fresh', genres: ['Fantasy']);
     final repository = MemoryLibraryRepository();
     addTearDown(repository.close);
+    await repository.saveMedia(owned.copyWith(inLibrary: true));
 
     final container = ProviderContainer(
       overrides: [
         repositoryProvider.overrideWithValue(repository),
-        libraryProvider.overrideWith(
-          (ref) async => [
-            LibraryEntry(
-              media: owned.copyWith(inLibrary: true),
-              totalUnits: 1,
-              completedUnits: 0,
-            ),
-          ],
-        ),
         rankingsProvider.overrideWith(
           (ref) async => Rankings(
             works: [fantasy, owned, romance],
@@ -163,7 +155,6 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         repositoryProvider.overrideWithValue(repository),
-        libraryProvider.overrideWith((ref) async => const <LibraryEntry>[]),
         rankingsProvider.overrideWith(
           (ref) async => Rankings(works: [top], live: true),
         ),

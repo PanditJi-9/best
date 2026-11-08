@@ -88,7 +88,7 @@ void main() {
     expect(find.text('Library'), findsWidgets);
     // The shelf counts read units against the whole work, and the bar carries
     // the same stored fraction as the reader.
-    expect(find.text('0/1 · Manga'), findsOneWidget);
+    expect(find.text('0/1 · Manhwa'), findsOneWidget);
     expect(
       tester
           .widgetList<BestProgressRule>(find.byType(BestProgressRule))
