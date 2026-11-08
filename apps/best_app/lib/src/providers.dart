@@ -2778,10 +2778,10 @@ class BackupController {
       text: LibraryBackup.encode(
         snapshot,
         sources: sources,
-        categories: [
+        categories: <String>{
           ..._ref.read(categoriesProvider),
           ..._ref.read(watchingCategoriesProvider),
-        ].toSet().toList(),
+        }.toList(),
         reader: reader,
       ),
       snapshot: snapshot,
