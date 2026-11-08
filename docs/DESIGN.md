@@ -258,9 +258,11 @@ content is centered and capped instead of stretching text and cards edge to edge
 
 - Title and on-device image bytes, with search and All / Offline / Failed /
   In progress filters kept above the scrolling list.
-- Section "In progress" (queued, running, paused, failed) and "Ready offline"
-  (done). Each tile shows the work, chapter, status and useful pause/resume/retry
-  or open action. Its secondary menu offers local file checks and deletion.
+- Section "In progress" (queued, running, paused, failed) only. Finished
+  chapters leave it for the download history, where each work is a card with
+  its cover and title, and its chapters stay folded until the card is opened.
+  Each tile shows the work, chapter, status and useful pause/resume/retry or
+  open action. Its secondary menu offers local file checks and deletion.
 - Check saved pages reports missing, empty or byte-changed files; it does not
   claim image decoding or source authenticity. Repair is a separate explicit
   action and preserves intact files and reader state.
@@ -297,7 +299,8 @@ content is centered and capped instead of stretching text and cards edge to edge
 |-----------|------|----------|
 | `BestMark`, `BestWordmark`, `BestBackdrop`, `StatStrip` | `brand.dart` | Brand surfaces; no app strings except a passed label. |
 | `ReadingCard` | `apps/best_app/lib/src/reading_card.dart` | Resume hero and compact continue row. |
-| `WorkCard` | `packages/best_ui/lib/src/work_card.dart` | Shared poster/row card with progress. |
+| `WorkCard` | `packages/best_ui/lib/src/work_card.dart` | Shared poster/row card with progress. The cover badge hugs its label; it never stretches across the cover. |
+| `BestProgressRule` | `packages/best_ui/lib/src/progress_rule.dart` | Thin progress rule: a quiet track and the aurora fill. The one progress colour on covers, rows and continue cards; a finished download is jade. |
 | `MediaCard` | `media_card.dart` | Metadata card with badge, rank numeral and optional progress. |
 | `SectionHeader`, `PageMasthead`, `EmptyState` | `sections.dart` | Section with an accent tick, title and a "text + chevron" action (no closing hairline); page masthead `02–05`; centred empty state with glow, eyebrow and action. |
 | `BestCover` | `cover.dart` | Deterministic gradient fallback when art is missing. |

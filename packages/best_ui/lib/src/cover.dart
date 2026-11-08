@@ -126,17 +126,43 @@ class _CoverFallback extends StatelessWidget {
           colors: palette,
         ),
       ),
-      child: Center(
-        child: Text(
-          glyph,
-          style: TextStyle(
-            fontFamily: BestFonts.display,
-            color: Colors.white.withValues(alpha: 0.88),
-            fontSize: 46,
-            fontWeight: FontWeight.w700,
-            height: 1,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // A soft light from the top corner and a darker foot, so an offline
+          // cover reads as printed artwork rather than a flat colour block.
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                center: Alignment(-0.7, -0.8),
+                radius: 1.1,
+                colors: [Color(0x2EFFFFFF), Color(0x00FFFFFF)],
+              ),
+            ),
           ),
-        ),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x00000000), Color(0x52000000)],
+                stops: [0.5, 1],
+              ),
+            ),
+          ),
+          Center(
+            child: Text(
+              glyph,
+              style: TextStyle(
+                fontFamily: BestFonts.display,
+                color: Colors.white.withValues(alpha: 0.88),
+                fontSize: 46,
+                fontWeight: FontWeight.w700,
+                height: 1,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -151,7 +151,8 @@ void main() {
     );
   });
 
-  testWidgets('finished downloads live in their own tab', (tester) async {
+  testWidgets('finished downloads move from the tab to a folded history',
+      (tester) async {
     final repository = MemoryLibraryRepository();
     final media = Media(
       ref: const SourceRef('test', 'blue-echo'),
@@ -183,14 +184,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Ready offline'), findsNothing);
 
-    // Downloads are their own destination, grouped by work with the finished
-    // chapters folded inside one card.
+    // The Downloads tab lists only transfers still running, so a finished
+    // chapter is not shown there.
     await tester.tap(find.text('Downloads').last);
     await tester.pumpAndSettle();
-    expect(find.text('Ready offline'), findsOneWidget);
-    expect(find.text('Blue Echo'), findsWidgets);
-    expect(find.text('Chapter 1'), findsWidgets);
+    expect(find.text('Ready offline'), findsNothing);
+    expect(find.text('Chapter 1'), findsNothing);
     expect(find.byKey(const ValueKey('downloads-history')), findsOneWidget);
+
+    // It waits in the history, grouped by work and folded until opened.
+    await tester.tap(find.byKey(const ValueKey('downloads-history')));
+    await tester.pumpAndSettle();
+    expect(find.text('Blue Echo'), findsWidgets);
+    expect(find.text('Chapter 1'), findsNothing);
   });
 
   testWidgets('settings opens from the home masthead and remembers choices', (

@@ -144,6 +144,15 @@ class SqfliteLibraryRepository implements LibraryRepository {
   }
 
   @override
+  Future<void> forgetOpened(String mediaId) async {
+    await _db.rawUpdate(
+      'UPDATE media SET last_opened_at = 0 WHERE id = ?',
+      [mediaId],
+    );
+    _notify();
+  }
+
+  @override
   Future<void> setFavorite(String mediaId, bool value) async {
     await _db.rawUpdate(
       'UPDATE media SET favorite = ? WHERE id = ?',

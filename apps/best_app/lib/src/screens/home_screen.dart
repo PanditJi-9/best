@@ -233,8 +233,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _toggleShelf(Media media, AppLocalizations l10n) async {
     final repository = ref.read(repositoryProvider);
     if (!media.inLibrary) {
-      await repository.setInLibrary(media.id, true);
-      if (!mounted) return;
+      final added = await addMediaToLibrary(context, ref, media);
+      if (!added || !mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -302,8 +302,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // The source list can arrive after the first frame (extensions load
     // asynchronously) or change when a source is installed. Binding here keeps
     // the first real source supplied without a state write during build.
-    if (!_initialised &&
-        current != null &&
+    if (current != null &&
         !_loading &&
         (_boundSourceId != current.id || _boundFeed != feed)) {
       _boundSourceId = current.id;
@@ -700,43 +699,57 @@ class _FeedTabs extends StatelessWidget {
       if (latestAvailable) _Feed.latest: latestLabel,
       _Feed.popular: popularLabel,
     };
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final entry in options.entries)
-          Padding(
-            padding: const EdgeInsetsDirectional.only(end: 6),
-            child: InkWell(
-              key: ValueKey('home-feed-${entry.key.name}'),
-              onTap: () => onSelected(entry.key),
-              borderRadius: BorderRadius.circular(BestRadius.pill),
-              child: AnimatedContainer(
-                duration: BestMotion.fast,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: entry.key == selected
-                      ? theme.colorScheme.primary.withValues(alpha: 0.14)
-                      : Colors.transparent,
+    // One segmented track: the selected feed is a solid pill, the same
+    // selected language as the history chips, so the front door has one voice.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(BestRadius.pill),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(3),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final entry in options.entries)
+              Semantics(
+                button: true,
+                selected: entry.key == selected,
+                child: InkWell(
+                  key: ValueKey('home-feed-${entry.key.name}'),
+                  onTap: () => onSelected(entry.key),
                   borderRadius: BorderRadius.circular(BestRadius.pill),
-                ),
-                child: Text(
-                  entry.value,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: entry.key == selected
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.onSurfaceVariant,
-                    fontWeight: entry.key == selected
-                        ? FontWeight.w800
-                        : FontWeight.w600,
+                  child: AnimatedContainer(
+                    duration: BestMotion.fast,
+                    curve: BestMotion.curve,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: entry.key == selected
+                          ? theme.colorScheme.primary
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(BestRadius.pill),
+                    ),
+                    child: Text(
+                      entry.value,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: entry.key == selected
+                            ? theme.colorScheme.onPrimary
+                            : theme.colorScheme.onSurfaceVariant,
+                        fontWeight: entry.key == selected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-      ],
+          ],
+        ),
+      ),
     );
   }
 }

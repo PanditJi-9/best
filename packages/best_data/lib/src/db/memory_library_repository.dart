@@ -65,6 +65,14 @@ class MemoryLibraryRepository implements LibraryRepository {
   }
 
   @override
+  Future<void> forgetOpened(String mediaId) async {
+    final media = _media[mediaId];
+    if (media == null) return;
+    _media[mediaId] = media.copyWith(lastOpenedAt: 0);
+    _notify();
+  }
+
+  @override
   Future<void> saveMedia(Media media) async {
     final existing = _media[media.id];
     if (existing == null) {

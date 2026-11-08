@@ -1,9 +1,11 @@
 import 'package:best_data/best_data.dart';
 import 'package:best_domain/best_domain.dart';
-import 'package:flutter/widgets.dart';
+import 'package:best_ui/best_ui.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'l10n/generated/app_localizations.dart';
 import 'navigation.dart';
 import 'providers.dart';
 
@@ -102,17 +104,41 @@ Future<void> setReadingState(
   }
 }
 
+/// The category registry of the shelf a work belongs to.
+ShelfCategoriesController _categoriesOf(WidgetRef ref, MediaKind kind) {
+  return LibraryShelf.of(kind) == LibraryShelf.watching
+      ? ref.read(watchingCategoriesProvider.notifier)
+      : ref.read(categoriesProvider.notifier);
+}
+
+/// Category names a work can be put into: the shelf's own names, minus hidden
+/// ones unless the person revealed them. A work put into a hidden category
+/// would vanish from the shelf the moment it was added.
+List<String> _pickableCategoryNames(WidgetRef ref, MediaKind kind) {
+  final names = LibraryShelf.of(kind) == LibraryShelf.watching
+      ? ref.read(watchingCategoriesProvider)
+      : ref.read(categoriesProvider);
+  final hidden = ref.read(hiddenCategoriesProvider);
+  final reveal = ref.read(revealHiddenProvider);
+  return [
+    for (final name in names)
+      if (reveal || !hidden.contains(name)) name,
+  ];
+}
+
 /// Adds one list name to a work, keeping the person's order and ignoring
 /// duplicates. Lists are tags: one storage shape, one editor.
 Future<void> addTag(WidgetRef ref, Media media, String tag) async {
   final clean = tag.trim();
   if (clean.isEmpty) return;
   // A list typed on a series page is a category from that moment on, even if
-  // the work is later removed from it.
-  await ref.read(categoriesProvider.notifier).add(clean);
-  final existing = media.tags;
-  if (existing.contains(clean)) return;
-  await ref.read(repositoryProvider).setTags(media.id, [...existing, clean]);
+  // the work is later removed from it. It belongs to the work's own shelf.
+  await _categoriesOf(ref, media.kind).add(clean);
+  final repository = ref.read(repositoryProvider);
+  // Read the work again: the page may hold a copy from before another edit.
+  final current = await repository.mediaById(media.id) ?? media;
+  if (current.tags.contains(clean)) return;
+  await repository.setTags(media.id, [...current.tags, clean]);
 }
 
 /// Adds one category to many works at once. Used by the library's selection
@@ -124,12 +150,86 @@ Future<void> addTagToWorks(
 ) async {
   final clean = tag.trim();
   if (clean.isEmpty) return;
-  await ref.read(categoriesProvider.notifier).add(clean);
   final repository = ref.read(repositoryProvider);
-  for (final media in works) {
-    if (!media.inLibrary || media.tags.contains(clean)) continue;
+  for (final selected in works) {
+    final media = await repository.mediaById(selected.id) ?? selected;
+    if (!media.inLibrary) continue;
+    await _categoriesOf(ref, media.kind).add(clean);
+    if (media.tags.contains(clean)) continue;
     await repository.setTags(media.id, [...media.tags, clean]);
   }
+}
+
+/// Takes one category off many works. Each work keeps its other categories.
+Future<void> removeTagFromWorks(
+  WidgetRef ref,
+  Iterable<Media> works,
+  String tag,
+) async {
+  final repository = ref.read(repositoryProvider);
+  for (final selected in works) {
+    final media = await repository.mediaById(selected.id) ?? selected;
+    if (!media.tags.contains(tag)) continue;
+    await repository.setTags(media.id, [
+      for (final existing in media.tags)
+        if (existing != tag) existing,
+    ]);
+  }
+}
+
+/// The one way a work enters the library. With no categories on its shelf it
+/// lands on the Default tab at once; with categories, the person picks the
+/// tab first. Returns whether the work was added.
+Future<bool> addMediaToLibrary(
+  BuildContext context,
+  WidgetRef ref,
+  Media media,
+) async {
+  if (media.inLibrary) return false;
+  final repository = ref.read(repositoryProvider);
+  final names = _pickableCategoryNames(ref, media.kind);
+  if (names.isEmpty) {
+    await repository.setInLibrary(media.id, true);
+    return true;
+  }
+
+  final l10n = AppLocalizations.of(context);
+  // An empty answer means Default; null means the person backed out.
+  final choice = await showModalBottomSheet<String>(
+    context: context,
+    showDragHandle: true,
+    builder: (sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+            child: Text(
+              l10n.addToLibraryChoose,
+              style: BestType.sectionTitle(context),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.inbox_outlined, size: 20),
+            title: Text(l10n.categoryDefault),
+            onTap: () => Navigator.of(sheetContext).pop(''),
+          ),
+          for (final name in names)
+            ListTile(
+              leading: const Icon(Icons.folder_outlined, size: 20),
+              title: Text(name),
+              onTap: () => Navigator.of(sheetContext).pop(name),
+            ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    ),
+  );
+  if (choice == null) return false;
+  if (choice.isNotEmpty) await addTag(ref, media, choice);
+  await repository.setInLibrary(media.id, true);
+  return true;
 }
 
 Future<void> removeTag(WidgetRef ref, Media media, String tag) async {

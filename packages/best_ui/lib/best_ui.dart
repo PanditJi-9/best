@@ -9,6 +9,7 @@ export 'src/metric_readout.dart';
 export 'src/pill_badge.dart';
 export 'src/poster_tile.dart';
 export 'src/press_scale.dart';
+export 'src/progress_rule.dart';
 export 'src/rating.dart';
 export 'src/sections.dart';
 export 'src/skeleton.dart';

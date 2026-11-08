@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'brand.dart';
 import 'cover.dart';
+import 'progress_rule.dart';
 import 'tokens.dart';
 
 /// The editorial cover story on Home: one work, one sentence, one obvious
@@ -300,11 +301,9 @@ class ContinueCard extends StatelessWidget {
                       const SizedBox(height: BestSpace.md),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(BestRadius.pill),
-                        child: LinearProgressIndicator(
-                          value: progress.clamp(0.0, 1.0),
-                          minHeight: 3,
-                          backgroundColor: Colors.white24,
-                          color: BestColors.cinnabar,
+                        child: BestProgressRule(
+                          value: progress,
+                          track: Colors.white24,
                         ),
                       ),
                       const SizedBox(height: 6),

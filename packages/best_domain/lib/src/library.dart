@@ -17,6 +17,20 @@ enum LibraryFilter {
 
 enum LibrarySort { title, recentlyRead, recentlyAdded }
 
+/// The two shelves a person keeps apart. Reading (manga and its kin) and
+/// watching (anime) never share a grid, a tab strip or a category list.
+enum LibraryShelf {
+  reading,
+  watching;
+
+  /// The shelf a work of this kind belongs on. Manga, manhwa, manhua and
+  /// webtoons read; everything that plays is watched.
+  static LibraryShelf of(MediaKind kind) =>
+      kind.isReading ? reading : watching;
+
+  bool contains(MediaKind kind) => of(kind) == this;
+}
+
 class LibraryQuery {
   const LibraryQuery({
     this.search = '',
@@ -25,6 +39,8 @@ class LibraryQuery {
     this.tag,
     this.hiddenTags = const {},
     this.includeHidden = false,
+    this.shelf,
+    this.uncategorized = false,
   });
 
   final String search;
@@ -42,6 +58,13 @@ class LibraryQuery {
   /// The person asked to reveal hidden categories for this session.
   final bool includeHidden;
 
+  /// Only works of this shelf. `null` keeps every shelf (used by counts and
+  /// by search across the whole library).
+  final LibraryShelf? shelf;
+
+  /// Only works with no category at all: the Default tab.
+  final bool uncategorized;
+
   LibraryQuery copyWith({
     String? search,
     LibraryFilter? filter,
@@ -50,6 +73,8 @@ class LibraryQuery {
     bool clearTag = false,
     Set<String>? hiddenTags,
     bool? includeHidden,
+    LibraryShelf? shelf,
+    bool? uncategorized,
   }) {
     return LibraryQuery(
       search: search ?? this.search,
@@ -58,6 +83,8 @@ class LibraryQuery {
       tag: clearTag ? null : (tag ?? this.tag),
       hiddenTags: hiddenTags ?? this.hiddenTags,
       includeHidden: includeHidden ?? this.includeHidden,
+      shelf: shelf ?? this.shelf,
+      uncategorized: uncategorized ?? this.uncategorized,
     );
   }
 
@@ -69,6 +96,8 @@ class LibraryQuery {
       other.sort == sort &&
       other.tag == tag &&
       other.includeHidden == includeHidden &&
+      other.shelf == shelf &&
+      other.uncategorized == uncategorized &&
       other.hiddenTags.length == hiddenTags.length &&
       other.hiddenTags.containsAll(hiddenTags);
 
@@ -79,6 +108,8 @@ class LibraryQuery {
         sort,
         tag,
         includeHidden,
+        shelf,
+        uncategorized,
         Object.hashAllUnordered(hiddenTags),
       );
 }
@@ -168,6 +199,13 @@ class LibraryPolicy {
   static bool _matches(LibraryEntry entry, LibraryQuery query) {
     final media = entry.media;
     if (!media.inLibrary) return false;
+
+    final shelf = query.shelf;
+    if (shelf != null && !shelf.contains(media.kind)) return false;
+    if (query.uncategorized &&
+        media.tags.any((tag) => tag.trim().isNotEmpty)) {
+      return false;
+    }
 
     if (!SearchText.matches(media.displayTitle, query.search) &&
         !SearchText.matches(media.nativeTitle ?? '', query.search) &&

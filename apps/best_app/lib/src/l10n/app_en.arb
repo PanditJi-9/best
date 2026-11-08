@@ -892,6 +892,13 @@
   "historyRecentEmpty": "You have not opened anything yet.",
   "historyDownloadsEmpty": "No active downloads.",
   "historyLastRead": "Last read",
+  "historyToday": "Today",
+  "historyYesterday": "Yesterday",
+  "historyDaysAgo": "{count, plural, =1{1 day ago} other{{count} days ago}}",
+  "@historyDaysAgo": {"placeholders": {"count": {"type": "int"}}},
+  "historySearch": "Search history",
+  "historyRemove": "Remove from history",
+  "historyRemoved": "Removed from history",
   "rankingsTitle": "Leaderboard",
   "rankingsSubtitle": "A real ranking from MangaDex",
   "rankingsByFollows": "Most followed",
@@ -1356,5 +1363,13 @@
   "biometricLock": "Biometric app lock",
   "biometricLockBody": "Ask for a fingerprint or device code when opening Best.",
   "biometricPromptTitle": "Turn on biometric lock",
-  "biometricPromptBody": "Confirm your identity to enable the lock."
+  "biometricPromptBody": "Confirm your identity to enable the lock.",
+  "categoryDefault": "Default",
+  "addToLibraryChoose": "Choose a category",
+  "libraryTabEmpty": "Nothing here yet",
+  "libraryTabEmptyBody": "Add a work from a source, or move one here from its page.",
+  "bulkRemoveFromCategory": "Remove from category",
+  "bulkRemovedFromCategory": "Removed from the category.",
+  "libraryAllCategorized": "Everything is categorized",
+  "libraryAllCategorizedBody": "Remove a category from any work to bring it back to this tab."
 }

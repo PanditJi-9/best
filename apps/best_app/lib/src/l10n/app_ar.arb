@@ -733,6 +733,13 @@
   "historyRecentEmpty": "لم تفتح أي عمل بعد.",
   "historyDownloadsEmpty": "لا توجد تحميلات جارية.",
   "historyLastRead": "آخر قراءة",
+  "historyToday": "اليوم",
+  "historyYesterday": "أمس",
+  "historyDaysAgo": "{count, plural, one{منذ يوم} two{منذ يومين} few{منذ {count} أيام} many{منذ {count} يومًا} other{منذ {count} يوم}}",
+  "@historyDaysAgo": {"placeholders": {"count": {"type": "int"}}},
+  "historySearch": "ابحث في السجل",
+  "historyRemove": "إزالة من السجل",
+  "historyRemoved": "أُزيل من السجل",
   "rankingsTitle": "المتصدرون",
   "rankingsSubtitle": "ترتيب حقيقي من MangaDex",
   "rankingsByFollows": "الأكثر متابعة",
@@ -1184,5 +1191,13 @@
   "biometricLock": "قفل التطبيق بالبصمة",
   "biometricLockBody": "اطلب بصمة الإصبع أو رمز قفل الجهاز عند فتح Best.",
   "biometricPromptTitle": "تفعيل القفل بالبصمة",
-  "biometricPromptBody": "أكّد هويتك لتفعيل القفل البيومتري."
+  "biometricPromptBody": "أكّد هويتك لتفعيل القفل البيومتري.",
+  "categoryDefault": "الافتراضي",
+  "addToLibraryChoose": "اختر التصنيف",
+  "libraryTabEmpty": "لا أعمال هنا بعد",
+  "libraryTabEmptyBody": "أضف عملًا من المصادر، أو انقله إلى هنا من صفحته.",
+  "bulkRemoveFromCategory": "إزالة من التصنيف",
+  "bulkRemovedFromCategory": "أُزيلت من التصنيف.",
+  "libraryAllCategorized": "كل أعمال هذا القسم مصنّفة",
+  "libraryAllCategorizedBody": "أزِل تصنيفًا من أي عمل ليعود إلى هذا التبويب."
 }

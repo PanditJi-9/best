@@ -83,7 +83,7 @@ from the files already on disk.
   inspected.
 - Each new page has an atomic SHA-256 sidecar. Missing files, empty files,
   malformed sidecars and checksum mismatches are reported by original page number.
-  A damaged finished task leaves the Ready offline section rather than pretending
+  A damaged finished task leaves the download history rather than pretending
   to remain complete.
 - **Legacy files without sidecars remain usable**, but are not described as
   checksum-verified. A resume/repair can adopt a baseline for intact legacy bytes;

@@ -23,6 +23,9 @@ abstract interface class LibraryRepository {
 
   Future<List<Media>> recent({int limit = 20});
 
+  /// Takes a work off the recently opened list. Its progress and shelf stay.
+  Future<void> forgetOpened(String mediaId);
+
   /// Inserts or refreshes a work. A refresh never erases local history.
   Future<void> saveMedia(Media media);
 

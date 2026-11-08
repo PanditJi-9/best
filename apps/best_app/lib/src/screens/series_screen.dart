@@ -141,13 +141,40 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
   UnitSort _sort = UnitSort.oldest;
   bool _bulkBusy = false;
 
+  /// The page's scroll position. The app bar follows it: clear over the
+  /// backdrop at the top, filled in as the hero title slides under it.
+  late final ScrollController _scroll = ScrollController()
+    ..addListener(_onScroll);
+  final ValueNotifier<double> _bar = ValueNotifier<double>(0);
+  final GlobalKey _heroTitle = GlobalKey();
+
   SeriesData get data => widget.data;
   SeriesKey get seriesKey => widget.seriesKey;
 
   @override
   void dispose() {
     _search.dispose();
+    _scroll.dispose();
+    _bar.dispose();
     super.dispose();
+  }
+
+  /// 0 while the hero title is fully visible, 1 once it has slid completely
+  /// under the app bar. Measured from the title itself, so it holds for any
+  /// font size or title length.
+  void _onScroll() {
+    if (!mounted) return;
+    final title = _heroTitle.currentContext?.findRenderObject();
+    if (title is! RenderBox || !title.attached || !title.hasSize) return;
+    final barBottom = MediaQuery.paddingOf(context).top + kToolbarHeight;
+    final titleTop = title.localToGlobal(Offset.zero).dy;
+    final next = ((barBottom - titleTop) / title.size.height)
+        .clamp(0.0, 1.0)
+        .toDouble();
+    // Only repaint the bar when the change is visible, not on every pixel.
+    if ((next - _bar.value).abs() > 0.02 || next == 0 || next == 1) {
+      _bar.value = next;
+    }
   }
 
   @override
@@ -156,6 +183,9 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
     final theme = Theme.of(context);
     final media = data.media;
     final units = UnitNavigation.readingOrder(data.units);
+    // The body runs behind the status bar and the app bar, so anything that
+    // starts at the top of the page leaves this much room for them.
+    final barHeight = MediaQuery.paddingOf(context).top + kToolbarHeight;
     final downloads =
         ref.watch(downloadsProvider).value ?? const <DownloadTask>[];
     final tasks = {for (final task in downloads) task.unitId: task};
@@ -192,6 +222,7 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
           media: media,
           sourceMissing: widget.sourceMissing,
           offlineCount: offlineCount,
+          titleKey: _heroTitle,
         ),
       ),
       if (media.genres.isNotEmpty)
@@ -410,7 +441,9 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
       const SliverToBoxAdapter(child: SizedBox(height: 28)),
     ];
     return Scaffold(
-      appBar: AppBar(
+      extendBodyBehindAppBar: true,
+      appBar: _SeriesAppBar(
+        progress: _bar,
         title: Text(
           media.displayTitle,
           maxLines: 1,
@@ -446,6 +479,8 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
             onTap: () => _toggleShelf(media),
           ),
           PopupMenuButton<_SeriesAction>(
+            padding: EdgeInsets.zero,
+            child: const _BarBubble(icon: Icons.more_vert_rounded),
             onSelected: (action) {
               switch (action) {
                 case _SeriesAction.refresh:
@@ -477,18 +512,21 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1120),
             child: LayoutBuilder(builder: (context, constraints) {
-              Widget chapterList(List<Widget> slivers, String key) =>
+              Widget chapterList(List<Widget> slivers, String key,
+                      {ScrollController? controller}) =>
                   RefreshIndicator(
                     onRefresh: _refresh,
                     child: CustomScrollView(
                       key: PageStorageKey(key),
+                      controller: controller,
                       physics: const AlwaysScrollableScrollPhysics(),
                       slivers: slivers,
                     ),
                   );
               if (constraints.maxWidth < 840) {
                 return chapterList(
-                    [...overviewSlivers, ...chapterSlivers], 'series-phone');
+                    [...overviewSlivers, ...chapterSlivers], 'series-phone',
+                    controller: _scroll);
               }
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -497,12 +535,16 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
                       width: 340,
                       child: CustomScrollView(
                         key: const PageStorageKey('series-overview'),
+                        controller: _scroll,
                         slivers: overviewSlivers,
                       )),
                   VerticalDivider(
                       width: 1, color: theme.colorScheme.outlineVariant),
                   Expanded(
-                      child: chapterList(chapterSlivers, 'series-chapters')),
+                      child: chapterList([
+                        SliverToBoxAdapter(child: SizedBox(height: barHeight)),
+                        ...chapterSlivers,
+                      ], 'series-chapters')),
                 ],
               );
             }),
@@ -701,7 +743,11 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
       );
       if (confirmed != true || !mounted) return;
     }
-    await ref.read(repositoryProvider).setInLibrary(media.id, !media.inLibrary);
+    if (media.inLibrary) {
+      await ref.read(repositoryProvider).setInLibrary(media.id, false);
+    } else {
+      await addMediaToLibrary(context, ref, media);
+    }
   }
 
   Future<void> _downloadAll(
@@ -859,11 +905,15 @@ class _Hero extends ConsumerWidget {
     required this.media,
     required this.sourceMissing,
     required this.offlineCount,
+    this.titleKey,
   });
 
   final Media media;
   final bool sourceMissing;
   final int offlineCount;
+
+  /// Lets the page measure where the title sits as it scrolls.
+  final Key? titleKey;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -884,17 +934,21 @@ class _Hero extends ConsumerWidget {
       stops: const [0.0, 0.45, 0.8, 1.0],
     );
 
+    final top = MediaQuery.paddingOf(context).top + kToolbarHeight;
     return SizedBox(
-      height: 312,
+      height: top + 312,
       child: Stack(
         fit: StackFit.expand,
         children: [
           if (media.coverUrl != null)
-            BestBackdrop(
-              title: media.displayTitle,
-              url: media.coverUrl,
-              blur: 32,
-              opacity: 0.5,
+            // Clipped to the hero, so the blur never spills past its edge.
+            ClipRect(
+              child: BestBackdrop(
+                title: media.displayTitle,
+                url: media.coverUrl,
+                blur: 32,
+                opacity: 0.5,
+              ),
             )
           else
             DecoratedBox(
@@ -950,6 +1004,7 @@ class _Hero extends ConsumerWidget {
                     children: [
                       Text(
                         media.displayTitle,
+                        key: titleKey,
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                         textDirection: autoTextDirection(
@@ -986,7 +1041,10 @@ class _Hero extends ConsumerWidget {
                         spacing: 6,
                         runSpacing: 6,
                         children: [
-                          _HeroTag(text: sourceName, accent: true),
+                          _HeroTag(
+                            text: sourceName,
+                            icon: Icons.extension_outlined,
+                          ),
                           _HeroTag(text: kindLabel(l10n, media.kind)),
                           if (media.year != null)
                             _HeroTag(text: '${media.year}'),
@@ -1028,30 +1086,47 @@ class _Hero extends ConsumerWidget {
 }
 
 class _HeroTag extends StatelessWidget {
-  const _HeroTag({required this.text, this.accent = false});
+  const _HeroTag({required this.text, this.accent = false, this.icon});
 
   final String text;
+
+  /// Reserved for a real state (offline copies). Everything else stays neutral.
   final bool accent;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
+    final foreground = accent ? BestColors.ink : Colors.white;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: accent
-            ? BestColors.jade.withValues(alpha: 0.9)
-            : Colors.black.withValues(alpha: 0.42),
+            ? BestColors.jade.withValues(alpha: 0.92)
+            : Colors.black.withValues(alpha: 0.36),
         borderRadius: BorderRadius.circular(BestRadius.pill),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+        border: accent
+            ? null
+            : Border.all(color: Colors.white.withValues(alpha: 0.12)),
       ),
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: accent ? BestColors.ink : Colors.white,
-              fontWeight: FontWeight.w700,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 13, color: foreground),
+            const SizedBox(width: 5),
+          ],
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w700,
+                  ),
             ),
+          ),
+        ],
       ),
     );
   }
@@ -1101,16 +1176,68 @@ class _GlassCircle extends StatelessWidget {
       tooltip: tooltip,
       onPressed: onTap,
       style: IconButton.styleFrom(
-        fixedSize: const Size(48, 48),
+        fixedSize: const Size(40, 40),
+        shape: const CircleBorder(),
         backgroundColor:
-            active ? BestColors.jade : Colors.black.withValues(alpha: 0.5),
+            active ? BestColors.jade : Colors.black.withValues(alpha: 0.38),
         foregroundColor: active ? BestColors.ink : Colors.white,
-        side: BorderSide(
-          color:
-              active ? BestColors.jade : Colors.white.withValues(alpha: 0.18),
-        ),
+        side: active
+            ? null
+            : BorderSide(color: Colors.white.withValues(alpha: 0.12)),
       ),
       icon: Icon(icon, size: 20),
+    );
+  }
+}
+
+/// The visual of a round top-bar button, for the control that opens a menu.
+class _BarBubble extends StatelessWidget {
+  const _BarBubble({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 40,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.black.withValues(alpha: 0.38),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Icon(icon, size: 20, color: Colors.white),
+    );
+  }
+}
+
+/// The series page's app bar. It starts clear, so the backdrop runs up behind
+/// the status bar, and fills in as the hero title scrolls under it.
+class _SeriesAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const _SeriesAppBar({
+    required this.progress,
+    required this.title,
+    required this.actions,
+  });
+
+  final ValueListenable<double> progress;
+  final Widget title;
+  final List<Widget> actions;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface;
+    return ValueListenableBuilder<double>(
+      valueListenable: progress,
+      builder: (context, value, _) => AppBar(
+        backgroundColor: surface.withValues(alpha: value),
+        title: Opacity(opacity: value, child: title),
+        actions: actions,
+      ),
     );
   }
 }

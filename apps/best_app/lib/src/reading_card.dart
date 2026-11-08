@@ -170,13 +170,10 @@ class ReadingCard extends StatelessWidget {
                                   child: ClipRRect(
                                     borderRadius:
                                         BorderRadius.circular(BestRadius.pill),
-                                    child: LinearProgressIndicator(
-                                      value: slot.fraction
-                                          .clamp(0.0, 1.0)
-                                          .toDouble(),
-                                      minHeight: 4,
-                                      color: BestColors.cyan,
-                                      backgroundColor:
+                                    child: BestProgressRule(
+                                      value: slot.fraction,
+                                      height: 4,
+                                      track:
                                           Colors.white.withValues(alpha: 0.22),
                                     ),
                                   ),

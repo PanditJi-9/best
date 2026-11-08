@@ -271,8 +271,10 @@ void main() {
 
       await tester.tap(find.text(l10n.navDownloads).last);
       await tester.pumpAndSettle();
-      expect(find.text(l10n.downloadsFinished), findsOneWidget);
-      expect(find.text('Chapter 1'), findsWidgets);
+      // Everything is downloaded, so the tab stays blank instead of listing it.
+      expect(find.text(l10n.downloadsFinished), findsNothing);
+      expect(find.text(l10n.downloadsEmptyTitle), findsNothing);
+      expect(find.text('Chapter 1'), findsNothing);
       await image(tester, 'downloads-$locale');
 
       await tester.tap(find.text(l10n.navHistory).last);

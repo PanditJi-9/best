@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'bidi.dart';
 import 'cover.dart';
 import 'press_scale.dart';
+import 'progress_rule.dart';
 import 'rating.dart';
 import 'tokens.dart';
 
@@ -188,7 +189,10 @@ class _Poster extends StatelessWidget {
                     top: BestSpace.sm,
                     start: BestSpace.sm,
                     end: BestSpace.sm,
-                    child: CoverBadge(label: badge!),
+                    child: Align(
+                      alignment: AlignmentDirectional.topStart,
+                      child: CoverBadge(label: badge!),
+                    ),
                   ),
                 if (rating != null)
                   PositionedDirectional(
@@ -205,11 +209,9 @@ class _Poster extends StatelessWidget {
                       borderRadius: const BorderRadius.vertical(
                         bottom: Radius.circular(BestRadius.md),
                       ),
-                      child: LinearProgressIndicator(
-                        value: progress.clamp(0.0, 1.0),
-                        minHeight: 3,
-                        color: theme.colorScheme.primary,
-                        backgroundColor: Colors.black.withValues(alpha: 0.45),
+                      child: BestProgressRule(
+                        value: progress,
+                        track: Colors.black.withValues(alpha: 0.45),
                       ),
                     ),
                   ),
@@ -339,7 +341,10 @@ class _Row extends StatelessWidget {
                         top: 3,
                         start: 3,
                         end: 3,
-                        child: CoverBadge(label: badge!, dense: true),
+                        child: Align(
+                      alignment: AlignmentDirectional.topStart,
+                      child: CoverBadge(label: badge!, dense: true),
+                    ),
                       ),
                   ],
                 ),
@@ -393,12 +398,8 @@ class _Row extends StatelessWidget {
                       const SizedBox(height: BestSpace.sm),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(BestRadius.pill),
-                        child: LinearProgressIndicator(
-                          value: progress.clamp(0.0, 1.0),
-                          minHeight: 3,
-                          color: theme.colorScheme.primary,
-                          backgroundColor:
-                              theme.colorScheme.surfaceContainerHighest,
+                        child: BestProgressRule(
+                          value: progress,
                         ),
                       ),
                       if (progressLabel != null) ...[

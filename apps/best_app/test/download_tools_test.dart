@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:best_app/src/l10n/generated/app_localizations.dart';
 import 'package:best_app/src/providers.dart';
+import 'package:best_app/src/screens/download_history_screen.dart';
 import 'package:best_app/src/screens/downloads_screen.dart';
 import 'package:best_app/src/widgets/download_integrity_dialog.dart';
 import 'package:best_app/src/widgets/reader_download_tile.dart';
@@ -231,10 +232,7 @@ Future<_Fixture> _open(
         builder: (_, state) => const Scaffold(body: Text('Offline reader'))),
     GoRoute(
         path: '/downloads/history',
-        builder: (context, state) => Scaffold(
-            appBar: AppBar(
-                title: Text(AppLocalizations.of(context).downloadsHistory)),
-            body: const SizedBox.shrink())),
+        builder: (context, state) => const DownloadHistoryScreen()),
   ]);
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
@@ -320,7 +318,7 @@ void main() {
     expect(find.text('Repair download'), findsNothing);
   });
 
-  testWidgets('finished chapters fold into one work card and history opens',
+  testWidgets('finished chapters move from transfers into a folded history',
       (tester) async {
     const arabic = Media(
         ref: SourceRef('test', 'forest'),
@@ -333,17 +331,22 @@ void main() {
     final fixture = await _open(tester, tasks: [done, failed, paused]);
     await captureRender(tester, fixture.capture, 'download-tools-list-en.png');
 
-    // One work card carries its finished chapter; the running and failed rows
-    // stay in the transfer section above it.
-    expect(find.byKey(ValueKey('download-${done.unitId}')), findsOneWidget);
+    // Finished chapters are not transfers: the running and failed rows stay
+    // here, and the finished chapter waits in the history.
+    expect(find.byKey(ValueKey('download-${done.unitId}')), findsNothing);
     expect(find.byKey(ValueKey('download-${failed.unitId}')), findsOneWidget);
     expect(find.byKey(ValueKey('download-${paused.unitId}')), findsOneWidget);
-    expect(find.text('1 chapter · 11.7 KB'), findsOneWidget);
     expect(find.byKey(const ValueKey('downloads-history')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('downloads-history')));
     await tester.pumpAndSettle();
     expect(find.text('Download history'), findsOneWidget);
+    // The work card starts folded and opens to show its chapter.
+    expect(find.byKey(ValueKey('download-${done.unitId}')), findsNothing);
+    expect(find.text('1 chapter · 11.7 KB'), findsOneWidget);
+    await tester.tap(find.text('1 chapter · 11.7 KB'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('download-${done.unitId}')), findsOneWidget);
     expect(await fixture.repository.downloads(), hasLength(3));
   });
 

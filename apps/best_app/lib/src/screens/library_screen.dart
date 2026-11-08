@@ -11,7 +11,15 @@ import '../l10n/generated/app_localizations.dart';
 import '../labels.dart';
 import '../navigation.dart';
 import '../providers.dart';
-import '../reading_card.dart';
+
+/// The category registry of the shelf on screen. Manga and anime keep separate
+/// lists, so a name made on one shelf never shows up on the other.
+ShelfCategoriesController shelfRegistry(WidgetRef ref) {
+  final shelf = ref.read(libraryQueryProvider).shelf ?? LibraryShelf.reading;
+  return shelf == LibraryShelf.watching
+      ? ref.read(watchingCategoriesProvider.notifier)
+      : ref.read(categoriesProvider.notifier);
+}
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -24,6 +32,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   final TextEditingController _search = TextEditingController();
   Timer? _debounce;
   late bool _grid;
+  late bool _searchOpen;
 
   /// Selection is keyed by stored id and keeps the row it selected, so a bulk
   /// action never needs to re-read the shelf (and cannot act on a stale list).
@@ -35,6 +44,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     super.initState();
     _grid = ref.read(preferencesProvider)?.getBool('library.grid') ?? true;
     _search.text = ref.read(libraryQueryProvider).search;
+    _searchOpen = _search.text.isNotEmpty;
   }
 
   @override
@@ -50,6 +60,34 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     _debounce = Timer(const Duration(milliseconds: 240), () {
       ref.read(libraryQueryProvider.notifier).setSearch(value);
     });
+  }
+
+  void _toggleSearch() {
+    if (_searchOpen) {
+      _debounce?.cancel();
+      _search.clear();
+      ref.read(libraryQueryProvider.notifier).setSearch('');
+    }
+    setState(() => _searchOpen = !_searchOpen);
+  }
+
+  void _toggleGrid() {
+    setState(() => _grid = !_grid);
+    ref.read(preferencesProvider)?.setBool('library.grid', _grid);
+  }
+
+  void _resetNarrowing() {
+    _debounce?.cancel();
+    _search.clear();
+    ref.read(libraryQueryProvider.notifier)
+      ..setSearch('')
+      ..setFilter(LibraryFilter.all);
+    setState(() {});
+  }
+
+  void _switchShelf(LibraryShelf shelf) {
+    _clearSelection();
+    ref.read(libraryQueryProvider.notifier).setShelf(shelf);
   }
 
   void _startSelection(Media media) {
@@ -103,6 +141,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final controller = ref.read(libraryRefreshProvider.notifier);
     await controller.refreshAll();
     ref.invalidate(libraryProvider);
+    ref.invalidate(libraryTabsProvider);
     ref.invalidate(continueProvider);
     ref.invalidate(resumeProvider);
     try {
@@ -127,10 +166,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final l10n = AppLocalizations.of(context);
     final query = ref.watch(libraryQueryProvider);
     final shelf = ref.watch(libraryProvider);
-    final continuing = ref.watch(resumeProvider);
-    final continueEntries = continuing.value ?? const <ResumeSlot>[];
-    final shelfCount = shelf.value?.length;
-    final filtering = query.filter != LibraryFilter.all || query.tag != null;
+    final tabs = ref.watch(libraryTabsProvider).value;
+    final reveal = ref.watch(revealHiddenProvider);
+    final shelfKind = query.shelf ?? LibraryShelf.reading;
+    final filtering = query.filter != LibraryFilter.all;
+    final currentTag = query.tag;
+    final total = tabs?.total;
+    final categories = [
+      for (final category in tabs?.categories ?? const <CategorySummary>[])
+        if (reveal || !category.hidden) category,
+    ];
 
     return SafeArea(
       bottom: false,
@@ -138,124 +183,92 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+            padding: const EdgeInsets.fromLTRB(20, 18, 8, 0),
             child: _selecting
-                ? Row(children: [
-                    IconButton(
-                      tooltip: l10n.bulkClear,
-                      onPressed: _clearSelection,
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        '${_selected.length} ${l10n.bulkSelected}',
-                        style: BestType.sectionTitle(context),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => _selectAll(
-                        shelf.value ?? const <LibraryEntry>[],
-                      ),
-                      child: Text(l10n.bulkSelectAll),
-                    ),
-                  ])
-                : Row(children: [
-                    Expanded(
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                          Text(l10n.navLibrary,
-                              style: BestType.pageTitle(context)),
-                          const SizedBox(height: 6),
-                          Text(
-                              shelfCount == null
-                                  ? l10n.tagline
-                                  : l10n.librarySummary(shelfCount),
-                              style: BestType.body(context)),
-                        ])),
-                    IconButton(
-                      tooltip: l10n.libraryFilter,
-                      onPressed: () => _showFilters(context, query),
-                      icon: Icon(
-                        Icons.tune_rounded,
-                        color: filtering
-                            ? Theme.of(context).colorScheme.primary
-                            : null,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip:
-                          _grid ? l10n.libraryListView : l10n.libraryGridView,
-                      onPressed: () {
-                        setState(() => _grid = !_grid);
-                        ref
-                            .read(preferencesProvider)
-                            ?.setBool('library.grid', _grid);
-                      },
-                      icon: Icon(_grid
-                          ? Icons.view_agenda_outlined
-                          : Icons.grid_view_rounded),
-                    ),
-                    IconButton(
-                      tooltip: l10n.sort,
-                      onPressed: () => _showSort(context, query),
-                      icon: const Icon(Icons.swap_vert),
-                    ),
-                  ]),
+                ? _selectionHeader(l10n, shelf)
+                : _header(context, l10n, query, total),
           ),
           if (_selecting)
             _BulkBar(
               onFavorite: _favoriteAll,
               onCategory: _addCategoryToSelection,
               onRemove: _removeAll,
+              onRemoveFromCategory: currentTag == null
+                  ? null
+                  : () => _removeFromCategory(currentTag),
             )
           else ...[
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
-              child: TextField(
-                controller: _search,
-                textInputAction: TextInputAction.search,
-                onChanged: _onSearch,
-                decoration: InputDecoration(
-                  hintText: l10n.searchLibrary,
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  suffixIcon: _search.text.isEmpty
-                      ? null
-                      : IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          onPressed: () {
-                            _search.clear();
-                            _onSearch('');
-                            setState(() {});
-                          },
-                        ),
-                ),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              child: SegmentedButton<LibraryShelf>(
+                showSelectedIcon: false,
+                segments: [
+                  ButtonSegment(
+                    value: LibraryShelf.reading,
+                    label: Text(l10n.kindManga),
+                    icon: const Icon(Icons.menu_book_outlined, size: 18),
+                  ),
+                  ButtonSegment(
+                    value: LibraryShelf.watching,
+                    label: Text(l10n.kindAnime),
+                    icon: const Icon(Icons.movie_outlined, size: 18),
+                  ),
+                ],
+                selected: {shelfKind},
+                onSelectionChanged: (value) => _switchShelf(value.first),
               ),
             ),
+            const SizedBox(height: 8),
+            _ShelfTabs(
+              defaultLabel: l10n.categoryDefault,
+              defaultCount: tabs?.uncategorized ?? 0,
+              defaultSelected: query.uncategorized && currentTag == null,
+              categories: categories,
+              selectedTag: currentTag,
+              onDefault: () =>
+                  ref.read(libraryQueryProvider.notifier).setUncategorized(),
+              onCategory: (name) =>
+                  ref.read(libraryQueryProvider.notifier).setTag(name),
+              onCategoryLongPress: _showTabActions,
+              onManage: () => _showCategories(context),
+              manageLabel: l10n.categoryManage,
+            ),
+            if (_searchOpen)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                child: TextField(
+                  controller: _search,
+                  autofocus: true,
+                  textInputAction: TextInputAction.search,
+                  onChanged: _onSearch,
+                  decoration: InputDecoration(
+                    hintText: l10n.searchLibrary,
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    suffixIcon: _search.text.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close, size: 18),
+                            onPressed: () {
+                              _search.clear();
+                              _onSearch('');
+                              setState(() {});
+                            },
+                          ),
+                  ),
+                ),
+              ),
             if (filtering)
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
                 child: Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
                   children: [
-                    if (query.filter != LibraryFilter.all)
-                      InputChip(
-                        label: Text(filterLabel(l10n, query.filter)),
-                        visualDensity: VisualDensity.compact,
-                        onDeleted: () => ref
-                            .read(libraryQueryProvider.notifier)
-                            .setFilter(LibraryFilter.all),
-                      ),
-                    if (query.tag != null)
-                      InputChip(
-                        label: Text(query.tag!),
-                        visualDensity: VisualDensity.compact,
-                        onDeleted: () => ref
-                            .read(libraryQueryProvider.notifier)
-                            .setTag(null),
-                      ),
+                    InputChip(
+                      label: Text(filterLabel(l10n, query.filter)),
+                      visualDensity: VisualDensity.compact,
+                      onDeleted: () => ref
+                          .read(libraryQueryProvider.notifier)
+                          .setFilter(LibraryFilter.all),
+                    ),
                   ],
                 ),
               ),
@@ -267,20 +280,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
-                  if (!_selecting &&
-                      continueEntries.isNotEmpty &&
-                      query.search.isEmpty &&
-                      query.filter == LibraryFilter.all &&
-                      query.tag == null)
-                    SliverToBoxAdapter(
-                      child: _ContinueRail(
-                        entries: continueEntries,
-                        onOpen: (entry) =>
-                            openUnit(context, ref, entry.media, entry.unit),
-                      ),
-                    ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 12)),
-                  ..._shelfSlivers(context, l10n, shelf, query),
+                  ..._shelfSlivers(
+                      context, l10n, shelf, query, total, shelfKind),
                   // Breathing room after the last work, above the navigation dock.
                   const SliverToBoxAdapter(child: SizedBox(height: 28)),
                 ],
@@ -289,6 +290,87 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _header(
+    BuildContext context,
+    AppLocalizations l10n,
+    LibraryQuery query,
+    int? total,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final filtering = query.filter != LibraryFilter.all;
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.navLibrary, style: BestType.pageTitle(context)),
+              const SizedBox(height: 4),
+              Text(
+                total == null ? l10n.tagline : l10n.librarySummary(total),
+                style: BestType.body(context),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: l10n.searchLibrary,
+          onPressed: _toggleSearch,
+          icon: Icon(
+            _searchOpen ? Icons.search_off_rounded : Icons.search_rounded,
+            color: _searchOpen ? scheme.primary : null,
+          ),
+        ),
+        IconButton(
+          tooltip: l10n.libraryFilter,
+          onPressed: () => _showFilters(context, query),
+          icon: Icon(
+            Icons.tune_rounded,
+            color: filtering ? scheme.primary : null,
+          ),
+        ),
+        IconButton(
+          tooltip: _grid ? l10n.libraryListView : l10n.libraryGridView,
+          onPressed: _toggleGrid,
+          icon: Icon(
+            _grid ? Icons.view_agenda_outlined : Icons.grid_view_rounded,
+          ),
+        ),
+        IconButton(
+          tooltip: l10n.sort,
+          onPressed: () => _showSort(context, query),
+          icon: const Icon(Icons.swap_vert),
+        ),
+      ],
+    );
+  }
+
+  Widget _selectionHeader(
+    AppLocalizations l10n,
+    AsyncValue<List<LibraryEntry>> shelf,
+  ) {
+    return Row(
+      children: [
+        IconButton(
+          tooltip: l10n.bulkClear,
+          onPressed: _clearSelection,
+          icon: const Icon(Icons.close_rounded),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            '${_selected.length} ${l10n.bulkSelected}',
+            style: BestType.sectionTitle(context),
+          ),
+        ),
+        TextButton(
+          onPressed: () => _selectAll(shelf.value ?? const <LibraryEntry>[]),
+          child: Text(l10n.bulkSelectAll),
+        ),
+      ],
     );
   }
 
@@ -331,9 +413,72 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ..showSnackBar(SnackBar(content: Text(l10n.bulkAdded)));
   }
 
+  Future<void> _removeFromCategory(String tag) async {
+    final l10n = AppLocalizations.of(context);
+    await removeTagFromWorks(ref, _selected.values, tag);
+    if (!mounted) return;
+    _clearSelection();
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(l10n.bulkRemovedFromCategory)));
+  }
+
+  /// Long press on a category tab: the same actions as the manager, one tap
+  /// away from the tab itself.
+  Future<void> _showTabActions(CategorySummary category) async {
+    final l10n = AppLocalizations.of(context);
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+              child: Text(
+                category.name,
+                style: BestType.sectionTitle(context),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined, size: 20),
+              title: Text(l10n.categoryRename),
+              onTap: () => Navigator.of(sheetContext).pop('rename'),
+            ),
+            ListTile(
+              leading: Icon(
+                category.hidden
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+                size: 20,
+              ),
+              title: Text(
+                category.hidden ? l10n.categoryShow : l10n.categoryHide,
+              ),
+              onTap: () => Navigator.of(sheetContext)
+                  .pop(category.hidden ? 'show' : 'hide'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded, size: 20),
+              title: Text(l10n.categoryDeleteTitle),
+              onTap: () => Navigator.of(sheetContext).pop('delete'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+    await runCategoryAction(context, ref, category.name, action);
+  }
+
   Future<void> _showFilters(BuildContext context, LibraryQuery query) async {
     final l10n = AppLocalizations.of(context);
-    final result = await showModalBottomSheet<Object>(
+    final result = await showModalBottomSheet<LibraryFilter>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
@@ -361,12 +506,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       : null,
                   onTap: () => Navigator.of(context).pop(filter),
                 ),
-              const Divider(height: 12),
-              ListTile(
-                leading: const Icon(Icons.folder_outlined, size: 20),
-                title: Text(l10n.categoryManage),
-                onTap: () => Navigator.of(context).pop('categories'),
-              ),
               const SizedBox(height: 8),
             ],
           ),
@@ -374,12 +513,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ),
     );
     if (!mounted || result == null) return;
-    if (result == 'categories') {
-      if (!context.mounted) return;
-      await _showCategories(context);
-      return;
-    }
-    ref.read(libraryQueryProvider.notifier).setFilter(result as LibraryFilter);
+    ref.read(libraryQueryProvider.notifier).setFilter(result);
   }
 
   Future<void> _showCategories(BuildContext context) async {
@@ -396,9 +530,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     AppLocalizations l10n,
     AsyncValue<List<LibraryEntry>> shelf,
     LibraryQuery query,
+    int? total,
+    LibraryShelf shelfKind,
   ) {
     final registry = ref.watch(sourceRegistryProvider);
     return shelf.when<List<Widget>>(
+      // Switching tabs keeps the cards on screen until the new ones arrive,
+      // instead of flashing the skeleton on every tap.
+      skipLoadingOnReload: true,
       loading: () => [
         if (_grid)
           const SliverPosterGridSkeleton()
@@ -426,38 +565,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ],
       data: (entries) {
         if (entries.isEmpty) {
-          final filtered = query.search.isNotEmpty ||
-              query.filter != LibraryFilter.all ||
-              query.tag != null;
           return [
             SliverFillRemaining(
               hasScrollBody: false,
-              child: EmptyState(
-                icon: Icons.auto_stories_outlined,
-                title:
-                    filtered ? l10n.libraryFilterEmpty : l10n.shelfEmptyTitle,
-                body: filtered
-                    ? l10n.libraryFilterEmptyBody
-                    : l10n.shelfEmptyBody,
-                action: !filtered
-                    ? FilledButton.icon(
-                        onPressed: () => context.push(Routes.sources),
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: Text(l10n.homeAddSources),
-                      )
-                    : OutlinedButton(
-                        onPressed: () {
-                          _debounce?.cancel();
-                          _search.clear();
-                          ref.read(libraryQueryProvider.notifier)
-                            ..setSearch('')
-                            ..setFilter(LibraryFilter.all)
-                            ..setTag(null);
-                          setState(() {});
-                        },
-                        child: Text(l10n.filterAll),
-                      ),
-              ),
+              child: _emptyState(context, l10n, query, total, shelfKind),
             ),
           ];
         }
@@ -465,26 +576,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         if (!_grid) {
           return [
             SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                sliver: SliverList.builder(
-                    itemCount: entries.length,
-                    itemBuilder: (context, index) {
-                      final entry = entries[index];
-                      return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: WorkCard(
-                              density: WorkCardDensity.row,
-                              title: entry.media.displayTitle,
-                              subtitle: _subtitle(l10n, entry),
-                              footnote: _footnote(registry, entry.media),
-                              coverUrl: entry.media.coverUrl,
-                              progress: entry.fraction,
-                              selected: _selected.containsKey(entry.media.id),
-                              onLongPress: () => _startSelection(entry.media),
-                              onTap: () => _onOpen(entry.media)));
-                    }))
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              sliver: SliverList.builder(
+                itemCount: entries.length,
+                itemBuilder: (context, index) {
+                  final entry = entries[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: WorkCard(
+                      density: WorkCardDensity.row,
+                      title: entry.media.displayTitle,
+                      subtitle: _subtitle(l10n, entry),
+                      footnote: _footnote(registry, entry.media),
+                      coverUrl: entry.media.coverUrl,
+                      progress: entry.fraction,
+                      selected: _selected.containsKey(entry.media.id),
+                      onLongPress: () => _startSelection(entry.media),
+                      onTap: () => _onOpen(entry.media),
+                    ),
+                  );
+                },
+              ),
+            ),
           ];
         }
+
         return [
           SliverLayoutBuilder(
             builder: (context, constraints) {
@@ -507,7 +623,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       subtitle: _subtitle(l10n, entry),
                       footnote: _footnote(registry, entry.media),
                       coverUrl: entry.media.coverUrl,
-                      badge: kindLabel(l10n, entry.media.kind),
+                      // Unread chapters, the way a reader counts what is left.
+                      badge: entry.unreadUnits > 0
+                          ? '${entry.unreadUnits}'
+                          : null,
                       progress: entry.fraction,
                       selected: _selected.containsKey(entry.media.id),
                       onLongPress: () => _startSelection(entry.media),
@@ -520,6 +639,57 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
         ];
       },
+    );
+  }
+
+  /// One empty state per situation: nothing at all, a search or filter that
+  /// hides everything, the Default tab once every work has a category, or a
+  /// category tab with no works yet.
+  Widget _emptyState(
+    BuildContext context,
+    AppLocalizations l10n,
+    LibraryQuery query,
+    int? total,
+    LibraryShelf shelfKind,
+  ) {
+    final narrowed =
+        query.search.isNotEmpty || query.filter != LibraryFilter.all;
+    if (narrowed) {
+      return EmptyState(
+        icon: Icons.search_off_rounded,
+        title: l10n.libraryFilterEmpty,
+        body: l10n.libraryFilterEmptyBody,
+        action: OutlinedButton(
+          onPressed: _resetNarrowing,
+          child: Text(l10n.filterAll),
+        ),
+      );
+    }
+    if ((total ?? 0) == 0) {
+      return EmptyState(
+        icon: shelfKind == LibraryShelf.watching
+            ? Icons.movie_outlined
+            : Icons.menu_book_outlined,
+        title: l10n.shelfEmptyTitle,
+        body: l10n.shelfEmptyBody,
+        action: FilledButton.icon(
+          onPressed: () => context.push(Routes.sources),
+          icon: const Icon(Icons.add_rounded, size: 18),
+          label: Text(l10n.homeAddSources),
+        ),
+      );
+    }
+    if (query.uncategorized && query.tag == null) {
+      return EmptyState(
+        icon: Icons.done_all_rounded,
+        title: l10n.libraryAllCategorized,
+        body: l10n.libraryAllCategorizedBody,
+      );
+    }
+    return EmptyState(
+      icon: Icons.folder_open_outlined,
+      title: l10n.libraryTabEmpty,
+      body: l10n.libraryTabEmptyBody,
     );
   }
 
@@ -578,20 +748,82 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 }
 
+/// Every action a category can take, shared by the manager and the tab's long
+/// press menu. Hiding or deleting the category on screen moves the person to
+/// Default, never to a list of every work.
+Future<void> runCategoryAction(
+  BuildContext context,
+  WidgetRef ref,
+  String name,
+  String action,
+) async {
+  final l10n = AppLocalizations.of(context);
+  switch (action) {
+    case 'rename':
+      final next = await _askName(
+        context,
+        title: l10n.categoryRename,
+        initial: name,
+        submitLabel: l10n.save,
+      );
+      if (next == null || next == name) return;
+      await shelfRegistry(ref).rename(name, next);
+      if (ref.read(libraryQueryProvider).tag == name) {
+        ref.read(libraryQueryProvider.notifier).setTag(next);
+      }
+    case 'hide':
+      await ref.read(hiddenCategoriesProvider.notifier).setHidden(name, true);
+      if (ref.read(libraryQueryProvider).tag == name) {
+        ref.read(libraryQueryProvider.notifier).setUncategorized();
+      }
+    case 'show':
+      await ref.read(hiddenCategoriesProvider.notifier).setHidden(name, false);
+    case 'delete':
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(l10n.categoryDeleteTitle),
+          content: Text(l10n.categoryDeleteBody),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(l10n.delete),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+      await shelfRegistry(ref).remove(name);
+      if (ref.read(libraryQueryProvider).tag == name) {
+        ref.read(libraryQueryProvider.notifier).setUncategorized();
+      }
+  }
+}
+
 class _BulkBar extends StatelessWidget {
   const _BulkBar({
     required this.onFavorite,
     required this.onCategory,
     required this.onRemove,
+    this.onRemoveFromCategory,
   });
 
   final VoidCallback onFavorite;
   final VoidCallback onCategory;
   final VoidCallback onRemove;
 
+  /// Only offered while a category tab is open: takes the selection out of it
+  /// and leaves the works in every other category they belong to.
+  final VoidCallback? onRemoveFromCategory;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final removeFromCategory = onRemoveFromCategory;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 0, 0),
       child: SizedBox(
@@ -611,6 +843,14 @@ class _BulkBar extends StatelessWidget {
               onPressed: onCategory,
             ),
             const SizedBox(width: 8),
+            if (removeFromCategory != null) ...[
+              ActionChip(
+                avatar: const Icon(Icons.folder_off_outlined, size: 17),
+                label: Text(l10n.bulkRemoveFromCategory),
+                onPressed: removeFromCategory,
+              ),
+              const SizedBox(width: 8),
+            ],
             ActionChip(
               avatar: const Icon(Icons.library_add_outlined, size: 17),
               label: Text(l10n.bulkRemove),
@@ -725,7 +965,7 @@ class _CategoriesSheet extends ConsumerWidget {
                               Navigator.of(context).pop();
                             },
                             trailing: PopupMenuButton<String>(
-                              onSelected: (value) => _onAction(
+                              onSelected: (value) => runCategoryAction(
                                 context,
                                 ref,
                                 category.name,
@@ -761,61 +1001,6 @@ class _CategoriesSheet extends ConsumerWidget {
     );
   }
 
-  Future<void> _onAction(
-    BuildContext context,
-    WidgetRef ref,
-    String name,
-    String action,
-  ) async {
-    final l10n = AppLocalizations.of(context);
-    switch (action) {
-      case 'rename':
-        final next = await _askName(
-          context,
-          title: l10n.categoryRename,
-          initial: name,
-          submitLabel: l10n.save,
-        );
-        if (next == null || next == name) return;
-        await ref.read(categoriesProvider.notifier).rename(name, next);
-        if (ref.read(libraryQueryProvider).tag == name) {
-          ref.read(libraryQueryProvider.notifier).setTag(next);
-        }
-      case 'hide':
-        await ref.read(hiddenCategoriesProvider.notifier).setHidden(name, true);
-        if (ref.read(libraryQueryProvider).tag == name) {
-          ref.read(libraryQueryProvider.notifier).setTag(null);
-        }
-      case 'show':
-        await ref
-            .read(hiddenCategoriesProvider.notifier)
-            .setHidden(name, false);
-      case 'delete':
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text(l10n.categoryDeleteTitle),
-            content: Text(l10n.categoryDeleteBody),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: Text(l10n.cancel),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: Text(l10n.delete),
-              ),
-            ],
-          ),
-        );
-        if (confirmed != true) return;
-        await ref.read(categoriesProvider.notifier).remove(name);
-        if (ref.read(libraryQueryProvider).tag == name) {
-          ref.read(libraryQueryProvider.notifier).setTag(null);
-        }
-    }
-  }
-
   Future<void> _create(BuildContext context, WidgetRef ref) async {
     final l10n = AppLocalizations.of(context);
     final name = await _askName(
@@ -824,7 +1009,7 @@ class _CategoriesSheet extends ConsumerWidget {
       submitLabel: l10n.add,
     );
     if (name == null || name.trim().isEmpty) return;
-    await ref.read(categoriesProvider.notifier).add(name);
+    await shelfRegistry(ref).add(name);
   }
 }
 
@@ -869,12 +1054,16 @@ Future<String?> _askName(
 }
 
 /// Existing categories plus a free-text field, so adding to a category never
-/// requires leaving the shelf.
+/// requires leaving the shelf. Hidden categories are offered only once revealed.
 Future<String?> _pickCategoryName(BuildContext context, WidgetRef ref) async {
   final l10n = AppLocalizations.of(context);
   final controller = TextEditingController();
-  final categories =
-      ref.read(libraryCategoriesProvider).value ?? const <CategorySummary>[];
+  final reveal = ref.read(revealHiddenProvider);
+  final categories = [
+    for (final category
+        in ref.read(libraryCategoriesProvider).value ?? const <CategorySummary>[])
+      if (reveal || !category.hidden) category,
+  ];
   final result = await showDialog<String>(
     context: context,
     builder: (context) => AlertDialog(
@@ -924,27 +1113,219 @@ Future<String?> _pickCategoryName(BuildContext context, WidgetRef ref) async {
   return clean.isEmpty ? null : clean;
 }
 
-class _ContinueRail extends StatelessWidget {
-  const _ContinueRail({required this.entries, required this.onOpen});
+/// The shelf's tab strip: Default first, then each category with its count.
+/// The selected tab is scrolled into view whenever the selection changes.
+class _ShelfTabs extends StatefulWidget {
+  const _ShelfTabs({
+    required this.defaultLabel,
+    required this.defaultCount,
+    required this.defaultSelected,
+    required this.categories,
+    required this.selectedTag,
+    required this.onDefault,
+    required this.onCategory,
+    required this.onCategoryLongPress,
+    required this.onManage,
+    required this.manageLabel,
+  });
 
-  final List<ResumeSlot> entries;
-  final void Function(ResumeSlot entry) onOpen;
+  final String defaultLabel;
+  final int defaultCount;
+  final bool defaultSelected;
+  final List<CategorySummary> categories;
+  final String? selectedTag;
+  final VoidCallback onDefault;
+  final ValueChanged<String> onCategory;
+  final ValueChanged<CategorySummary> onCategoryLongPress;
+  final VoidCallback onManage;
+  final String manageLabel;
+
+  @override
+  State<_ShelfTabs> createState() => _ShelfTabsState();
+}
+
+class _ShelfTabsState extends State<_ShelfTabs> {
+  static const String _defaultId = 'default';
+
+  /// One key per tab, so the strip can find the selected tab's position.
+  final Map<String, GlobalKey> _keys = {};
+
+  GlobalKey _keyFor(String id) => _keys.putIfAbsent(id, () => GlobalKey());
+
+  String? get _selectedId {
+    if (widget.defaultSelected) return _defaultId;
+    final tag = widget.selectedTag;
+    return tag == null ? null : 'category:$tag';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _revealSelected();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ShelfTabs oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.defaultSelected != widget.defaultSelected ||
+        oldWidget.selectedTag != widget.selectedTag) {
+      _revealSelected();
+    }
+  }
+
+  /// Only when the selection changes, so a person scrolling the strip by hand
+  /// is never pulled back while the counts refresh.
+  void _revealSelected() {
+    final id = _selectedId;
+    if (id == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final tabContext = _keys[id]?.currentContext;
+      if (tabContext == null || !tabContext.mounted) return;
+      Scrollable.ensureVisible(
+        tabContext,
+        alignment: 0.5,
+        duration: BestMotion.fast,
+        curve: BestMotion.curve,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: SectionHeader(title: l10n.continueTitle),
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                _ShelfTab(
+                  key: _keyFor(_defaultId),
+                  label: widget.defaultLabel,
+                  count: widget.defaultCount,
+                  selected: widget.defaultSelected,
+                  onTap: widget.onDefault,
+                ),
+                for (final category in widget.categories)
+                  _ShelfTab(
+                    key: _keyFor('category:${category.name}'),
+                    label: category.name,
+                    count: category.count,
+                    selected: widget.selectedTag == category.name,
+                    dimmed: category.hidden,
+                    onTap: () => widget.onCategory(category.name),
+                    onLongPress: () => widget.onCategoryLongPress(category),
+                  ),
+              ],
+            ),
+          ),
         ),
-        for (final entry in entries)
-          Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-              child: ReadingCard(slot: entry, onOpen: () => onOpen(entry))),
+        IconButton(
+          tooltip: widget.manageLabel,
+          onPressed: widget.onManage,
+          icon: const Icon(Icons.folder_outlined),
+        ),
       ],
+    );
+  }
+}
+
+class _ShelfTab extends StatelessWidget {
+  const _ShelfTab({
+    super.key,
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+    this.onLongPress,
+    this.dimmed = false,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final bool dimmed;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final color = selected ? scheme.primary : scheme.onSurfaceVariant;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '$label, $count',
+      child: Padding(
+        padding: const EdgeInsetsDirectional.only(end: 20),
+        child: Opacity(
+          opacity: dimmed ? 0.5 : 1,
+          child: InkWell(
+            onTap: onTap,
+            onLongPress: onLongPress,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+              child: IntrinsicWidth(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          label,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            color: color,
+                            fontWeight:
+                                selected ? FontWeight.w700 : FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? scheme.primaryContainer
+                                : scheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 1,
+                            ),
+                            child: Text(
+                              '$count',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: selected
+                                    ? scheme.onPrimaryContainer
+                                    : scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    AnimatedContainer(
+                      duration: BestMotion.fast,
+                      curve: BestMotion.curve,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: selected ? scheme.primary : Colors.transparent,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

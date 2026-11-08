@@ -22,7 +22,7 @@ class SettingsScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final settings = ref.watch(settingsProvider);
-    final works = ref.watch(libraryProvider).value?.length ?? 0;
+    final works = ref.watch(allLibraryProvider).value?.length ?? 0;
     final downloads = ref.watch(downloadsProvider).value ?? const [];
     final offline = downloads.where((task) => task.isFinished).length;
     final sources = ref.watch(sourceRegistryProvider).all;

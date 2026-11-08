@@ -141,9 +141,14 @@ class PageMasthead extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          height: 1,
-          color: theme.colorScheme.outlineVariant,
+        // A short aurora rule instead of a full-width hairline: the same accent
+        // a section tick uses, so the masthead reads as the brand.
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: BestColors.aurora),
+            borderRadius: BorderRadius.all(Radius.circular(BestRadius.pill)),
+          ),
+          child: SizedBox(width: 28, height: 3),
         ),
         const SizedBox(height: 12),
         Row(

@@ -1159,8 +1159,17 @@ final NotifierProvider<ReaderBookmarksController, Map<String, List<int>>>
 );
 
 class LibraryQueryController extends Notifier<LibraryQuery> {
+  static const String _shelfKey = 'library.shelf';
+
+  /// The library opens on the shelf the person used last, on its Default tab.
   @override
-  LibraryQuery build() => const LibraryQuery();
+  LibraryQuery build() {
+    final saved = ref.watch(preferencesProvider)?.getString(_shelfKey);
+    final shelf = saved == LibraryShelf.watching.name
+        ? LibraryShelf.watching
+        : LibraryShelf.reading;
+    return LibraryQuery(shelf: shelf, uncategorized: true);
+  }
 
   void setSearch(String value) {
     if (state.search == value) return;
@@ -1177,10 +1186,32 @@ class LibraryQueryController extends Notifier<LibraryQuery> {
     state = state.copyWith(sort: sort);
   }
 
-  /// `null` shows every category. Selecting the active one again clears it.
+  /// One category tab. Selecting the active one again does nothing.
   void setTag(String? tag) {
-    if (state.tag == tag) return;
-    state = state.copyWith(tag: tag, clearTag: tag == null);
+    if (tag != null && state.tag == tag && !state.uncategorized) return;
+    state = state.copyWith(
+      tag: tag,
+      clearTag: tag == null,
+      uncategorized: false,
+    );
+  }
+
+  /// The Default tab: works that belong to no category on this shelf.
+  void setUncategorized() {
+    if (state.uncategorized && state.tag == null) return;
+    state = state.copyWith(clearTag: true, uncategorized: true);
+  }
+
+  /// Switching shelves starts again on that shelf's Default tab, and the choice
+  /// is remembered for the next launch.
+  void setShelf(LibraryShelf shelf) {
+    if (state.shelf == shelf) return;
+    state = state.copyWith(
+      shelf: shelf,
+      clearTag: true,
+      uncategorized: true,
+    );
+    unawaited(ref.read(preferencesProvider)?.setString(_shelfKey, shelf.name));
   }
 }
 
@@ -1421,18 +1452,24 @@ final NotifierProvider<SourceHealthController, Map<String, SourceHealth>>
   SourceHealthController.new,
 );
 
-/// Categories are tags with a first-class name.
+/// Categories are tags with a first-class name, kept apart per shelf: a manga
+/// category never appears on the anime shelf and the other way round.
 ///
 /// The assignment still lives on the work (`media.tags`), so a backup made by
 /// an older Best restores every category without a schema change. This
 /// controller only keeps the names that exist even while no work uses them,
 /// plus the order the person put them in.
-class CategoriesController extends Notifier<List<String>> {
-  static const String _key = 'categories_v1';
+abstract class ShelfCategoriesController extends Notifier<List<String>> {
+  /// The shelf whose works these names belong to.
+  LibraryShelf get shelf;
+
+  /// Preferences key that stores this shelf's names.
+  String get storageKey;
 
   @override
   List<String> build() {
-    final raw = ref.watch(preferencesProvider)?.getStringList(_key) ?? const [];
+    final raw =
+        ref.watch(preferencesProvider)?.getStringList(storageKey) ?? const [];
     return List.unmodifiable(_clean(raw));
   }
 
@@ -1444,13 +1481,13 @@ class CategoriesController extends Notifier<List<String>> {
 
   Future<void> merge(Iterable<String> names) => _write([...state, ...names]);
 
-  /// Renames a category on every work that carries it and keeps one entry.
+  /// Renames a category on every work of this shelf that carries it.
   Future<void> rename(String from, String to) async {
     final clean = to.trim();
     if (clean.isEmpty || from == clean) return;
     final repository = ref.read(repositoryProvider);
     for (final media in await repository.allMedia()) {
-      if (!media.tags.contains(from)) continue;
+      if (!shelf.contains(media.kind) || !media.tags.contains(from)) continue;
       final tags = [
         for (final tag in media.tags)
           if (tag == from) clean else tag,
@@ -1464,12 +1501,12 @@ class CategoriesController extends Notifier<List<String>> {
     await ref.read(hiddenCategoriesProvider.notifier).rename(from, clean);
   }
 
-  /// Deletes the name and removes it from every work. Downloads and progress
+  /// Deletes the name from every work of this shelf. Downloads and progress
   /// are untouched: a category is a label, not a container of files.
   Future<void> remove(String name) async {
     final repository = ref.read(repositoryProvider);
     for (final media in await repository.allMedia()) {
-      if (!media.tags.contains(name)) continue;
+      if (!shelf.contains(media.kind) || !media.tags.contains(name)) continue;
       await repository.setTags(
         media.id,
         media.tags.where((tag) => tag != name).toList(growable: false),
@@ -1481,7 +1518,7 @@ class CategoriesController extends Notifier<List<String>> {
 
   Future<void> _write(List<String> names) async {
     final clean = _clean(names);
-    await ref.read(preferencesProvider)?.setStringList(_key, clean);
+    await ref.read(preferencesProvider)?.setStringList(storageKey, clean);
     state = List.unmodifiable(clean);
   }
 
@@ -1497,9 +1534,33 @@ class CategoriesController extends Notifier<List<String>> {
   }
 }
 
+/// Manga and its kin. The original key, so existing categories stay put.
+class CategoriesController extends ShelfCategoriesController {
+  @override
+  LibraryShelf get shelf => LibraryShelf.reading;
+
+  @override
+  String get storageKey => 'categories_v1';
+}
+
+/// Anime. Its own key, so its categories never mix with manga's.
+class WatchingCategoriesController extends ShelfCategoriesController {
+  @override
+  LibraryShelf get shelf => LibraryShelf.watching;
+
+  @override
+  String get storageKey => 'categories_v1_watching';
+}
+
 final NotifierProvider<CategoriesController, List<String>> categoriesProvider =
     NotifierProvider<CategoriesController, List<String>>(
   CategoriesController.new,
+);
+
+final NotifierProvider<WatchingCategoriesController, List<String>>
+    watchingCategoriesProvider =
+    NotifierProvider<WatchingCategoriesController, List<String>>(
+  WatchingCategoriesController.new,
 );
 
 /// Categories hidden from the shelf. Local only, like everything else here.
@@ -1576,21 +1637,49 @@ class CategorySummary {
   final bool hidden;
 }
 
-/// The union of names the person created and tags already present on works, so
-/// a list typed on a series page shows up here without extra bookkeeping.
-final FutureProvider<List<CategorySummary>> libraryCategoriesProvider =
-    FutureProvider<List<CategorySummary>>((ref) async {
-  ref.watch(libraryChangesProvider);
-  final entries = await ref.watch(repositoryProvider).library();
-  final registered = ref.watch(categoriesProvider);
-  final hidden = ref.watch(hiddenCategoriesProvider);
+/// What one shelf's tab strip needs: how many works it holds, how many have no
+/// category (the Default tab), and every category of that shelf with its count.
+class ShelfTabs {
+  const ShelfTabs({
+    required this.total,
+    required this.uncategorized,
+    required this.categories,
+  });
 
+  final int total;
+  final int uncategorized;
+  final List<CategorySummary> categories;
+}
+
+/// The union of names the person created and tags already present on works of
+/// the current shelf, so a list typed on a series page shows up here without
+/// extra bookkeeping. Hidden categories stay in the list: the manager needs
+/// them to show them again.
+final FutureProvider<ShelfTabs> libraryTabsProvider =
+    FutureProvider<ShelfTabs>((ref) async {
+  ref.watch(libraryChangesProvider);
+  final shelf = ref.watch(
+        libraryQueryProvider.select((query) => query.shelf),
+      ) ??
+      LibraryShelf.reading;
+  final entries = await ref.watch(allLibraryProvider.future);
+  final hidden = ref.watch(hiddenCategoriesProvider);
+  final registered = shelf == LibraryShelf.watching
+      ? ref.watch(watchingCategoriesProvider)
+      : ref.watch(categoriesProvider);
+
+  final inShelf =
+      entries.where((entry) => shelf.contains(entry.media.kind)).toList();
   final counts = <String, int>{};
   final discovered = <String>[];
-  for (final entry in entries) {
-    for (final tag in entry.media.tags) {
-      final name = tag.trim();
-      if (name.isEmpty) continue;
+  var uncategorized = 0;
+  for (final entry in inShelf) {
+    final names = [
+      for (final tag in entry.media.tags)
+        if (tag.trim().isNotEmpty) tag.trim(),
+    ];
+    if (names.isEmpty) uncategorized++;
+    for (final name in names) {
       if (!counts.containsKey(name)) discovered.add(name);
       counts[name] = (counts[name] ?? 0) + 1;
     }
@@ -1601,14 +1690,24 @@ final FutureProvider<List<CategorySummary>> libraryCategoriesProvider =
     if (!names.contains(name)) names.add(name);
   }
 
-  return List.unmodifiable([
-    for (final name in names)
-      CategorySummary(
-        name: name,
-        count: counts[name] ?? 0,
-        hidden: hidden.contains(name),
-      ),
-  ]);
+  return ShelfTabs(
+    total: inShelf.length,
+    uncategorized: uncategorized,
+    categories: List.unmodifiable([
+      for (final name in names)
+        CategorySummary(
+          name: name,
+          count: counts[name] ?? 0,
+          hidden: hidden.contains(name),
+        ),
+    ]),
+  );
+});
+
+/// The category list of the current shelf, for the manager and the pickers.
+final FutureProvider<List<CategorySummary>> libraryCategoriesProvider =
+    FutureProvider<List<CategorySummary>>((ref) async {
+  return (await ref.watch(libraryTabsProvider.future)).categories;
 });
 
 /// A new event means some write landed; the shelf re-runs its query.
@@ -1632,6 +1731,15 @@ final FutureProvider<List<LibraryEntry>> libraryProvider =
   );
 });
 
+/// Every work in the library, both shelves, with no tab, search or hidden
+/// filter. Downloads, recommendations and the settings count read this, so the
+/// library screen's own view never narrows them.
+final FutureProvider<List<LibraryEntry>> allLibraryProvider =
+    FutureProvider<List<LibraryEntry>>((ref) async {
+  ref.watch(libraryChangesProvider);
+  return ref.watch(repositoryProvider).library(const LibraryQuery());
+});
+
 /// The shelf, filtered by the same text a reader types into search. It is a
 /// separate provider so a search never disturbs the Library tab's own query.
 final librarySearchProvider =
@@ -1646,6 +1754,13 @@ final FutureProvider<List<ContinueEntry>> continueProvider =
     FutureProvider<List<ContinueEntry>>((ref) async {
   ref.watch(libraryChangesProvider);
   return ref.watch(repositoryProvider).continueReading();
+});
+
+/// The history keeps a longer list than the home rail, which shows six.
+final FutureProvider<List<ContinueEntry>> historyContinueProvider =
+    FutureProvider<List<ContinueEntry>>((ref) async {
+  ref.watch(libraryChangesProvider);
+  return ref.watch(repositoryProvider).continueReading(limit: 40);
 });
 
 /// Where "continue" actually lands, not just where it stopped.
@@ -2039,7 +2154,7 @@ class Recommendations {
 
 final FutureProvider<Recommendations> recommendationsProvider =
     FutureProvider<Recommendations>((ref) async {
-  final entries = await ref.watch(libraryProvider.future);
+  final entries = await ref.watch(allLibraryProvider.future);
   final rankings = await ref.watch(rankingsProvider.future);
   final feed = await ref.watch(discoverProvider.future);
 
@@ -2663,7 +2778,10 @@ class BackupController {
       text: LibraryBackup.encode(
         snapshot,
         sources: sources,
-        categories: _ref.read(categoriesProvider),
+        categories: [
+          ..._ref.read(categoriesProvider),
+          ..._ref.read(watchingCategoriesProvider),
+        ].toSet().toList(),
         reader: reader,
       ),
       snapshot: snapshot,
@@ -2685,7 +2803,22 @@ class BackupController {
     }
     final report =
         await restoreInto(_ref.read(repositoryProvider), document.snapshot);
-    await _ref.read(categoriesProvider.notifier).merge(document.categories);
+    // A name goes back onto the shelf whose works carry it. A name no work
+    // carries comes back as a manga category, the shelf it was made on first.
+    final restoredWorks = await _ref.read(repositoryProvider).allMedia();
+    final readingNames = <String>[];
+    final watchingNames = <String>[];
+    for (final name in document.categories) {
+      final kinds = [
+        for (final media in restoredWorks)
+          if (media.tags.contains(name)) media.kind,
+      ];
+      final watchingOnly =
+          kinds.isNotEmpty && kinds.every((kind) => !kind.isReading);
+      (watchingOnly ? watchingNames : readingNames).add(name);
+    }
+    await _ref.read(categoriesProvider.notifier).merge(readingNames);
+    await _ref.read(watchingCategoriesProvider.notifier).merge(watchingNames);
     await _ref
         .read(readerProfilesProvider.notifier)
         .merge(document.reader.profiles);

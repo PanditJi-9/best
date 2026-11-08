@@ -70,13 +70,16 @@ final RegExp _genericUnitTitle = RegExp(
   caseSensitive: false,
 );
 
+/// A title that is only a number ("0", "12.5") names no chapter by itself.
+final RegExp _bareNumber = RegExp(r'^[0-9٠-٩]+([.,][0-9٠-٩]+)?$');
+
 String unitTitle(AppLocalizations l10n, MediaUnit unit) {
   final title = unit.title.trim();
   final match = _genericUnitTitle.firstMatch(title);
   final number = match == null
       ? shortNumber(unit.number)
       : shortNumber(double.tryParse(match.group(1)!) ?? unit.number);
-  if (title.isEmpty || match != null) {
+  if (title.isEmpty || match != null || _bareNumber.hasMatch(title)) {
     return unit.kind == UnitKind.chapter
         ? l10n.unitChapterTitle(number)
         : l10n.unitEpisodeTitle(number);
@@ -92,6 +95,15 @@ String shortDate(int epochMillis) {
   // A machine date is LTR even inside an Arabic paragraph: without the
   // isolate, bidi reorders 2026-11-07 into 07-11-2026.
   return ltrIsolate('${date.year}-$month-$day');
+}
+
+/// Time of day for a history row. The day is already the section header.
+String shortTime(int epochMillis) {
+  if (epochMillis <= 0) return '';
+  final date = DateTime.fromMillisecondsSinceEpoch(epochMillis);
+  final hour = date.hour.toString().padLeft(2, '0');
+  final minute = date.minute.toString().padLeft(2, '0');
+  return ltrIsolate('$hour:$minute');
 }
 
 /// Date and 24-hour time for source health evidence.
