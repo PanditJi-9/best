@@ -21,10 +21,12 @@ class SubtitleCue {
 class Subtitles {
   const Subtitles._();
 
-  /// Parses WebVTT or SRT. Cue text keeps its line breaks, loses its styling
-  /// tags, and unescapes the entities a subtitle file is allowed to use.
+  /// Parses WebVTT, SRT or text-only ASS events. Cue text keeps its line
+  /// breaks, loses its styling tags, and unescapes the entities a subtitle
+  /// file is allowed to use.
   static List<SubtitleCue> parse(String raw) {
     final text = raw.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+    if (text.contains('[Events]')) return _ass(text);
     final cues = <SubtitleCue>[];
     for (final block in text.split(RegExp(r'\n\s*\n'))) {
       final lines = block
@@ -58,6 +60,63 @@ class Subtitles {
       if (cue.covers(position)) return cue.text;
     }
     return null;
+  }
+
+  /// A positive delay shows captions later, a negative one earlier. The result
+  /// may be negative so a cue at zero is not displayed before its new start.
+  static Duration delayedPosition(Duration position, int milliseconds) =>
+      position - Duration(milliseconds: milliseconds);
+
+  /// Reads only `Dialogue` lines from the `[Events]` section. Advanced ASS
+  /// positioning and vector drawings are dropped rather than drawn as text.
+  static List<SubtitleCue> _ass(String text) {
+    var inEvents = false;
+    var format = <String>[];
+    final cues = <SubtitleCue>[];
+    for (final rawLine in text.split('\n')) {
+      final line = rawLine.trim();
+      if (line.startsWith('[')) {
+        inEvents = line == '[Events]';
+        continue;
+      }
+      if (!inEvents) continue;
+      if (line.startsWith('Format:')) {
+        format = line
+            .substring('Format:'.length)
+            .split(',')
+            .map((value) => value.trim().toLowerCase())
+            .toList();
+        continue;
+      }
+      if (!line.startsWith('Dialogue:') || format.isEmpty) continue;
+      final payload = line.substring('Dialogue:'.length).trimLeft();
+      if (RegExp(r'\\p[1-9]').hasMatch(payload)) continue;
+      final parts = <String>[];
+      var cursor = 0;
+      for (var index = 0; index < format.length - 1; index++) {
+        final comma = payload.indexOf(',', cursor);
+        if (comma < 0) break;
+        parts.add(payload.substring(cursor, comma).trim());
+        cursor = comma + 1;
+      }
+      if (parts.length != format.length - 1) continue;
+      parts.add(payload.substring(cursor));
+      final startIndex = format.indexOf('start');
+      final endIndex = format.indexOf('end');
+      if (startIndex < 0 || endIndex < 0) continue;
+      final start = _stamp(parts[startIndex]);
+      final end = _stamp(parts[endIndex]);
+      final body = _clean(parts.last
+          .replaceAll(r'\N', '\n')
+          .replaceAll(r'\n', '\n')
+          .replaceAll(r'\h', ' '));
+      if (start == null || end == null || end <= start || body.isEmpty) {
+        continue;
+      }
+      cues.add(SubtitleCue(start: start, end: end, text: body));
+    }
+    cues.sort((a, b) => a.start.compareTo(b.start));
+    return List.unmodifiable(cues);
   }
 
   static _Timing? _timing(List<String> lines) {
