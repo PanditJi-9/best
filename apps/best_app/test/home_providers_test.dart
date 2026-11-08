@@ -1,5 +1,6 @@
 import 'package:best_app/src/extension_host.dart';
 import 'package:best_app/src/providers.dart';
+import 'package:best_data/best_data.dart';
 import 'package:best_domain/best_domain.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -115,9 +116,12 @@ void main() {
     final romance = _media('romance', title: 'Romance', genres: ['Romance'],
         rating: 8.5);
     final fresh = _media('fresh', title: 'Fresh', genres: ['Fantasy']);
+    final repository = MemoryLibraryRepository();
+    addTearDown(repository.close);
 
     final container = ProviderContainer(
       overrides: [
+        repositoryProvider.overrideWithValue(repository),
         libraryProvider.overrideWith(
           (ref) async => [
             LibraryEntry(
@@ -154,8 +158,11 @@ void main() {
   test('recommendations fall back to the top rated list without a shelf',
       () async {
     final top = _media('top', title: 'Top', rating: 9.2);
+    final repository = MemoryLibraryRepository();
+    addTearDown(repository.close);
     final container = ProviderContainer(
       overrides: [
+        repositoryProvider.overrideWithValue(repository),
         libraryProvider.overrideWith((ref) async => const <LibraryEntry>[]),
         rankingsProvider.overrideWith(
           (ref) async => Rankings(works: [top], live: true),

@@ -187,6 +187,7 @@ Future<_Fixture> _open(
   WidgetTester tester, {
   List<DownloadTask> tasks = const [],
   bool readerTile = false,
+  bool history = false,
   bool sourceMissing = false,
   String language = 'en',
   Size size = const Size(390, 844),
@@ -223,7 +224,9 @@ Future<_Fixture> _open(
                     child: Padding(
                         padding: const EdgeInsets.all(20),
                         child: ReaderDownloadTile(media: _media, unit: _unit)))
-                : const DownloadsScreen())),
+                : history
+                    ? const DownloadHistoryScreen()
+                    : const DownloadsScreen())),
     GoRoute(
         path: '/sources',
         builder: (_, state) => const Scaffold(body: Text('Source directory'))),
@@ -264,6 +267,12 @@ Future<_Fixture> _open(
 
 Future<void> _checkFromRow(WidgetTester tester, DownloadTask task) async {
   final row = find.byKey(ValueKey('download-${task.unitId}'));
+  // Finished work lives folded under its cover in history; open the work
+  // before reaching the chapter row.
+  if (row.evaluate().isEmpty) {
+    await tester.tap(find.text(task.mediaTitle).first);
+    await tester.pumpAndSettle();
+  }
   await tester.ensureVisible(row);
   await tester.pumpAndSettle();
   await tester.tap(find.descendant(of: row, matching: find.byTooltip('More')));
@@ -283,6 +292,7 @@ void main() {
       (tester) async {
     final task = _task();
     final fixture = await _open(tester,
+        history: true,
         tasks: [task],
         report: const DownloadIntegrityReport(
             total: 3, available: 1, verified: 1, missing: [1], changed: [2]));
@@ -310,6 +320,7 @@ void main() {
       (tester) async {
     final task = _task();
     await _open(tester,
+        history: true,
         tasks: [task],
         report: const DownloadIntegrityReport(total: 3, available: 3));
     await _checkFromRow(tester, task);
@@ -382,6 +393,7 @@ void main() {
       (tester) async {
     final task = _task();
     final fixture = await _open(tester,
+        history: true,
         tasks: [task],
         sourceMissing: true,
         report: const DownloadIntegrityReport(
