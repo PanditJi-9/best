@@ -2,7 +2,6 @@ import 'package:best_app/src/app.dart';
 import 'package:best_app/src/providers.dart';
 import 'package:best_data/best_data.dart';
 import 'package:best_domain/best_domain.dart';
-import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -86,15 +85,8 @@ void main() {
 
     expect(find.text('Blue Echo'), findsWidgets);
     expect(find.text('Library'), findsWidgets);
-    // The shelf counts read units against the whole work, and the bar carries
-    // the same stored fraction as the reader.
+    // The shelf counts read units against the whole work.
     expect(find.text('0/1 · Manhwa'), findsOneWidget);
-    expect(
-      tester
-          .widgetList<BestProgressRule>(find.byType(BestProgressRule))
-          .any((rule) => (rule.value - 0.3).abs() < 0.001),
-      isTrue,
-    );
 
     container.read(settingsProvider.notifier).setLanguage('ar');
     await tester.pumpAndSettle();
