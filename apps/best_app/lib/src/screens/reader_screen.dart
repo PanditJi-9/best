@@ -19,6 +19,7 @@ import '../ocr/bubble_overlay_widget.dart';
 import '../providers.dart';
 import '../widgets/chapter_list_sheet.dart';
 import '../widgets/reader_color_filter.dart';
+import '../widgets/reader_controls_bar.dart';
 import '../widgets/reader_page_grid.dart';
 import '../widgets/reader_settings_sheet.dart';
 
@@ -353,29 +354,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
       current == ReaderMode.paged ? ReaderMode.vertical : ReaderMode.paged,
     );
     unawaited(HapticFeedback.selectionClick());
-  }
-
-  /// One tap through screen → width → height → original, so zooming no longer
-  /// needs a trip through the settings sheet.
-  void _cycleFit() {
-    final next = switch (_readerSettings.readerFit) {
-      ReaderFit.screen => ReaderFit.width,
-      ReaderFit.width => ReaderFit.height,
-      ReaderFit.height => ReaderFit.original,
-      ReaderFit.original => ReaderFit.screen,
-    };
-    _readerController.setReaderFit(next);
-    unawaited(HapticFeedback.selectionClick());
-    _scheduleChromeHide();
-  }
-
-  String _fitLabel(AppLocalizations l10n, ReaderFit fit) {
-    return switch (fit) {
-      ReaderFit.screen => l10n.readerFitScreen,
-      ReaderFit.width => l10n.readerFitWidth,
-      ReaderFit.height => l10n.readerFitHeight,
-      ReaderFit.original => l10n.readerFitOriginal,
-    };
   }
 
   void _showChaptersSheet() {
@@ -857,20 +835,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     );
   }
 
-  void _toggleOcr() {
-    final l10n = AppLocalizations.of(context);
-    final next = !ref.read(settingsProvider).ocrTranslationEnabled;
-    ref.read(settingsProvider.notifier).setOcrTranslationEnabled(next);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          next ? l10n.readerTranslateOn : l10n.readerTranslateOff,
-        ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
   Color _backgroundFor(ReaderBackground background) {
     return switch (background) {
       ReaderBackground.black => Colors.black,
@@ -1038,11 +1002,12 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     );
   }
 
-  String _pagePositionLabel(AppLocalizations l10n) {
+  String _pagePositionLabel(AppLocalizations l10n, [int? index]) {
+    final page = index ?? _index;
     if (widget.data.partial && widget.data.totalPages == null) {
-      return l10n.readerSavedPage(_index + 1);
+      return l10n.readerSavedPage(page + 1);
     }
-    final pages = _pagedLayout?.pagesForView(_pagedLayout!.viewForPage(_index));
+    final pages = _pagedLayout?.pagesForView(_pagedLayout!.viewForPage(page));
     if (pages != null && pages.length == 2) {
       return l10n.readerSpreadPageOf(
         pages.first + 1,
@@ -1050,7 +1015,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
         _chapterTotal,
       );
     }
-    return l10n.pageOf(_index + 1, _chapterTotal);
+    return l10n.pageOf(page + 1, _chapterTotal);
   }
 
   @override
@@ -1174,86 +1139,14 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                     ),
                   ),
                 ),
+                // One toolkit entry, not a row of competing shortcuts. Mode,
+                // page scale, colour filters and OCR stay in the sheet.
                 actions: [
                   IconButton(
-                    tooltip: '${l10n.readerFit}: '
-                        '${_fitLabel(l10n, settings.readerFit)}',
-                    onPressed: _cycleFit,
-                    icon: Icon(
-                      switch (settings.readerFit) {
-                        ReaderFit.screen => Icons.fit_screen,
-                        ReaderFit.width => Icons.swap_horiz,
-                        ReaderFit.height => Icons.height,
-                        ReaderFit.original => Icons.zoom_out_map,
-                      },
-                      color: settings.readerFit == ReaderFit.screen
-                          ? Colors.white70
-                          : BestColors.jade,
-                      size: 21,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: mode == ReaderMode.paged
-                        ? l10n.readerModeVertical
-                        : l10n.readerModePaged,
-                    onPressed: _toggleMode,
-                    icon: Icon(
-                      mode == ReaderMode.paged
-                          ? Icons.view_stream_outlined
-                          : Icons.auto_stories_outlined,
-                      size: 21,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: bookmarked
-                        ? l10n.readerBookmarkRemove
-                        : l10n.readerBookmarkAdd,
-                    onPressed: _resources.isEmpty ? null : _toggleBookmark,
-                    icon: Icon(
-                      bookmarked
-                          ? Icons.bookmark_rounded
-                          : Icons.bookmark_border_rounded,
-                      color: bookmarked ? BestColors.jade : Colors.white70,
-                      size: 21,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: l10n.readerColorFilter,
-                    onPressed: _showColorFilterSheet,
-                    icon: Icon(
-                      Icons.contrast_rounded,
-                      color: _colorFilter.mode != ReaderColorFilterMode.none ||
-                              _colorFilter.customBrightnessOffset < 0
-                          ? BestColors.jade
-                          : Colors.white70,
-                      size: 21,
-                    ),
-                  ),
-                  if (viewport.width >= 480)
-                    IconButton(
-                      tooltip: settings.ocrTranslationEnabled
-                          ? l10n.readerTranslateDisable
-                          : l10n.readerTranslateEnable,
-                      onPressed: _toggleOcr,
-                      icon: Icon(
-                        Icons.translate_rounded,
-                        color: settings.ocrTranslationEnabled
-                            ? BestColors.jade
-                            : Colors.white70,
-                        size: 21,
-                      ),
-                    ),
-                  IconButton(
+                    key: const ValueKey('reader-tools'),
                     tooltip: l10n.readerSettings,
                     onPressed: _showReaderSettings,
-                    icon: Icon(
-                      Icons.settings_outlined,
-                      color: _colorFilter.mode != ReaderColorFilterMode.none ||
-                              _colorFilter.customBrightnessOffset < 0
-                          ? BestColors.jade
-                          : null,
-                      size: 21,
-                    ),
+                    icon: const Icon(Icons.tune_rounded, size: 22),
                   ),
                 ],
               ),
@@ -1333,227 +1226,32 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                       duration: BestMotion.normal,
                       child: IgnorePointer(
                         ignoring: !_showChrome,
-                        child: Container(
-                          padding: EdgeInsets.fromLTRB(
-                            20,
-                            34,
-                            20,
-                            12 + MediaQuery.paddingOf(context).bottom,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withValues(alpha: 0.85),
-                              ],
-                            ),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (widget.data.partial && _atAvailableEnd)
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                      bottom: BestSpace.sm),
-                                  child: Text(
-                                    l10n.readerPartialOffline,
-                                    style: const TextStyle(
-                                        color: Colors.white70, fontSize: 12),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              if (_atEnd)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 6),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        l10n.readerFinished,
-                                        style: const TextStyle(
-                                          color: Colors.white54,
-                                          fontSize: 10,
-                                          letterSpacing: 0.4,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      if (_nextUnit != null)
-                                        TextButton.icon(
-                                          key: const ValueKey(
-                                              'reader-next-chapter'),
-                                          onPressed: widget.data.partial
-                                              ? null
-                                              : _openNextUnit,
-                                          style: TextButton.styleFrom(
-                                            foregroundColor: BestColors.jade,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 4,
-                                            ),
-                                            minimumSize: const Size(0, 32),
-                                            tapTargetSize: MaterialTapTargetSize
-                                                .shrinkWrap,
-                                          ),
-                                          icon: const Icon(
-                                            Icons.skip_next_rounded,
-                                            size: 16,
-                                          ),
-                                          label: Text(
-                                            '${l10n.readerNextChapter} · '
-                                            '${unitTitle(l10n, _nextUnit!)}',
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                      if (_nextUnit == null)
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets.only(top: 2),
-                                          child: Text(
-                                            l10n.readerLastChapter,
-                                            style: const TextStyle(
-                                              color: Colors.white54,
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              Row(
-                                children: [
-                                  if (_atEnd) ...[
-                                    const Icon(
-                                      Icons.check_circle_rounded,
-                                      size: 13,
-                                      color: BestColors.jade,
-                                    ),
-                                    const SizedBox(width: 6),
-                                  ],
-                                  Expanded(
-                                    child: Text(
-                                      _pagePositionLabel(l10n),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        letterSpacing: 0,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: BestSpace.md),
-                                  Flexible(
-                                    child: Text(
-                                      widget.data.media.displayTitle,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.end,
-                                      style: const TextStyle(
-                                        color: Colors.white38,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              SliderTheme(
-                                data: SliderTheme.of(context).copyWith(
-                                  trackHeight: 3,
-                                  thumbShape: const RoundSliderThumbShape(
-                                    enabledThumbRadius: 6,
-                                  ),
-                                  overlayShape: const RoundSliderOverlayShape(
-                                    overlayRadius: 12,
-                                  ),
-                                ),
-                                child: Slider(
-                                  value: (_index + 1)
-                                      .toDouble()
-                                      .clamp(1.0, total.toDouble()),
-                                  min: 1.0,
-                                  max: total.toDouble(),
-                                  divisions: total > 1 ? total - 1 : 1,
-                                  activeColor: BestColors.jade,
-                                  inactiveColor: Colors.white24,
-                                  onChangeStart: (_) => _chromeTimer?.cancel(),
-                                  onChangeEnd: (_) => _scheduleChromeHide(),
-                                  onChanged: (val) {
-                                    final target =
-                                        (val.round() - 1).clamp(0, total - 1);
-                                    if (target != _index) _jumpToPage(target);
-                                  },
-                                ),
-                              ),
-                              Row(
-                                children: [
-                                  IconButton(
-                                    tooltip: l10n.readerPageGrid,
-                                    onPressed: () => _showPageGrid(),
-                                    color: Colors.white70,
-                                    icon: const Icon(
-                                      Icons.grid_view_rounded,
-                                      size: 21,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    tooltip: l10n.readerPreviousChapter,
-                                    onPressed: _previousUnit == null
-                                        ? null
-                                        : _openPreviousUnit,
-                                    color: Colors.white70,
-                                    disabledColor: Colors.white24,
-                                    icon: Icon(
-                                      direction.isRtl
-                                          ? Icons.chevron_right_rounded
-                                          : Icons.chevron_left_rounded,
-                                      size: 22,
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: TextButton.icon(
-                                      onPressed: _showChaptersSheet,
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: Colors.white70,
-                                      ),
-                                      icon: const Icon(Icons.list_rounded,
-                                          size: 16),
-                                      label: Text(
-                                        l10n.chapters,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    tooltip: l10n.readerNextChapter,
-                                    onPressed:
-                                        _nextUnit == null || widget.data.partial
-                                            ? null
-                                            : _openNextUnit,
-                                    color: Colors.white70,
-                                    disabledColor: Colors.white24,
-                                    icon: Icon(
-                                      direction.isRtl
-                                          ? Icons.chevron_left_rounded
-                                          : Icons.chevron_right_rounded,
-                                      size: 22,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
+                        child: ReaderControlsBar(
+                          key: const ValueKey('reader-controls'),
+                          chapterId: unit.id,
+                          chapterTitle: unitTitle(l10n, unit),
+                          pageIndex: _index,
+                          pageCount: total,
+                          pageLabel: (page) => _pagePositionLabel(l10n, page),
+                          bookmarked: bookmarked,
+                          rightToLeft: direction.isRtl,
+                          finished: _atEnd,
+                          partialEnd: widget.data.partial && _atAvailableEnd,
+                          nextChapterTitle: _nextUnit == null
+                              ? null
+                              : unitTitle(l10n, _nextUnit!),
+                          onSeek: _jumpToPage,
+                          onScrubStart: () => _chromeTimer?.cancel(),
+                          onScrubEnd: _scheduleChromeHide,
+                          onBookmark: _toggleBookmark,
+                          onPageGrid: () => _showPageGrid(),
+                          onChapters: _showChaptersSheet,
+                          onPreviousChapter:
+                              _previousUnit == null ? null : _openPreviousUnit,
+                          onNextChapter:
+                              _nextUnit == null || widget.data.partial
+                                  ? null
+                                  : _openNextUnit,
                         ),
                       ),
                     ),

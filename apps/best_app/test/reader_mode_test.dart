@@ -15,6 +15,18 @@ Future<SharedPreferences> _preferences(
   return SharedPreferences.getInstance();
 }
 
+Future<void> _chooseMode(WidgetTester tester, String label) async {
+  await tester.tap(find.byTooltip('Reader settings'));
+  await tester.pumpAndSettle();
+  final chip = find.widgetWithText(ChoiceChip, label);
+  await tester.ensureVisible(chip);
+  await tester.pumpAndSettle();
+  await tester.tap(chip);
+  await tester.pumpAndSettle();
+  await tester.tap(find.byTooltip('Close'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -168,20 +180,18 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Page 1 of 3'), findsOneWidget);
-    expect(find.byTooltip('Vertical'), findsOneWidget);
+    expect(find.byTooltip('Reader settings'), findsOneWidget);
+    expect(tester.widget<AppBar>(find.byType(AppBar)).actions, hasLength(1));
 
-    await tester.tap(find.byTooltip('Vertical'));
-    await tester.pumpAndSettle();
+    await _chooseMode(tester, 'Vertical');
 
     expect(
       container.read(settingsProvider).readerMode,
       ReaderMode.vertical,
     );
-    expect(find.byTooltip('Paged'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    await tester.tap(find.byTooltip('Paged'));
-    await tester.pumpAndSettle();
+    await _chooseMode(tester, 'Paged');
 
     expect(container.read(settingsProvider).readerMode, ReaderMode.paged);
     expect(find.text('Page 1 of 3'), findsOneWidget);

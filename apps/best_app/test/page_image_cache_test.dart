@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:best_app/src/reader/page_image_cache.dart';
@@ -45,6 +46,52 @@ void main() {
 
     expect(await pages.load(page), const [1, 2, 3, 4]);
     expect(await pages.load(page), const [1, 2, 3, 4]);
+    expect(calls, 1);
+  });
+
+  test('concurrent loads share one request and the same byte buffer', () async {
+    final started = Completer<void>();
+    final response = Completer<http.Response>();
+    final client = MockClient((request) {
+      calls++;
+      started.complete();
+      return response.future;
+    });
+    final pages = cache(client);
+    const page = ImageResource('https://cdn.test/concurrent.jpg');
+
+    final first = pages.load(page);
+    final second = pages.load(page);
+    expect(identical(first, second), isTrue);
+    await started.future;
+    expect(calls, 1);
+    response.complete(http.Response.bytes(const [4, 5, 6], 200));
+
+    final results = await Future.wait([first, second])
+        .timeout(const Duration(seconds: 5));
+    expect(results.first, const [4, 5, 6]);
+    expect(identical(results.first, results.last), isTrue);
+    expect(identical(await pages.load(page), results.first), isTrue);
+    expect(calls, 1);
+  });
+
+  test('header insertion order does not change the cache entry', () async {
+    final client = MockClient((request) async {
+      calls++;
+      return http.Response.bytes(const [7, 8], 200);
+    });
+    final pages = cache(client);
+    const first = ImageResource(
+      'https://cdn.test/headers.jpg',
+      headers: {'Referer': 'https://source.test', 'User-Agent': 'Best'},
+    );
+    const reordered = ImageResource(
+      'https://cdn.test/headers.jpg',
+      headers: {'User-Agent': 'Best', 'Referer': 'https://source.test'},
+    );
+
+    final bytes = await pages.load(first);
+    expect(identical(await pages.load(reordered), bytes), isTrue);
     expect(calls, 1);
   });
 

@@ -329,12 +329,169 @@ void main() {
       offline: true,
       textScale: 1.35,
     );
+    final bar = tester.widget<AppBar>(find.byType(AppBar));
+    expect(bar.actions, hasLength(1));
+    expect(bar.bottom, isNull);
+    final title = find.descendant(
+      of: find.byKey(const ValueKey('reader-chapter-picker')),
+      matching: find.byType(Text),
+    ).first;
+    expect(tester.renderObject<RenderParagraph>(title).didExceedMaxLines,
+        isFalse);
     await _capture(tester, fixture, 'small-ar');
     expect(tester.takeException(), isNull);
     await tester.tap(find.byTooltip('إعدادات القارئ'));
     await tester.pumpAndSettle();
     expect(_sheetText('هذا العمل'), findsOneWidget);
     await _capture(tester, fixture, 'settings-ar');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('one toolkit keeps scale and filters out of the top bar',
+      (tester) async {
+    final fixture = await _openReader(tester, initialPage: 2);
+    final bar = tester.widget<AppBar>(find.byType(AppBar));
+    expect(bar.actions, hasLength(1));
+    expect(bar.bottom, isNull);
+    await _capture(tester, fixture, 'dock-en');
+
+    await tester.tap(find.byTooltip('Reader settings'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(_sheetChip('Fit width'));
+    await tester.pumpAndSettle();
+    await tester.tap(_sheetChip('Fit width'));
+    await tester.pumpAndSettle();
+    expect(
+      fixture.container.read(readerSettingsForProvider(fixture.media.id))
+          .readerFit,
+      ReaderFit.width,
+    );
+    await tester.ensureVisible(_sheetText('Colour filter'));
+    await tester.pumpAndSettle();
+    await tester.tap(_sheetText('Colour filter'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilterChip, 'Greyscale'));
+    await tester.pumpAndSettle();
+    expect(
+      fixture.container.read(readerSettingsForProvider(fixture.media.id))
+          .readerFilterMode,
+      'greyscale',
+    );
+    expect(tester.widget<PageView>(find.byType(PageView)).controller!.page,
+        closeTo(2, 0.01));
+    expect(fixture.requests, ['chapter-1']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('scrubbing previews locally and seeks once on release',
+      (tester) async {
+    final fixture = await _openReader(tester, initialPage: 1);
+    final slider = find.byKey(const ValueKey('reader-progress-slider'));
+    final rect = tester.getRect(slider);
+    final trackWidth = rect.width - 44;
+    final gesture = await tester.startGesture(Offset(
+      rect.left + 22 + trackWidth / 7,
+      rect.center.dy,
+    ));
+    await tester.pump();
+    await gesture.moveTo(Offset(
+      rect.left + 22 + trackWidth * 0.65,
+      rect.center.dy,
+    ));
+    await tester.pump();
+    final preview = tester.widget<Slider>(slider).value.round() - 1;
+    expect(preview, inInclusiveRange(2, 6));
+    expect(tester.widget<PageView>(find.byType(PageView)).controller!.page,
+        closeTo(1, 0.01));
+
+    // The dock cannot fade away under a held finger, even after the normal
+    // four-second chrome timeout. No pages are fetched or recorded yet.
+    await tester.pump(const Duration(seconds: 5));
+    final dockOpacity = find.ancestor(
+      of: find.byKey(const ValueKey('reader-controls')),
+      matching: find.byType(AnimatedOpacity),
+    );
+    expect(tester.widget<AnimatedOpacity>(dockOpacity).opacity, 1);
+    expect((await fixture.repository.progressFor(fixture.units.first.id))!
+        .position, 1);
+    await _capture(tester, fixture, 'scrub-preview');
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(tester.widget<PageView>(find.byType(PageView)).controller!.page,
+        closeTo(preview.toDouble(), 0.01));
+    expect((await fixture.repository.progressFor(fixture.units.first.id))!
+        .position, preview);
+    expect(fixture.requests, ['chapter-1']);
+    await tester.pump(const Duration(milliseconds: 4250));
+    await tester.pumpAndSettle();
+    expect(tester.widget<AnimatedOpacity>(dockOpacity).opacity, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the Arabic webtoon toolkit preserves the current page',
+      (tester) async {
+    final fixture = await _openReader(
+      tester,
+      language: 'ar',
+      initialPage: 3,
+      preferences: {'reader_direction': 'rtl'},
+    );
+    final context = tester.element(find.byType(ReaderScreen));
+    final l10n = AppLocalizations.of(context);
+    final close = MaterialLocalizations.of(context).closeButtonTooltip;
+    await tester.tap(find.byTooltip(l10n.readerSettings));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(_sheetChip(l10n.readerModeVertical));
+    await tester.pumpAndSettle();
+    await tester.tap(_sheetChip(l10n.readerModeVertical));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip(close));
+    await tester.pumpAndSettle();
+    expect(find.text(l10n.pageOf(4, 8)), findsOneWidget);
+    expect(tester.widget<AppBar>(find.byType(AppBar)).actions, hasLength(1));
+    await _capture(tester, fixture, 'webtoon-controls-ar');
+
+    await tester.tap(find.byTooltip(l10n.readerSettings));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(_sheetChip(l10n.readerModePaged));
+    await tester.pumpAndSettle();
+    await tester.tap(_sheetChip(l10n.readerModePaged));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip(close));
+    await tester.pumpAndSettle();
+    expect(find.text(l10n.pageOf(4, 8)), findsOneWidget);
+    expect(fixture.requests, ['chapter-1']);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('RTL chapter navigation has large targets and correct order',
+      (tester) async {
+    final fixture = await _openReader(
+      tester,
+      size: const Size(320, 640),
+      language: 'ar',
+      initialChapter: 2,
+      textScale: 1.35,
+      preferences: {'reader_direction': 'rtl'},
+    );
+    final previous = find.byKey(const ValueKey('reader-previous-navigation'));
+    final next = find.byKey(const ValueKey('reader-next-navigation'));
+    expect(tester.getCenter(next).dx, lessThan(tester.getCenter(previous).dx));
+    for (final button in [previous, next]) {
+      final size = tester.getSize(button);
+      expect(size.width, greaterThanOrEqualTo(48));
+      expect(size.height, greaterThanOrEqualTo(48));
+    }
+    await tester.tap(next);
+    await tester.pumpAndSettle();
+    expect(fixture.requests.last, 'chapter-3');
+    expect(tester.widget<IconButton>(next).onPressed, isNull);
+    await tester.tap(previous);
+    await tester.pumpAndSettle();
+    expect(fixture.requests.last, 'chapter-2');
+    expect(find.text('Scan 8'), findsOneWidget);
+    await _capture(tester, fixture, 'end-controls-ar');
     expect(tester.takeException(), isNull);
   });
 
@@ -386,6 +543,12 @@ void main() {
       tester,
       pages: 1,
       preferences: {'reader_mode': 'vertical'},
+    );
+    expect(
+      tester.widget<Slider>(
+        find.byKey(const ValueKey('reader-progress-slider')),
+      ).onChanged,
+      isNull,
     );
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
     await tester.pumpAndSettle();

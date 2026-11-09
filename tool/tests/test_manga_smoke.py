@@ -43,7 +43,7 @@ class MangaSmokeTest(unittest.TestCase):
 
     def test_hidden_chrome_is_revealed_without_substituting_a_counter_for_a_decoded_page(self):
         hidden = hierarchy("Page image")
-        revealed = hierarchy("Real title", "Page 1 of 23", "Page image", "Vertical")
+        revealed = hierarchy("Real title", "Page 1 of 23", "Page image", "Reader settings")
         with patch.object(manga, "tap") as tap, \
                 patch.object(manga, "dump", return_value=revealed):
             self.assertIs(manga.reveal_reader_controls(hidden), revealed)
@@ -51,6 +51,27 @@ class MangaSmokeTest(unittest.TestCase):
         with patch.object(manga, "tap") as tap:
             self.assertEqual(manga.reveal_reader_controls(hierarchy("Loading"))[0].get("content-desc"), "Loading")
         tap.assert_not_called()
+
+    def test_layout_selection_uses_the_toolkit_and_dismisses_its_modal(self):
+        for tools, mode in (("Reader settings", "Vertical"),
+                            ("إعدادات القارئ", "عمودي")):
+            with self.subTest(tools=tools):
+                root = hierarchy("Real title", "Page 1 of 23", "Page image", tools)
+                choice = hierarchy(mode)[0]
+                with patch.object(manga, "tap") as tap, \
+                        patch.object(manga, "wait_for", return_value=choice) as wait, \
+                        patch.object(manga, "adb") as adb, \
+                        patch.object(manga.time, "sleep"), \
+                        patch.object(manga, "dump", return_value=root):
+                    self.assertIs(manga.choose_reader_layout(root, vertical=True), root)
+                self.assertIs(tap.call_args_list[0].args[0], root[3])
+                self.assertIs(tap.call_args_list[1].args[0], choice)
+                wait.assert_called_once_with(mode, timeout=20, scrolls=8)
+                adb.assert_called_once_with("shell", "input", "keyevent", "4")
+
+    def test_a_missing_toolkit_cannot_pass_a_layout_check(self):
+        with self.assertRaisesRegex(RuntimeError, "toolkit button"):
+            manga.choose_reader_layout(hierarchy("Page image"), vertical=True)
 
     def test_runtime_contract_failures_are_not_mislabelled_as_site_outages(self):
         lines = ["W/BestExtensions: UncaughtExceptionInterceptor must be present in default client",
@@ -67,8 +88,8 @@ class MangaSmokeTest(unittest.TestCase):
             with self.subTest(label=label):
                 report = {"source": "MangaDex", "catalogue": False, "chapters": False, "reader": False}
                 screens = [hierarchy("Real title\nManga"), hierarchy(label),
-                           hierarchy("Real title", "Page 1 of 23", "Page image",
-                                     "Vertical")]
+                            hierarchy("Real title", "Page 1 of 23", "Page image",
+                                      "Reader settings")]
                 seen = {"count": 0}
 
                 def fake_dump():
@@ -77,7 +98,9 @@ class MangaSmokeTest(unittest.TestCase):
                     return screen
 
                 with patch.object(manga, "adb"), patch.object(manga.time, "sleep"), \
-                        patch.object(manga, "dismiss_anr"), patch.object(manga, "wait_for"), \
+                        patch.object(manga, "dismiss_anr"), \
+                        patch.object(manga, "wait_for", side_effect=lambda wanted, **kwargs:
+                                     hierarchy(wanted)[0]), \
                         patch.object(manga, "tap_tab"), \
                         patch.object(manga, "open_sources"), \
                         patch.object(manga, "select_source") as select, \
@@ -90,6 +113,8 @@ class MangaSmokeTest(unittest.TestCase):
                 select.assert_called_once_with("MangaDex")
                 self.assertIs(tap.call_args_list[1].args[0], screens[1][0])
                 self.assertIs(tap.call_args_list[2].args[0], screens[2][3])
+                self.assertEqual(tap.call_args_list[3].args[0].get("content-desc"), "Vertical")
+                self.assertEqual(tap.call_args_list[5].args[0].get("content-desc"), "Paged")
                 swipe.assert_not_called()
                 self.assertTrue(report["catalogue"])
                 self.assertTrue(report["chapters"])

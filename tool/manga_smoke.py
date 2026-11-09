@@ -86,6 +86,27 @@ def reveal_reader_controls(root):
     return root
 
 
+def choose_reader_layout(root, *, vertical: bool):
+    """Choose a layout in the single toolkit, then dismiss that sheet.
+
+    Layout controls are deliberately absent from the quiet reader app bar.
+    Android Back dismisses the known modal; it must not navigate the chapter.
+    """
+    tools = find_any(root, "Reader settings")
+    arabic = tools is None
+    if tools is None:
+        tools = find_any(root, "إعدادات القارئ")
+    if tools is None:
+        raise RuntimeError("the reader toolkit button did not render")
+    tap(tools, wait=0.5)
+    label = ("عمودي" if vertical else "صفحات") if arabic else (
+        "Vertical" if vertical else "Paged")
+    tap(wait_for(label, timeout=20, scrolls=8), wait=0.5)
+    adb("shell", "input", "keyevent", "4")
+    time.sleep(0.5)
+    return reveal_reader_controls(dump())
+
+
 def runtime_contract_errors(log: str) -> list[str]:
     return [line for line in log.splitlines()
             if "BestExtensions" in line and any(error in line for error in (
@@ -170,17 +191,11 @@ def check_source(name: str, report: dict) -> None:
                 raise RuntimeError(f"{name} reader: no page image appeared")
             report.update(decoded=True, page_count=count)
 
-            # 1.0.0 added a second layout. Prove the same chapter survives the
+            # Prove the same chapter survives a layout change in the toolkit:
             # switch: the page counter must stay and the image must remain
             # decoded, not collapse into a blank scroll.
             root = reveal_reader_controls(root)
-            mode = find_any(root, "Vertical")
-            if mode is None:
-                mode = find_any(root, "عمودي")
-            if mode is None:
-                raise RuntimeError(f"{name} reader: the layout button did not render")
-            tap(mode, wait=1)
-            root = reveal_reader_controls(dump())
+            root = choose_reader_layout(root, vertical=True)
             state = page_image_state(root)
             image_deadline = time.monotonic() + 30
             while state == "pending" and time.monotonic() < image_deadline:
@@ -194,11 +209,7 @@ def check_source(name: str, report: dict) -> None:
                 raise RuntimeError(f"{name} reader: vertical layout lost the page counter")
             screenshot(f"manga-{name}-reader-vertical.png")
             report.update(reader=True, vertical=True)
-            paged = find_any(root, "Paged")
-            if paged is None:
-                paged = find_any(root, "صفحات")
-            if paged is not None:
-                tap(paged, wait=1)
+            choose_reader_layout(root, vertical=False)
             return
         time.sleep(2)
     debug_texts(root)
