@@ -179,6 +179,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.tapAt(const Offset(400, 300));
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
     expect(find.text('Page 1 of 3'), findsOneWidget);
     expect(find.byTooltip('Reader settings'), findsOneWidget);
     expect(tester.widget<AppBar>(find.byType(AppBar)).actions, hasLength(1));

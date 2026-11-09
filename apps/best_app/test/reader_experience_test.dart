@@ -1,10 +1,13 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:best_app/src/l10n/generated/app_localizations.dart';
 import 'package:best_app/src/providers.dart';
+import 'package:best_app/src/reader/page_image_cache.dart';
 import 'package:best_app/src/screens/reader_screen.dart';
 import 'package:best_app/src/widgets/reader_page_grid.dart';
+import 'package:best_app/src/widgets/reader_gesture_viewport.dart';
 import 'package:best_data/best_data.dart';
 import 'package:best_domain/best_domain.dart';
 import 'package:best_ui/best_ui.dart';
@@ -14,6 +17,22 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+late Uint8List _scanFixture;
+
+/// Only the byte source is a fixture; Flutter still decodes and renders a real
+/// PNG. Disk-cache behavior is covered separately by page_image_cache_test.
+class _FixtureImageCache extends PageImageCache {
+  _FixtureImageCache(this.bytes)
+      : super(client: MockClient((_) async => http.Response('', 404)));
+
+  final Uint8List bytes;
+
+  @override
+  Future<Uint8List?> load(ImageResource resource) => Future.value(bytes);
+}
 
 class _Fixture {
   const _Fixture(this.container, this.repository, this.media, this.units,
@@ -43,6 +62,8 @@ Future<_Fixture> _openReader(
   int? savedTotal,
   bool fromStart = false,
   bool completed = false,
+  bool showControls = true,
+  Uint8List? scanBytes,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -80,9 +101,25 @@ Future<_Fixture> _openReader(
   }
   final requests = <String>[];
   final capture = GlobalKey();
+  if (scanBytes != null) {
+    const cacheKey = ValueKey('image-cache-fixture');
+    await tester.pumpWidget(const MaterialApp(home: SizedBox(key: cacheKey)));
+    final context = tester.element(find.byKey(cacheKey));
+    await tester.runAsync(() async {
+      final width = size.width.round().clamp(320, 2048).toInt();
+      for (final decode in <int?>[null, width, (width * 2).clamp(320, 2048).toInt(),
+        (width * 4).clamp(320, 2048).toInt()]) {
+        ImageProvider<Object> image = MemoryImage(scanBytes);
+        if (decode != null) image = ResizeImage(image, width: decode);
+        await precacheImage(image, context);
+      }
+    });
+  }
   final container = ProviderContainer(overrides: [
     repositoryProvider.overrideWithValue(repository),
     preferencesProvider.overrideWithValue(store),
+    if (scanBytes != null)
+      pageImageCacheProvider.overrideWithValue(_FixtureImageCache(scanBytes)),
     readerProvider.overrideWith((ref, key) async {
       requests.add(key.unitUrl);
       final repaired = completedPages != null &&
@@ -95,7 +132,10 @@ Future<_Fixture> _openReader(
         units: units,
         resources: [
           for (var page = 0; page < available; page++)
-            SyntheticPage(page, 'Scan ${page + 1}'),
+            if (scanBytes == null)
+              SyntheticPage(page, 'Scan ${page + 1}')
+            else
+              ImageResource('https://reader-fixture.invalid/${key.unitUrl}/$page.png'),
         ],
         progress: await repository.progressFor(unit.id),
         offline: offline,
@@ -136,7 +176,52 @@ Future<_Fixture> _openReader(
     ),
   ));
   await tester.pumpAndSettle();
+  if (showControls) await _ensureChrome(tester);
   return _Fixture(container, repository, media, units, requests, capture);
+}
+
+double _chromeOpacity(WidgetTester tester) => tester
+    .widget<AnimatedOpacity>(find.ancestor(
+      of: find.byKey(const ValueKey('reader-controls')),
+      matching: find.byType(AnimatedOpacity),
+    ))
+    .opacity;
+
+Future<void> _tapMenu(WidgetTester tester) async {
+  // A confirmed single tap waits for the double-tap window. Keep taps out of
+  // the short scroll-stop cooldown rather than treating a fling stop as menu.
+  await tester.pump(const Duration(milliseconds: 200));
+  await tester.tapAt(tester.getCenter(find.byType(ReaderGestureViewport)));
+  await tester.pump(const Duration(milliseconds: 350));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _ensureChrome(WidgetTester tester) async {
+  if (_chromeOpacity(tester) == 0) await _tapMenu(tester);
+}
+
+ReaderGestureViewportState _viewport(WidgetTester tester) =>
+    tester.state<ReaderGestureViewportState>(find.byType(ReaderGestureViewport));
+
+Future<void> _pinch(WidgetTester tester, double factor) async {
+  final center = tester.getCenter(find.byType(ReaderGestureViewport));
+  final first = await tester.startGesture(center - const Offset(40, 0), pointer: 11);
+  final second = await tester.startGesture(center + const Offset(40, 0), pointer: 12);
+  await tester.pump();
+  await first.moveTo(center - Offset(40 * factor, 0));
+  await second.moveTo(center + Offset(40 * factor, 0));
+  await tester.pump();
+  await second.up();
+  await first.up();
+  await tester.pumpAndSettle();
+}
+
+Future<void> _doubleTap(WidgetTester tester) async {
+  final center = tester.getCenter(find.byType(ReaderGestureViewport));
+  await tester.tapAt(center);
+  await tester.pump(const Duration(milliseconds: 100));
+  await tester.tapAt(center);
+  await tester.pumpAndSettle();
 }
 
 Future<void> _capture(
@@ -165,6 +250,7 @@ Finder _sheetChip(String text) => find.ancestor(
     );
 
 Future<void> _openPageGrid(WidgetTester tester) async {
+  await _ensureChrome(tester);
   final l10n =
       AppLocalizations.of(tester.element(find.byType(ReaderScreen)));
   await tester.tap(find.byTooltip(l10n.readerSettings));
@@ -196,6 +282,20 @@ void main() {
     ]) {
       await (FontLoader(font.$1)..addFont(rootBundle.load(font.$2))).load();
     }
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawRect(const Rect.fromLTWH(0, 0, 256, 1024),
+        Paint()..color = const Color(0xFF4361EE));
+    canvas.drawRect(const Rect.fromLTWH(0, 340, 256, 340),
+        Paint()..color = Colors.white);
+    canvas.drawRect(const Rect.fromLTWH(0, 680, 256, 344),
+        Paint()..color = const Color(0xFF34D399));
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(256, 1024);
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    _scanFixture = bytes!.buffer.asUint8List();
+    image.dispose();
+    picture.dispose();
   });
 
   for (final rtl in [false, true]) {
@@ -280,6 +380,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Scan 3'), findsOneWidget);
     expect(find.text('Scan 4'), findsOneWidget);
+    await _ensureChrome(tester);
     expect(find.byTooltip('End of chapter'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 400));
     final progress =
@@ -415,8 +516,8 @@ void main() {
     expect(tester.widget<PageView>(find.byType(PageView)).controller!.page,
         closeTo(1, 0.01));
 
-    // The dock cannot fade away under a held finger, even after the normal
-    // four-second chrome timeout. No pages are fetched or recorded yet.
+    // Holding or releasing the scrubber cannot make the menu blink. No pages
+    // are fetched or recorded before the finger is released.
     await tester.pump(const Duration(seconds: 5));
     final dockOpacity = find.ancestor(
       of: find.byKey(const ValueKey('reader-controls')),
@@ -436,7 +537,244 @@ void main() {
     expect(fixture.requests, ['chapter-1']);
     await tester.pump(const Duration(milliseconds: 4250));
     await tester.pumpAndSettle();
+    expect(tester.widget<AnimatedOpacity>(dockOpacity).opacity, 1);
+    await _tapMenu(tester);
     expect(tester.widget<AnimatedOpacity>(dockOpacity).opacity, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final fit in ['screen', 'width', 'height', 'original']) {
+    testWidgets('real decoded scans pinch in $fit mode without a page turn',
+        (tester) async {
+      final fixture = await _openReader(tester,
+          pages: 3, showControls: false, scanBytes: _scanFixture,
+          preferences: {'reader_fit': fit});
+      expect(tester.widget<RawImage>(find.byType(RawImage).first).image, isNotNull);
+      expect(_chromeOpacity(tester), 0);
+      await _pinch(tester, 2);
+      expect(_viewport(tester).scale, closeTo(2, 0.01));
+      expect(tester.widget<PageView>(find.byType(PageView)).controller!.page,
+          closeTo(0, 0.01));
+      expect(_chromeOpacity(tester), 0);
+      expect(await fixture.repository.progressFor(fixture.units.first.id), isNull);
+      await _pinch(tester, 0.5);
+      expect(_viewport(tester).scale, closeTo(1, 0.01));
+      expect(fixture.requests, ['chapter-1']);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final rtl in [false, true]) {
+    testWidgets('zoomed panning does not flip scans, RTL=$rtl', (tester) async {
+      final fixture = await _openReader(tester, initialPage: 1, showControls: false,
+          language: rtl ? 'ar' : 'en',
+          preferences: {'reader_direction': rtl ? 'rtl' : 'ltr'});
+      await _pinch(tester, 2);
+      final before = tester.getCenter(find.text('Scan 2'));
+      final start = tester.getCenter(find.byType(ReaderGestureViewport));
+      final finger = await tester.startGesture(start);
+      await finger.moveTo(start + const Offset(55, 65));
+      await tester.pump();
+      final after = tester.getCenter(find.text('Scan 2'));
+      expect(after.dx - before.dx, closeTo(55, 1));
+      expect(after.dy - before.dy, closeTo(65, 1));
+      expect(tester.widget<PageView>(find.byType(PageView)).controller!.page,
+          closeTo(1, 0.01));
+      await finger.up();
+      await tester.pumpAndSettle();
+      await _capture(tester, fixture, rtl ? 'gesture-pan-ar' : 'gesture-pan-en');
+      await _doubleTap(tester);
+      expect(_viewport(tester).scale, closeTo(1, 0.01));
+      await tester.drag(find.byType(PageView), Offset(rtl ? 260 : -260, 0));
+      await tester.pumpAndSettle();
+      expect(tester.widget<PageView>(find.byType(PageView)).controller!.page,
+          closeTo(2, 0.01));
+      expect(_chromeOpacity(tester), 0);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('two held fingers and a short drag cannot toggle the menu',
+      (tester) async {
+    await _openReader(tester);
+    final center = tester.getCenter(find.byType(ReaderGestureViewport));
+    final first = await tester.startGesture(center - const Offset(35, 0), pointer: 31);
+    final second = await tester.startGesture(center + const Offset(35, 0), pointer: 32);
+    await tester.pump(const Duration(seconds: 6));
+    expect(_chromeOpacity(tester), 1);
+    await second.up();
+    await first.up();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    expect(_chromeOpacity(tester), 1);
+    final finger = await tester.startGesture(center);
+    await finger.moveTo(center - const Offset(0, 10));
+    await finger.up();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    expect(_chromeOpacity(tester), 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reading hides once and never reveals bars at a chapter boundary',
+      (tester) async {
+    final fixture = await _openReader(tester, pages: 2);
+    await tester.pump(const Duration(seconds: 12));
+    expect(_chromeOpacity(tester), 1);
+    await tester.drag(find.byType(PageView), const Offset(-260, 0));
+    await tester.pumpAndSettle();
+    expect(_chromeOpacity(tester), 0);
+    await tester.pump(const Duration(seconds: 12));
+    expect(_chromeOpacity(tester), 0);
+    await _capture(tester, fixture, 'gesture-fullscreen-end');
+    await tester.drag(find.byType(PageView), const Offset(-180, 0));
+    await tester.pumpAndSettle();
+    expect(tester.widget<ReaderScreen>(find.byType(ReaderScreen)).unitUrl,
+        'chapter-2');
+    expect(_chromeOpacity(tester), 0);
+    await _tapMenu(tester);
+    expect(_chromeOpacity(tester), 1);
+    await tester.pump(const Duration(seconds: 12));
+    expect(_chromeOpacity(tester), 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('double-tap and second-tap drag provide quick zoom', (tester) async {
+    await _openReader(tester, showControls: false);
+    final center = tester.getCenter(find.byType(ReaderGestureViewport));
+    await _doubleTap(tester);
+    expect(_viewport(tester).scale, closeTo(2, 0.01));
+    await _doubleTap(tester);
+    expect(_viewport(tester).scale, closeTo(1, 0.01));
+    await tester.tapAt(center);
+    await tester.pump(const Duration(milliseconds: 100));
+    final finger = await tester.startGesture(center);
+    await tester.pump();
+    await finger.moveTo(center - const Offset(0, 140));
+    await tester.pump();
+    expect(_viewport(tester).scale, inInclusiveRange(1.9, 2.1));
+    await finger.up();
+    await tester.pumpAndSettle();
+    expect(tester.widget<PageView>(find.byType(PageView)).controller!.page,
+        closeTo(0, 0.01));
+    expect(_chromeOpacity(tester), 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a late pinch and the finger left behind cannot advance pages',
+      (tester) async {
+    await _openReader(tester, showControls: false);
+    final center = tester.getCenter(find.byType(ReaderGestureViewport));
+    final first = await tester.startGesture(center, pointer: 41);
+    await first.moveTo(center - const Offset(35, 0));
+    await tester.pump();
+    final second = await tester.startGesture(center + const Offset(45, 0), pointer: 42);
+    await tester.pump();
+    await first.moveTo(center - const Offset(75, 0));
+    await second.moveTo(center + const Offset(85, 0));
+    await tester.pump();
+    expect(_viewport(tester).scale, closeTo(2, 0.01));
+    await second.up();
+    await first.moveTo(center - const Offset(165, 0));
+    await tester.pump();
+    expect(tester.widget<PageView>(find.byType(PageView)).controller!.page,
+        closeTo(0, 0.01));
+    await first.up();
+    await tester.pumpAndSettle();
+    expect(_chromeOpacity(tester), 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('webtoon pinch preserves its image anchor and native scroll speed',
+      (tester) async {
+    final fixture = await _openReader(tester, pages: 3, showControls: false,
+        scanBytes: _scanFixture, preferences: {'reader_mode': 'vertical'});
+    final before = tester.getRect(find.byType(RawImage).first);
+    final center = tester.getCenter(find.byType(ReaderGestureViewport));
+    final fraction = (center.dy - before.top) / before.height;
+    await _pinch(tester, 2);
+    final after = tester.getRect(find.byType(RawImage).first);
+    expect(after.top + fraction * after.height, closeTo(center.dy, 3));
+    expect(await fixture.repository.progressFor(fixture.units.first.id), isNull);
+    final finger = await tester.startGesture(center);
+    await finger.moveTo(center - const Offset(0, 60));
+    await tester.pump();
+    final scrollStart = tester.getRect(find.byType(RawImage).first).top;
+    await finger.moveTo(center - const Offset(0, 180));
+    await tester.pump();
+    final scrollEnd = tester.getRect(find.byType(RawImage).first).top;
+    expect(scrollEnd - scrollStart, closeTo(-120, 3));
+    await finger.up();
+    await tester.pumpAndSettle();
+    expect(_viewport(tester).scale, closeTo(2, 0.01));
+    expect(_chromeOpacity(tester), 0);
+    await _capture(tester, fixture, 'gesture-webtoon-zoom');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('fit-width scans still scroll vertically when enlarged',
+      (tester) async {
+    await _openReader(tester, pages: 3, showControls: false,
+        scanBytes: _scanFixture, preferences: {'reader_fit': 'width'});
+    await _pinch(tester, 2);
+    final center = tester.getCenter(find.byType(ReaderGestureViewport));
+    final finger = await tester.startGesture(center);
+    await finger.moveTo(center - const Offset(0, 60));
+    await tester.pump();
+    final controller = tester.widget<SingleChildScrollView>(
+        find.byType(SingleChildScrollView).first).controller!;
+    final before = controller.offset;
+    await finger.moveTo(center - const Offset(0, 180));
+    await tester.pump();
+    expect(controller.offset - before, closeTo(60, 3));
+    await finger.up();
+    await tester.pumpAndSettle();
+    expect(tester.widget<PageView>(find.byType(PageView)).controller!.page,
+        closeTo(0, 0.01));
+    expect(_chromeOpacity(tester), 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('pinch scales stay between half size and four times fit',
+      (tester) async {
+    await _openReader(tester, showControls: false);
+    await _pinch(tester, 0.1);
+    expect(_viewport(tester).scale, closeTo(0.5, 0.01));
+    for (var i = 0; i < 4; i++) {
+      await _pinch(tester, 2);
+    }
+    expect(_viewport(tester).scale, closeTo(4, 0.01));
+    expect(_chromeOpacity(tester), 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('an enlarged webtoon continues across images without menu flashes',
+      (tester) async {
+    final fixture = await _openReader(tester, showControls: false,
+        preferences: {'reader_mode': 'vertical'});
+    await _pinch(tester, 2);
+    expect(await fixture.repository.progressFor(fixture.units.first.id), isNull);
+    for (var i = 0; i < 2; i++) {
+      const start = Offset(195, 700);
+      final finger = await tester.startGesture(start);
+      await finger.moveTo(start - const Offset(0, 60),
+          timeStamp: const Duration(milliseconds: 100));
+      await tester.pump();
+      await finger.moveTo(start - const Offset(0, 500),
+          timeStamp: const Duration(milliseconds: 600));
+      await tester.pump();
+      await finger.moveTo(start - const Offset(0, 500),
+          timeStamp: const Duration(seconds: 2));
+      await finger.up(timeStamp: const Duration(milliseconds: 2100));
+      await tester.pumpAndSettle();
+    }
+    await tester.pump(const Duration(milliseconds: 400));
+    final progress = await fixture.repository.progressFor(fixture.units.first.id);
+    expect(progress, isNotNull);
+    expect(progress!.position, greaterThanOrEqualTo(1));
+    expect(_viewport(tester).scale, closeTo(2, 0.01));
+    expect(_chromeOpacity(tester), 0);
+    expect(fixture.requests, ['chapter-1']);
     expect(tester.takeException(), isNull);
   });
 
@@ -501,11 +839,9 @@ void main() {
       ),
       findsNothing,
     );
-    await tester.tapAt(const Offset(160, 320));
-    await tester.pumpAndSettle();
+    await _tapMenu(tester);
     expect(tester.getSize(find.byType(PageView)), const Size(320, 640));
-    await tester.tapAt(const Offset(160, 320));
-    await tester.pumpAndSettle();
+    await _tapMenu(tester);
 
     await tester.tap(find.byKey(const ValueKey('reader-chapter-picker')));
     await tester.pumpAndSettle();
@@ -517,6 +853,7 @@ void main() {
     expect(fixture.requests.last, 'chapter-3');
     expect(tester.widget<ReaderScreen>(find.byType(ReaderScreen)).unitUrl,
         'chapter-3');
+    await _ensureChrome(tester);
     await tester.tap(find.byKey(const ValueKey('reader-chapter-picker')));
     await tester.pumpAndSettle();
     final second = find.byKey(ValueKey('chapter-picker-${fixture.units[1].id}'));
@@ -530,6 +867,7 @@ void main() {
     // instead of performing another source request just to navigate back.
     expect(fixture.requests, ['chapter-2', 'chapter-3']);
     expect(find.text('Scan 1'), findsOneWidget);
+    await _ensureChrome(tester);
     await _capture(tester, fixture, 'minimal-controls-ar');
     expect(tester.takeException(), isNull);
   });
@@ -539,6 +877,7 @@ void main() {
     final fixture = await _openReader(tester, pages: 2);
     await tester.drag(find.byType(PageView), const Offset(-600, 0));
     await tester.pumpAndSettle();
+    await _ensureChrome(tester);
     expect(find.byTooltip('End of chapter'), findsOneWidget);
     expect(fixture.requests, ['chapter-1']);
     await tester.drag(find.byType(PageView), const Offset(-24, 0));
@@ -571,6 +910,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(fixture.requests.last, 'chapter-1');
     expect(find.text('Scan 8'), findsOneWidget);
+    await _ensureChrome(tester);
     expect(find.byTooltip('End of chapter'), findsOneWidget);
     await _capture(tester, fixture, 'minimal-end-en');
     expect(tester.takeException(), isNull);

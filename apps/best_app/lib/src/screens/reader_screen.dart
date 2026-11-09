@@ -19,6 +19,7 @@ import '../providers.dart';
 import '../widgets/chapter_list_sheet.dart';
 import '../widgets/reader_color_filter.dart';
 import '../widgets/reader_controls_bar.dart';
+import '../widgets/reader_gesture_viewport.dart';
 import '../widgets/reader_page_grid.dart';
 import '../widgets/reader_settings_sheet.dart';
 
@@ -111,6 +112,14 @@ class _ReaderView extends ConsumerStatefulWidget {
   ConsumerState<_ReaderView> createState() => _ReaderViewState();
 }
 
+class _VerticalZoomAnchor {
+  _VerticalZoomAnchor(this.index, this.fraction, this.focal);
+
+  final int index;
+  final double fraction;
+  double focal;
+}
+
 class _ReaderViewState extends ConsumerState<_ReaderView> {
   /// Readers replace each other when a chapter ends, and the old one is
   /// disposed *after* the new one starts. Restoring the system UI or releasing
@@ -122,6 +131,9 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   ReaderDirection? _pagedDirection;
   late final LibraryRepository _repository;
   final ItemScrollController _verticalController = ItemScrollController();
+  final ScrollOffsetController _verticalOffsetController =
+      ScrollOffsetController();
+  final GlobalKey<ReaderGestureViewportState> _viewportKey = GlobalKey();
   final ItemPositionsListener _verticalPositions =
       ItemPositionsListener.create();
   late int _index;
@@ -133,8 +145,19 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
 
   List<MediaResource> get _resources => widget.data.resources;
 
-  bool _showChrome = true;
-  Timer? _chromeTimer;
+  bool _showChrome = false;
+  bool _readerZoomed = false;
+  bool _gestureInputLocked = false;
+  bool _scrubbing = false;
+  bool _freezeVerticalPositions = false;
+  bool _zoomGestureEnded = false;
+  bool _zoomCorrectionScheduled = false;
+  bool _manualScrollScheduled = false;
+  bool _manualZoomScroll = false;
+  double _pendingManualScroll = 0;
+  int _zoomRevision = 0;
+  int _navigationGestureRevision = 0;
+  _VerticalZoomAnchor? _zoomAnchor;
   bool _awake = false;
   bool _openingUnit = false;
   bool _refreshingPartial = false;
@@ -157,8 +180,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
 
   /// Decode scans at screen resolution instead of their full source size.
   ///
-  /// A 1600 px scan displayed on a 390 px phone costs four times the memory
-  /// and decode time for detail the screen cannot show. Original-size mode is
+  /// Full-size scans may contain far more pixels than the display. Original size is
   /// the exception: it exists to inspect the whole scan, so it keeps the full
   /// resolution. Returns null when the full image should be decoded.
   int? get _decodeWidth {
@@ -192,24 +214,159 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   final Set<int> _prefetched = <int>{};
 
   void _toggleChrome() {
+    if (_gestureInputLocked || ModalRoute.of(context)?.isCurrent == false) return;
     setState(() => _showChrome = !_showChrome);
-    if (_showChrome) {
-      _scheduleChromeHide();
-    } else {
-      _chromeTimer?.cancel();
+  }
+
+  /// Reading can dismiss the menu once, but can never bring it back. Only a
+  /// confirmed tap or the menu shortcut changes hidden chrome to visible.
+  void _hideChromeForReading() {
+    if (!mounted || !_showChrome || _scrubbing) return;
+    if (ModalRoute.of(context)?.isCurrent == false) return;
+    setState(() => _showChrome = false);
+  }
+
+  void _onViewportInputLock(bool locked) {
+    _gestureInputLocked = locked;
+    if (locked) {
+      _navigationGestureRevision++;
+      _edgeDrag = 0;
+      _verticalOverscroll = 0;
+      if (_pagedLayout != null && (_pagedController?.hasClients ?? false)) {
+        _pagedController!.jumpToPage(_pagedLayout!.viewForPage(_index));
+      }
+    } else if (_manualZoomScroll) {
+      _freezeVerticalPositions = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _onVerticalPositions();
+      });
     }
   }
 
-  /// Controls fade out of the way after a few seconds, the way a paper page has
-  /// no toolbar over it. A centre tap brings them back. At the end of a chapter
-  /// they stay: the next-chapter button must not disappear before it is seen.
-  void _scheduleChromeHide() {
-    _chromeTimer?.cancel();
-    if (!_showChrome) return;
-    if (ModalRoute.of(context)?.isCurrent == false) return;
-    if (_atEnd || (widget.data.partial && _atAvailableEnd)) return;
-    _chromeTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted) setState(() => _showChrome = false);
+  void _onViewportZoom(ReaderZoomChange change) {
+    _readerZoomed = change.scale > 1.001;
+    if (!change.preserveContent) {
+      _zoomRevision++;
+      _zoomAnchor = null;
+      _freezeVerticalPositions = false;
+      return;
+    }
+    if (_readerSettings.readerMode != ReaderMode.vertical) return;
+    _freezeVerticalPositions = true;
+    _zoomGestureEnded = false;
+    final height = _viewportKey.currentState?.viewportSize.height ?? 0;
+    if (height <= 0) return;
+    final before = (change.beforeFocal.dy / height).clamp(0.0, 1.0);
+    final after = (change.focalPoint.dy / height).clamp(0.0, 1.0).toDouble();
+    if (_zoomAnchor == null) {
+      final positions = _verticalPositions.itemPositions.value.toList();
+      if (positions.isEmpty) return;
+      positions.sort((a, b) => a.index.compareTo(b.index));
+      final item = positions.firstWhere(
+        (position) => position.itemLeadingEdge <= before &&
+            position.itemTrailingEdge > before,
+        orElse: () => positions.first,
+      );
+      final extent = item.itemTrailingEdge - item.itemLeadingEdge;
+      if (extent <= 0) return;
+      _zoomAnchor = _VerticalZoomAnchor(
+        item.index,
+        ((before - item.itemLeadingEdge) / extent).clamp(0.0, 1.0).toDouble(),
+        after,
+      );
+    } else {
+      _zoomAnchor!.focal = after;
+    }
+    _scheduleZoomCorrection();
+  }
+
+  void _scheduleZoomCorrection() {
+    if (_zoomCorrectionScheduled || _zoomAnchor == null) return;
+    _zoomCorrectionScheduled = true;
+    final revision = _zoomRevision;
+    // Positioned-list item positions are published after layout. Wait for that
+    // publication, not an old height, before restoring the point under fingers.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _zoomCorrectionScheduled = false;
+        if (revision != _zoomRevision) {
+          _scheduleZoomCorrection();
+          return;
+        }
+        unawaited(_correctZoomAnchor(revision));
+      });
+      WidgetsBinding.instance.scheduleFrame();
+    });
+  }
+
+  Future<void> _correctZoomAnchor(int revision) async {
+    final anchor = _zoomAnchor;
+    final viewport = _viewportKey.currentState;
+    if (anchor == null || viewport == null || !_verticalController.isAttached) {
+      return;
+    }
+    final positions = _verticalPositions.itemPositions.value
+        .where((position) => position.index == anchor.index);
+    if (positions.isEmpty) return;
+    final item = positions.first;
+    final current = item.itemLeadingEdge +
+        anchor.fraction * (item.itemTrailingEdge - item.itemLeadingEdge);
+    final correction = (current - anchor.focal) *
+        viewport.viewportSize.height / viewport.scale;
+    try {
+      if (correction.abs() > 0.5) {
+        await _verticalOffsetController.animateScroll(
+          offset: correction,
+          duration: const Duration(milliseconds: 1),
+        );
+      }
+    } catch (_) {
+      // A chapter or layout may have been replaced while its positions arrived.
+    }
+    if (!mounted || revision != _zoomRevision) return;
+    if (_zoomGestureEnded) _zoomAnchor = null;
+  }
+
+  void _onViewportZoomEnd() {
+    _zoomGestureEnded = true;
+    _scheduleZoomCorrection();
+    if (_manualZoomScroll && !_gestureInputLocked) {
+      _freezeVerticalPositions = false;
+      _manualZoomScroll = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _onVerticalPositions();
+      });
+    }
+  }
+
+  void _onManualViewportScroll(double offset) {
+    if (_readerSettings.readerMode != ReaderMode.vertical) return;
+    _zoomRevision++;
+    _zoomAnchor = null;
+    _manualZoomScroll = true;
+    _pendingManualScroll += offset;
+    if (_manualScrollScheduled) return;
+    _manualScrollScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _manualScrollScheduled = false;
+      if (!mounted || !_verticalController.isAttached) return;
+      final scroll = _pendingManualScroll;
+      _pendingManualScroll = 0;
+      unawaited(() async {
+        try {
+          await _verticalOffsetController.animateScroll(
+            offset: scroll,
+            duration: const Duration(milliseconds: 1),
+          );
+        } catch (_) {
+          // The reader can be closed between the pointer and this frame.
+        }
+        if (!mounted || _gestureInputLocked) return;
+        _freezeVerticalPositions = false;
+        _onVerticalPositions();
+      }());
     });
   }
 
@@ -221,7 +378,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 
   void _showColorFilterSheet() {
-    _chromeTimer?.cancel();
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -234,13 +390,10 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
         filter: _colorFilter,
         onChanged: _updateFilter,
       ),
-    ).whenComplete(() {
-      if (mounted) _scheduleChromeHide();
-    });
+    );
   }
 
   void _showReaderSettings() {
-    _chromeTimer?.cancel();
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -258,14 +411,11 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
         onOpenPageGrid: () => _showPageGrid(),
         onOpenBookmarks: _showBookmarks,
       ),
-    ).whenComplete(() {
-      if (mounted) _scheduleChromeHide();
-    });
+    );
   }
 
   void _showPageGrid({bool bookmarksOnly = false}) {
     if (_resources.isEmpty) return;
-    _chromeTimer?.cancel();
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -288,9 +438,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
           _jumpToPage(index);
         },
       ),
-    ).whenComplete(() {
-      if (mounted) _scheduleChromeHide();
-    });
+    );
   }
 
   void _showBookmarks() => _showPageGrid(bookmarksOnly: true);
@@ -298,15 +446,9 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   void _jumpToPage(int index) {
     final total = _resources.length;
     if (total == 0) return;
+    _viewportKey.currentState?.reset();
     final target = index.clamp(0, total - 1);
-    final atEnd =
-        (_pagedLayout?.lastVisiblePage(target) ?? target) >= total - 1;
-    if (target != _index || (atEnd && !_showChrome)) {
-      setState(() {
-        _index = target;
-        if (atEnd) _showChrome = true;
-      });
-    }
+    if (target != _index) setState(() => _index = target);
     if (_readerSettings.readerMode == ReaderMode.vertical) {
       if (_verticalController.isAttached) {
         _verticalController.jumpTo(index: target);
@@ -317,11 +459,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     _markRead(_lastVisiblePage);
     _saveNow();
     _precacheAround(_lastVisiblePage);
-    if (_atEnd) {
-      _chromeTimer?.cancel();
-    } else {
-      _scheduleChromeHide();
-    }
   }
 
   void _toggleBookmark() {
@@ -358,7 +495,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   void _showChaptersSheet() {
     final units = widget.data.units;
     if (units.isEmpty) return;
-    _chromeTimer?.cancel();
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -378,9 +514,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
           _openUnit(unit);
         },
       ),
-    ).whenComplete(() {
-      if (mounted) _scheduleChromeHide();
-    });
+    );
   }
 
   /// Replaces the route so a chapter does not stack dozens of readers on the
@@ -445,8 +579,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 
   void _showPartialWarning() {
-    _chromeTimer?.cancel();
-    if (!_showChrome) setState(() => _showChrome = true);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
           content: Text(AppLocalizations.of(context).readerPartialOffline)),
@@ -456,14 +588,24 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   /// The outer thirds turn a page; the middle third toggles the controls. In a
   /// right-to-left chapter the forward zone is the left side, matching the way
   /// the pages themselves move.
-  void _handleTap(TapUpDetails details, double width) {
+  void _handleTap(Offset position, double width) {
+    if (_gestureInputLocked || ModalRoute.of(context)?.isCurrent == false) return;
     final settings = _readerSettings;
     if (settings.readerMode == ReaderMode.vertical ||
         !settings.readerTapZones) {
       _toggleChrome();
       return;
     }
-    final dx = details.localPosition.dx;
+    final dx = position.dx;
+    // Enlarged scans are inspected by panning. Edge taps cannot turn the page
+    // underneath them; the centre remains the explicit menu target.
+    if (_readerZoomed) {
+      final zones = settings.readerTapZoneSize;
+      if (dx >= width * zones.middleStart && dx <= width * zones.middleEnd) {
+        _toggleChrome();
+      }
+      return;
+    }
     final zones = settings.readerTapZoneSize;
     if (dx < width * zones.middleStart) {
       _turnPage(settings.readerDirection.isRtl ? 1 : -1);
@@ -475,6 +617,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 
   void _turnPage(int delta) {
+    if (_readerZoomed || _gestureInputLocked) return;
     final layout = _pagedLayout;
     if (layout == null || layout.viewCount == 0 || _openingUnit) return;
     final current = layout.viewForPage(_index);
@@ -496,7 +639,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
       duration: BestMotion.fast,
       curve: BestMotion.curve,
     );
-    _chromeTimer?.cancel();
+    _hideChromeForReading();
   }
 
   Future<void> _setAwake(bool enabled) async {
@@ -570,6 +713,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 
   void _stepVertical(int delta) {
+    if (_gestureInputLocked) return;
     final total = _resources.length;
     if (total == 0) return;
     final target = (_index + delta).clamp(0, total - 1);
@@ -582,6 +726,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
       return;
     }
     if (_verticalController.isAttached) {
+      _hideChromeForReading();
       _verticalController.scrollTo(
         index: target,
         duration: BestMotion.fast,
@@ -607,6 +752,26 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     final vertical = settings.readerMode == ReaderMode.vertical;
     final rtl = settings.readerDirection.isRtl;
     final key = event.logicalKey;
+
+    if (_readerZoomed &&
+        (key == LogicalKeyboardKey.arrowLeft ||
+            key == LogicalKeyboardKey.arrowRight ||
+            key == LogicalKeyboardKey.arrowUp ||
+            key == LogicalKeyboardKey.arrowDown ||
+            key == LogicalKeyboardKey.pageUp ||
+            key == LogicalKeyboardKey.pageDown ||
+            key == LogicalKeyboardKey.space)) {
+      final size = MediaQuery.sizeOf(context);
+      final offset = switch (key) {
+        LogicalKeyboardKey.arrowLeft => Offset(size.width * 0.6, 0),
+        LogicalKeyboardKey.arrowRight => Offset(-size.width * 0.6, 0),
+        LogicalKeyboardKey.arrowUp || LogicalKeyboardKey.pageUp =>
+          Offset(0, size.height * 0.6),
+        _ => Offset(0, -size.height * 0.6),
+      };
+      _viewportKey.currentState?.panBy(offset);
+      return KeyEventResult.handled;
+    }
 
     if (key == LogicalKeyboardKey.arrowLeft) {
       vertical ? _stepVertical(-1) : _turnPage(rtl ? 1 : -1);
@@ -658,6 +823,8 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     final saved = widget.data.progress?.position;
     if (total == 0) {
       _index = 0;
+      // An empty/error reading surface still needs a visible way back.
+      _showChrome = true;
     } else if (widget.fromStart) {
       _index = 0;
     } else if (widget.startAtEnd) {
@@ -678,7 +845,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _scheduleChromeHide();
         _precacheAround(_index);
       }
     });
@@ -712,7 +878,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
             if (!mounted || revision != _verticalRestoreRevision) return;
             _restoringVerticalPosition = false;
             _onVerticalPositions();
-            _scheduleChromeHide();
           });
           WidgetsBinding.instance.scheduleFrame();
         });
@@ -727,7 +892,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
 
   @override
   void dispose() {
-    _chromeTimer?.cancel();
     _saveTimer?.cancel();
     _saveNow();
     _verticalPositions.itemPositions.removeListener(_onVerticalPositions);
@@ -750,21 +914,12 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     // second scan of a pair. Only a swipe into a different pair changes it.
     final index = pages.contains(_index) ? _index : pages.first;
     if (index == _index) return;
-    final total = _resources.length;
-    final atEnd = total > 0 && pages.last >= total - 1;
-    setState(() {
-      _index = index;
-      if (atEnd) _showChrome = true;
-    });
+    _viewportKey.currentState?.reset();
+    setState(() => _index = index);
     _markRead(pages.last);
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 320), _saveNow);
     _precacheAround(pages.last);
-    if (atEnd) {
-      _chromeTimer?.cancel();
-    } else if (_showChrome) {
-      _scheduleChromeHide();
-    }
   }
 
   /// Continuous mode has no page callback, so the item under the top of the
@@ -774,6 +929,9 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   void _onVerticalPositions() {
     if (!mounted ||
         _restoringVerticalPosition ||
+        _freezeVerticalPositions ||
+        _gestureInputLocked ||
+        ModalRoute.of(context)?.isCurrent == false ||
         _readerSettings.readerMode != ReaderMode.vertical) {
       return;
     }
@@ -791,19 +949,11 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     );
     final index = current.index.clamp(0, total - 1);
     if (index == _index) return;
-    final atEnd = index >= total - 1;
     setState(() => _index = index);
     _markRead(index);
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 320), _saveNow);
     _precacheAround(index);
-    // Do not pop chrome over a webtoon page the person is still reading. If it
-    // is already visible at the end it stays; otherwise a centre tap shows it.
-    if (atEnd) {
-      _chromeTimer?.cancel();
-    } else if (_showChrome) {
-      _scheduleChromeHide();
-    }
   }
 
   void _markRead(int index) {
@@ -886,10 +1036,8 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       oldController?.dispose();
       if (!mounted || next == null || !identical(next, _pagedLayout)) return;
-      if (_atEnd && !_showChrome) setState(() => _showChrome = true);
       _markRead(_lastVisiblePage);
       _precacheAround(_lastVisiblePage);
-      _scheduleChromeHide();
     });
   }
 
@@ -897,6 +1045,15 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   /// is a deliberate pull past the end of the last page. At that point — and
   /// only when auto-advance is on — the next chapter opens by itself.
   bool _handleVerticalScroll(ScrollNotification notification) {
+    if (notification is ScrollStartNotification &&
+        notification.dragDetails != null) {
+      _freezeVerticalPositions = false;
+      _hideChromeForReading();
+    }
+    if (_readerZoomed || _gestureInputLocked) {
+      _verticalOverscroll = 0;
+      return false;
+    }
     final metrics = notification.metrics;
     if (notification is ScrollStartNotification) {
       _verticalOverscroll = 0;
@@ -911,8 +1068,12 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
           _readerSettings.readerAutoAdvance &&
           !widget.data.partial &&
           _nextUnit != null) {
+        final revision = _navigationGestureRevision;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && !_openingUnit) _openNextUnit();
+          if (mounted && !_openingUnit && !_readerZoomed &&
+              !_gestureInputLocked && revision == _navigationGestureRevision) {
+            _openNextUnit();
+          }
         });
       }
     }
@@ -920,12 +1081,17 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 
   bool _handlePagedScroll(ScrollNotification notification) {
+    if (_readerZoomed || _gestureInputLocked) {
+      _edgeDrag = 0;
+      return false;
+    }
     if (notification.depth != 0 ||
         notification.metrics.axis != Axis.horizontal) {
       return false;
     }
     final metrics = notification.metrics;
     if (notification is ScrollStartNotification) {
+      if (notification.dragDetails != null) _hideChromeForReading();
       _edgeDrag = 0;
       _dragStartedAtStart = metrics.pixels <= metrics.minScrollExtent + 0.5;
       _dragStartedAtEnd = metrics.pixels >= metrics.maxScrollExtent - 0.5;
@@ -942,8 +1108,11 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
       // Reaching the final page mid-swipe is not permission to skip chapters.
       // The gesture must start at the boundary and deliberately go beyond it.
       if (delta != 0) {
+        final revision = _navigationGestureRevision;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted || _openingUnit || !identical(layout, _pagedLayout)) {
+          if (!mounted || _openingUnit || _readerZoomed || _gestureInputLocked ||
+              revision != _navigationGestureRevision ||
+              !identical(layout, _pagedLayout)) {
             return;
           }
           delta > 0 ? _openNextUnit() : _openPreviousUnit();
@@ -953,7 +1122,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     return false;
   }
 
-  Widget _buildPagedView(AppSettings settings) {
+  Widget _buildPagedView(AppSettings settings, ReaderViewportGeometry geometry) {
     final layout = _pagedLayout!;
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) => identical(layout, _pagedLayout)
@@ -962,7 +1131,8 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
       child: PageView.builder(
         key: ValueKey((layout, settings.readerDirection)),
         reverse: settings.readerDirection.isRtl,
-        physics: settings.readerFit == ReaderFit.original
+        physics: settings.readerFit == ReaderFit.original ||
+                geometry.zoomed || geometry.inputLocked
             ? const NeverScrollableScrollPhysics()
             : const PageScrollPhysics(
                 parent: AlwaysScrollableScrollPhysics(
@@ -974,6 +1144,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
         itemCount: layout.viewCount,
         itemBuilder: (context, view) {
           final pages = layout.pagesForView(view);
+          final activePages = layout.pagesForView(layout.viewForPage(_index));
           Widget scan(int page) => _ResourcePage(
                 key: ValueKey(page),
                 unitId: widget.data.unit.id,
@@ -982,7 +1153,13 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                 index: page,
                 total: _chapterTotal,
                 fit: settings.readerFit,
-                colorFilter: _colorFilter,
+                 colorFilter: _colorFilter,
+                 viewportScale: geometry.scale,
+                 decodeScale: activePages.contains(page) ? geometry.decodeScale : 1,
+                 inputLocked: geometry.inputLocked,
+                 zoomFocal: geometry.focalPoint,
+                 manualScroll: geometry.manualScroll,
+                 active: activePages.contains(page),
               );
           if (pages.length == 1) return scan(pages.single);
           return Row(
@@ -997,6 +1174,66 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildReadingViewport(AppSettings settings, Color background) {
+    return ReaderGestureViewport(
+      key: _viewportKey,
+      contentKey: (settings.readerMode, settings.readerFit,
+          settings.readerDirection, _pagedLayout),
+      scrollableContent: settings.readerMode == ReaderMode.vertical ||
+          settings.readerFit == ReaderFit.width,
+      onTap: (position) => _handleTap(position, MediaQuery.sizeOf(context).width),
+      onReadingDrag: _hideChromeForReading,
+      onInputLock: _onViewportInputLock,
+      onZoom: _onViewportZoom,
+      onZoomEnd: _onViewportZoomEnd,
+      onManualScroll: _onManualViewportScroll,
+      builder: (context, geometry) => ColoredBox(
+        color: background,
+        child: settings.readerMode == ReaderMode.vertical
+            ? NotificationListener<ScrollNotification>(
+                onNotification: _handleVerticalScroll,
+                child: ScrollablePositionedList.builder(
+                  itemScrollController: _verticalController,
+                  scrollOffsetController: _verticalOffsetController,
+                  itemPositionsListener: _verticalPositions,
+                  initialScrollIndex: _index,
+                  physics: geometry.inputLocked
+                      ? const NeverScrollableScrollPhysics()
+                      : const ClampingScrollPhysics(),
+                  minCacheExtent: 1600,
+                  itemCount: _resources.length,
+                  itemBuilder: (context, index) {
+                    final page = _ResourcePage(
+                      key: ValueKey(index),
+                      unitId: widget.data.unit.id,
+                      resource: _resources[index],
+                      sourceId: widget.data.media.ref.sourceId,
+                      index: index,
+                      total: _chapterTotal,
+                      continuous: true,
+                      fit: settings.readerFit,
+                      colorFilter: _colorFilter,
+                      viewportScale: geometry.scale,
+                      decodeScale: geometry.decodeScale,
+                      inputLocked: geometry.inputLocked,
+                      zoomFocal: geometry.focalPoint,
+                      manualScroll: geometry.manualScroll,
+                    );
+                    final gap = settings.readerWebtoonGap;
+                    return gap <= 0
+                        ? page
+                        : Padding(
+                            padding: EdgeInsets.only(bottom: gap.toDouble()),
+                            child: page,
+                          );
+                  },
+                ),
+              )
+            : _buildPagedView(settings, geometry),
       ),
     );
   }
@@ -1023,7 +1260,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     final unit = widget.data.unit;
     final total = _resources.length;
     final settings = ref.watch(readerSettingsForProvider(widget.data.media.id));
-    final mode = settings.readerMode;
     final direction = settings.readerDirection;
     final background = _backgroundFor(settings.readerBackground);
     final viewport = MediaQuery.sizeOf(context);
@@ -1162,53 +1398,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
               )
             : Stack(
                 children: [
-                  ColoredBox(
-                    color: background,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTapUp: (details) => _handleTap(
-                        details,
-                        MediaQuery.sizeOf(context).width,
-                      ),
-                      child: mode == ReaderMode.vertical
-                          ? NotificationListener<ScrollNotification>(
-                              onNotification: _handleVerticalScroll,
-                              child: ScrollablePositionedList.builder(
-                                itemScrollController: _verticalController,
-                                itemPositionsListener: _verticalPositions,
-                                initialScrollIndex: _index,
-                                // Keep a screen-and-a-bit of pages alive on
-                                // each side so a fast webtoon scroll does not
-                                // outrun decoding and paint blank slots.
-                                minCacheExtent: 1600,
-                                itemCount: total,
-                                itemBuilder: (BuildContext context, int index) {
-                                  final page = _ResourcePage(
-                                    key: ValueKey(index),
-                                    unitId: widget.data.unit.id,
-                                    resource: _resources[index],
-                                    sourceId: widget.data.media.ref.sourceId,
-                                    index: index,
-                                    total: _chapterTotal,
-                                    continuous: true,
-                                    fit: settings.readerFit,
-                                    colorFilter: _colorFilter,
-                                  );
-                                  final gap = settings.readerWebtoonGap;
-                                  return gap <= 0
-                                      ? page
-                                      : Padding(
-                                          padding: EdgeInsets.only(
-                                            bottom: gap.toDouble(),
-                                          ),
-                                          child: page,
-                                        );
-                                },
-                              ),
-                            )
-                          : _buildPagedView(settings),
-                    ),
-                  ),
+                  _buildReadingViewport(settings, background),
                   Positioned(
                     left: 0,
                     right: 0,
@@ -1231,8 +1421,8 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                               ? null
                               : unitTitle(l10n, _nextUnit!),
                           onSeek: _jumpToPage,
-                          onScrubStart: () => _chromeTimer?.cancel(),
-                          onScrubEnd: _scheduleChromeHide,
+                          onScrubStart: () => _scrubbing = true,
+                          onScrubEnd: () => _scrubbing = false,
                           onNextChapter:
                               _nextUnit == null || widget.data.partial
                                   ? null
@@ -1705,6 +1895,12 @@ class _ResourcePage extends ConsumerStatefulWidget {
     this.continuous = false,
     this.fit = ReaderFit.screen,
     this.colorFilter = const ReaderColorFilter(),
+    this.viewportScale = 1,
+    this.decodeScale = 1,
+    this.inputLocked = false,
+    this.zoomFocal = Offset.zero,
+    this.manualScroll = 0,
+    this.active = true,
   });
 
   final String unitId;
@@ -1715,12 +1911,21 @@ class _ResourcePage extends ConsumerStatefulWidget {
   final bool continuous;
   final ReaderFit fit;
   final ReaderColorFilter colorFilter;
+  final double viewportScale;
+  final double decodeScale;
+  final bool inputLocked;
+  final Offset zoomFocal;
+  final double manualScroll;
+  final bool active;
 
   @override
   ConsumerState<_ResourcePage> createState() => _ResourcePageState();
 }
 
 class _ResourcePageState extends ConsumerState<_ResourcePage> {
+  final ScrollController _widthController = ScrollController();
+  double _pendingWidthAdjustment = 0;
+  bool _widthAdjustmentScheduled = false;
   /// Bytes for an image page: the extension host's signed response, or the
   /// shared disk cache for an ordinary source. Null for files and videos.
   Future<Uint8List?>? _bytes;
@@ -1743,12 +1948,19 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
   @override
   void dispose() {
     _retryTimer?.cancel();
+    _widthController.dispose();
     super.dispose();
   }
 
   @override
   void didUpdateWidget(_ResourcePage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!widget.continuous && widget.fit == ReaderFit.width &&
+        oldWidget.fit == ReaderFit.width && widget.active && oldWidget.active) {
+      final focalAdjustment = widget.zoomFocal.dy *
+          (1 / oldWidget.viewportScale - 1 / widget.viewportScale);
+      _adjustWidthScroll(focalAdjustment + widget.manualScroll - oldWidget.manualScroll);
+    }
     if (oldWidget.resource != widget.resource ||
         oldWidget.sourceId != widget.sourceId) {
       _retryTimer?.cancel();
@@ -1757,6 +1969,23 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
       _bytes = null;
       _loadSignedImage();
     }
+  }
+
+  void _adjustWidthScroll(double adjustment) {
+    if (adjustment.abs() < 0.001) return;
+    _pendingWidthAdjustment += adjustment;
+    if (_widthAdjustmentScheduled) return;
+    _widthAdjustmentScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _widthAdjustmentScheduled = false;
+      if (!mounted || !_widthController.hasClients) return;
+      final offset = _widthController.offset + _pendingWidthAdjustment;
+      _pendingWidthAdjustment = 0;
+      _widthController.jumpTo(offset.clamp(
+        _widthController.position.minScrollExtent,
+        _widthController.position.maxScrollExtent,
+      ).toDouble());
+    });
   }
 
   void _handleImageError() {
@@ -1842,23 +2071,21 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
   }
 
   /// The width a page should be decoded at. Original-size mode keeps the full
-  /// scan because the person may pan into the details; every other mode only
-  /// needs the pixels the screen can actually show.
+  /// scan. Other modes can request a sharper decode after a zoom completes,
+  /// without re-decoding on every finger movement or exceeding the width cap.
   int? get _cacheWidth {
     if (widget.fit == ReaderFit.original && !widget.continuous) return null;
     final media = MediaQuery.maybeOf(context);
     if (media == null) return null;
-    return (media.size.width * media.devicePixelRatio)
+    return (media.size.width * media.devicePixelRatio * widget.decodeScale)
         .round()
         .clamp(320, 2048)
         .toInt();
   }
 
-  /// Continuous mode leaves the vertical drag to the list. Fit-width pages
-  /// scroll vertically, while original-size pages are panned inside the zoom
-  /// surface instead of being silently cropped. Fit-screen pages stay plain so
-  /// a horizontal swipe always reaches the PageView; zooming is an explicit
-  /// choice in reader settings rather than an accidental gesture conflict.
+  /// Pinch belongs to the viewport in every mode. At fit width the inner scroll
+  /// view keeps native vertical dragging; original size retains its intrinsic
+  /// pan surface, but cannot fight the viewport's pinch or zoomed panning.
   Widget _pageBody(Widget child) {
     final withOcr = _OcrPageOverlay(
       unitId: widget.unitId,
@@ -1876,6 +2103,10 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
       ReaderFit.width => LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
+              controller: _widthController,
+              physics: widget.inputLocked
+                  ? const NeverScrollableScrollPhysics()
+                  : const ClampingScrollPhysics(),
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: Center(child: withFilter),
@@ -1890,12 +2121,14 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
         ),
       ReaderFit.original => InteractiveViewer(
           constrained: false,
+          scaleEnabled: false,
+          panEnabled: !widget.inputLocked && widget.viewportScale <= 1.001,
           // Start at the top of the scan, not its middle: a page taller than
           // the screen must open where reading starts.
           alignment: Alignment.topCenter,
           boundaryMargin: const EdgeInsets.all(80),
-          minScale: 0.5,
-          maxScale: 5,
+          minScale: 1,
+          maxScale: 1,
           child: withFilter,
         ),
       ReaderFit.screen => Center(child: withFilter),

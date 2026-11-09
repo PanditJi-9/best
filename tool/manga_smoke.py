@@ -69,7 +69,7 @@ def page_image_state(root) -> str:
 
 
 def reveal_reader_controls(root):
-    """A decoded page can be full-screen after the four-second chrome timer.
+    """The reader starts full-screen and reading gestures never reveal chrome.
 
     Tap only the page's centre, never a page-turn zone or a chapter button.
     Keep the original page-count/title/decoded-image gates after revealing it.
@@ -81,7 +81,7 @@ def reveal_reader_controls(root):
                                     (node.get("content-desc") or "")).lower()
                          for label in READY_LABELS)), None)
     if image is not None:
-        tap(image, wait=0.2)
+        tap(image, wait=0.4)
         return dump()
     return root
 

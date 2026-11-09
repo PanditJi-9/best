@@ -47,7 +47,7 @@ class MangaSmokeTest(unittest.TestCase):
         with patch.object(manga, "tap") as tap, \
                 patch.object(manga, "dump", return_value=revealed):
             self.assertIs(manga.reveal_reader_controls(hidden), revealed)
-        tap.assert_called_once_with(hidden[0], wait=0.2)
+        tap.assert_called_once_with(hidden[0], wait=0.4)
         with patch.object(manga, "tap") as tap:
             self.assertEqual(manga.reveal_reader_controls(hierarchy("Loading"))[0].get("content-desc"), "Loading")
         tap.assert_not_called()
