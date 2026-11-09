@@ -154,6 +154,27 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   ReaderColorFilter get _colorFilter => _filterFrom(_readerSettings);
 
   int get _lastVisiblePage => _pagedLayout?.lastVisiblePage(_index) ?? _index;
+
+  /// Decode scans at screen resolution instead of their full source size.
+  ///
+  /// A 1600 px scan displayed on a 390 px phone costs four times the memory
+  /// and decode time for detail the screen cannot show. Original-size mode is
+  /// the exception: it exists to inspect the whole scan, so it keeps the full
+  /// resolution. Returns null when the full image should be decoded.
+  int? get _decodeWidth {
+    final settings = _readerSettings;
+    if (settings.readerMode == ReaderMode.paged &&
+        settings.readerFit == ReaderFit.original) {
+      return null;
+    }
+    final media = MediaQuery.maybeOf(context);
+    if (media == null) return null;
+    return (media.size.width * media.devicePixelRatio)
+        .round()
+        .clamp(320, 2048)
+        .toInt();
+  }
+
   int get _chapterTotal {
     final expected = widget.data.totalPages ?? _resources.length;
     return expected > _resources.length ? expected : _resources.length;
@@ -331,6 +352,30 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     _readerController.setReaderMode(
       current == ReaderMode.paged ? ReaderMode.vertical : ReaderMode.paged,
     );
+    unawaited(HapticFeedback.selectionClick());
+  }
+
+  /// One tap through screen → width → height → original, so zooming no longer
+  /// needs a trip through the settings sheet.
+  void _cycleFit() {
+    final next = switch (_readerSettings.readerFit) {
+      ReaderFit.screen => ReaderFit.width,
+      ReaderFit.width => ReaderFit.height,
+      ReaderFit.height => ReaderFit.original,
+      ReaderFit.original => ReaderFit.screen,
+    };
+    _readerController.setReaderFit(next);
+    unawaited(HapticFeedback.selectionClick());
+    _scheduleChromeHide();
+  }
+
+  String _fitLabel(AppLocalizations l10n, ReaderFit fit) {
+    return switch (fit) {
+      ReaderFit.screen => l10n.readerFitScreen,
+      ReaderFit.width => l10n.readerFitWidth,
+      ReaderFit.height => l10n.readerFitHeight,
+      ReaderFit.original => l10n.readerFitOriginal,
+    };
   }
 
   void _showChaptersSheet() {
@@ -468,6 +513,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
       }
       return;
     }
+    unawaited(HapticFeedback.selectionClick());
     _pagedController?.animateToPage(
       target,
       duration: BestMotion.fast,
@@ -497,44 +543,46 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     );
   }
 
-  /// Warm the cache for the pages on either side of the current one.
+  /// Warm the disk cache and the decoded image cache around the current page.
   ///
   /// Extension pages are deliberately skipped: the host fetches those with the
   /// extension's own signing client, so a plain HTTP warm-up would issue a
-  /// second, differently-signed request. Downloaded files and ordinary image
-  /// URLs use the same image providers the page itself uses, so the warm-up
-  /// lands in the same cache entry.
+  /// second, differently-signed request. Ordinary image URLs are written to
+  /// [PageImageCache] and then decoded with the same width the page will use,
+  /// so the next swipe can paint immediately instead of showing a spinner.
   void _precacheAround(int index) {
     if (!mounted) return;
     if (!_readerSettings.readerPreload) return;
     final total = _resources.length;
     if (total == 0) return;
     final extension = extensionSourceIdOf(widget.data.media.ref.sourceId);
-    for (final offset in const <int>[1, -1, 2]) {
+    final cache = ref.read(pageImageCacheProvider);
+    final cacheWidth = _decodeWidth;
+    for (final offset in const <int>[1, 2, 3, -1, -2]) {
       final target = index + offset;
       if (target < 0 || target >= total) continue;
       if (!_prefetched.add(target)) continue;
       final resource = _resources[target];
       try {
         if (resource is ImageResource && extension == null) {
-          unawaited(
-            precacheImage(
-              NetworkImage(
-                resource.url,
-                headers: resource.headers.isEmpty ? null : resource.headers,
-              ),
-              context,
-              onError: (error, stack) {},
-            ),
-          );
+          unawaited(() async {
+            try {
+              final bytes = await cache.load(resource);
+              if (!mounted || bytes == null || bytes.isEmpty) return;
+              final provider = cacheWidth == null
+                  ? MemoryImage(bytes)
+                  : ResizeImage(MemoryImage(bytes), width: cacheWidth);
+              await precacheImage(provider, context, onError: (_, __) {});
+            } catch (_) {
+              // The page itself will retry; warming the cache is best effort.
+            }
+          }());
         } else if (resource is FileResource) {
-          unawaited(
-            precacheImage(
-              FileImage(File(resource.path)),
-              context,
-              onError: (error, stack) {},
-            ),
-          );
+          final image = FileImage(File(resource.path));
+          final provider = cacheWidth == null
+              ? image
+              : ResizeImage(image, width: cacheWidth);
+          unawaited(precacheImage(provider, context, onError: (_, __) {}));
         }
       } catch (_) {
         // A failed warm-up is never a reading failure; the page reports its own
@@ -1127,6 +1175,23 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                 ),
                 actions: [
                   IconButton(
+                    tooltip: '${l10n.readerFit}: '
+                        '${_fitLabel(l10n, settings.readerFit)}',
+                    onPressed: _cycleFit,
+                    icon: Icon(
+                      switch (settings.readerFit) {
+                        ReaderFit.screen => Icons.fit_screen,
+                        ReaderFit.width => Icons.swap_horiz,
+                        ReaderFit.height => Icons.height,
+                        ReaderFit.original => Icons.zoom_out_map,
+                      },
+                      color: settings.readerFit == ReaderFit.screen
+                          ? Colors.white70
+                          : BestColors.jade,
+                      size: 21,
+                    ),
+                  ),
+                  IconButton(
                     tooltip: mode == ReaderMode.paged
                         ? l10n.readerModeVertical
                         : l10n.readerModePaged,
@@ -1148,6 +1213,18 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                           ? Icons.bookmark_rounded
                           : Icons.bookmark_border_rounded,
                       color: bookmarked ? BestColors.jade : Colors.white70,
+                      size: 21,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: l10n.readerColorFilter,
+                    onPressed: _showColorFilterSheet,
+                    icon: Icon(
+                      Icons.contrast_rounded,
+                      color: _colorFilter.mode != ReaderColorFilterMode.none ||
+                              _colorFilter.customBrightnessOffset < 0
+                          ? BestColors.jade
+                          : Colors.white70,
                       size: 21,
                     ),
                   ),
@@ -1214,6 +1291,10 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                                 itemScrollController: _verticalController,
                                 itemPositionsListener: _verticalPositions,
                                 initialScrollIndex: _index,
+                                // Keep a screen-and-a-bit of pages alive on
+                                // each side so a fast webtoon scroll does not
+                                // outrun decoding and paint blank slots.
+                                minCacheExtent: 1600,
                                 itemCount: total,
                                 itemBuilder: (BuildContext context, int index) {
                                   final page = _ResourcePage(
@@ -1570,6 +1651,7 @@ Widget _networkImage(
   Map<String, String> headers, {
   BoxFit fit = BoxFit.contain,
   double? width,
+  int? cacheWidth,
   Key? key,
   VoidCallback? onRetry,
   VoidCallback? onError,
@@ -1582,7 +1664,9 @@ Widget _networkImage(
     key: key,
     headers: headers.isEmpty ? null : headers,
     width: width,
+    cacheWidth: cacheWidth,
     fit: fit,
+    filterQuality: FilterQuality.medium,
     frameBuilder: (
       BuildContext context,
       Widget child,
@@ -1953,8 +2037,8 @@ class _ResourcePage extends ConsumerStatefulWidget {
 }
 
 class _ResourcePageState extends ConsumerState<_ResourcePage> {
-  /// Non-null only for an extension page: the host fetches it with the
-  /// extension's own client, cookies and signing interceptors included.
+  /// Bytes for an image page: the extension host's signed response, or the
+  /// shared disk cache for an ordinary source. Null for files and videos.
   Future<Uint8List?>? _bytes;
 
   /// Bumped by a retry so a failed network page is requested again instead of
@@ -2008,11 +2092,16 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
       PaintingBinding.instance.imageCache.evict(FileImage(File(resource.path)));
       return;
     }
+    if (resource is! ImageResource) return;
     final source = extensionSourceIdOf(widget.sourceId);
-    if (resource is ImageResource && source != null) {
+    if (source != null) {
       _bytes = ref
           .read(extensionHostProvider)
           .imageBytes(source, resource.url, headers: resource.headers);
+    } else {
+      // Ordinary pages share a disk cache keyed by URL and headers, so a
+      // reopened chapter paints from storage instead of the network.
+      _bytes = ref.read(pageImageCacheProvider).load(resource);
     }
   }
 
@@ -2051,11 +2140,34 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
 
   void _retry() {
     _retryTimer?.cancel();
-    setState(() {
-      _attempt++;
-      _bytes = null;
-      _loadSignedImage();
-    });
+    final resource = widget.resource;
+    final extension = extensionSourceIdOf(widget.sourceId);
+    unawaited(() async {
+      // A retry after a decode failure must not read the same damaged file
+      // again. Drop it before asking the source for a fresh copy.
+      if (resource is ImageResource && extension == null) {
+        await ref.read(pageImageCacheProvider).evict(resource);
+      }
+      if (!mounted) return;
+      setState(() {
+        _attempt++;
+        _bytes = null;
+        _loadSignedImage();
+      });
+    }());
+  }
+
+  /// The width a page should be decoded at. Original-size mode keeps the full
+  /// scan because the person may pan into the details; every other mode only
+  /// needs the pixels the screen can actually show.
+  int? get _cacheWidth {
+    if (widget.fit == ReaderFit.original && !widget.continuous) return null;
+    final media = MediaQuery.maybeOf(context);
+    if (media == null) return null;
+    return (media.size.width * media.devicePixelRatio)
+        .round()
+        .clamp(320, 2048)
+        .toInt();
   }
 
   /// Continuous mode leaves the vertical drag to the list. Fit-width pages
@@ -2110,6 +2222,7 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
   Widget build(BuildContext context) {
     final resource = widget.resource;
     final retry = _retry;
+    final cacheWidth = _cacheWidth;
     return switch (resource) {
       ImageResource(:final url, :final headers) => _pageBody(
           Center(
@@ -2119,6 +2232,7 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                     headers,
                     fit: _imageFit,
                     width: _imageWidth,
+                    cacheWidth: cacheWidth,
                     key: ValueKey('network-$url-$_attempt'),
                     onRetry: retry,
                     onError: _handleImageError,
@@ -2154,6 +2268,7 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                           headers,
                           fit: _imageFit,
                           width: _imageWidth,
+                          cacheWidth: cacheWidth,
                           key: ValueKey('fallback-$url-$_attempt'),
                           onRetry: retry,
                           onError: _handleImageError,
@@ -2166,6 +2281,8 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                         bytes,
                         width: _imageWidth,
                         fit: _imageFit,
+                        cacheWidth: cacheWidth,
+                        filterQuality: FilterQuality.medium,
                         gaplessPlayback: true,
                         frameBuilder: (
                           context,
@@ -2207,6 +2324,8 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
               key: ValueKey('file-$path-$_attempt'),
               width: _imageWidth,
               fit: _imageFit,
+              cacheWidth: cacheWidth,
+              filterQuality: FilterQuality.medium,
               frameBuilder: (
                 context,
                 child,

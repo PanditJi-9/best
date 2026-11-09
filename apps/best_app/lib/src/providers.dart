@@ -17,6 +17,7 @@ import 'backup/backup_file_store.dart';
 import 'extension_host.dart';
 import 'network.dart';
 import 'ocr/ocr_client.dart';
+import 'reader/page_image_cache.dart';
 import 'security/biometric_client.dart';
 import 'l10n/generated/app_localizations.dart';
 
@@ -64,6 +65,13 @@ final Provider<http.Client> httpClientProvider = Provider<http.Client>((ref) {
   final client = http.Client();
   ref.onDispose(client.close);
   return client;
+});
+
+/// Page scans survive a chapter close, so reopening one does not re-download
+/// every image. Extension pages bypass this cache: their host signs requests.
+final Provider<PageImageCache> pageImageCacheProvider =
+    Provider<PageImageCache>((ref) {
+  return PageImageCache(client: ref.watch(httpClientProvider));
 });
 
 /// Where finished pages live. `main()` overrides this with the app documents
