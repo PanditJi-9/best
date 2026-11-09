@@ -36,6 +36,7 @@ class PageImageCache {
   final Map<String, Future<Uint8List?>> _inFlight =
       <String, Future<Uint8List?>>{};
   int _writesSincePrune = 0;
+  bool _prunedOnOpen = false;
 
   /// Returns cached bytes, or fetches and stores them. A failed request is not
   /// cached, so the page's retry can ask the source again.
@@ -169,6 +170,12 @@ class PageImageCache {
     }
     await directory.create(recursive: true);
     _directory = directory;
+    if (!_prunedOnOpen) {
+      _prunedOnOpen = true;
+      // A previous session may have left the cache over its cap. Trim it in
+      // the background so the first page still loads immediately.
+      unawaited(_prune());
+    }
     return directory;
   }
 
