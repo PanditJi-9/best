@@ -569,19 +569,20 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
             try {
               final bytes = await cache.load(resource);
               if (!mounted || bytes == null || bytes.isEmpty) return;
-              final provider = cacheWidth == null
-                  ? MemoryImage(bytes)
-                  : ResizeImage(MemoryImage(bytes), width: cacheWidth);
+              ImageProvider<Object> provider = MemoryImage(bytes);
+              if (cacheWidth != null) {
+                provider = ResizeImage(provider, width: cacheWidth);
+              }
               await precacheImage(provider, context, onError: (_, __) {});
             } catch (_) {
               // The page itself will retry; warming the cache is best effort.
             }
           }());
         } else if (resource is FileResource) {
-          final image = FileImage(File(resource.path));
-          final provider = cacheWidth == null
-              ? image
-              : ResizeImage(image, width: cacheWidth);
+          ImageProvider<Object> provider = FileImage(File(resource.path));
+          if (cacheWidth != null) {
+            provider = ResizeImage(provider, width: cacheWidth);
+          }
           unawaited(precacheImage(provider, context, onError: (_, __) {}));
         }
       } catch (_) {
