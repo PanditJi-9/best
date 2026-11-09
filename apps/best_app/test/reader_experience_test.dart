@@ -164,6 +164,17 @@ Finder _sheetChip(String text) => find.ancestor(
       matching: find.byType(ChoiceChip),
     );
 
+Future<void> _openPageGrid(WidgetTester tester) async {
+  final l10n =
+      AppLocalizations.of(tester.element(find.byType(ReaderScreen)));
+  await tester.tap(find.byTooltip(l10n.readerSettings));
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(_sheetText(l10n.readerPageGrid));
+  await tester.pumpAndSettle();
+  await tester.tap(_sheetText(l10n.readerPageGrid));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() async {
@@ -269,7 +280,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Scan 3'), findsOneWidget);
     expect(find.text('Scan 4'), findsOneWidget);
-    expect(find.text('End of chapter'), findsOneWidget);
+    expect(find.byTooltip('End of chapter'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 400));
     final progress =
         await fixture.repository.progressFor(fixture.units.first.id);
@@ -465,7 +476,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('RTL chapter navigation has large targets and correct order',
+  testWidgets('minimal overlays keep the full viewport and chapter selection',
       (tester) async {
     final fixture = await _openReader(
       tester,
@@ -475,27 +486,51 @@ void main() {
       textScale: 1.35,
       preferences: {'reader_direction': 'rtl'},
     );
-    final previous = find.byKey(const ValueKey('reader-previous-navigation'));
-    final next = find.byKey(const ValueKey('reader-next-navigation'));
-    expect(tester.getCenter(next).dx, lessThan(tester.getCenter(previous).dx));
-    for (final button in [previous, next]) {
-      final size = tester.getSize(button);
-      expect(size.width, greaterThanOrEqualTo(48));
-      expect(size.height, greaterThanOrEqualTo(48));
-    }
-    await tester.tap(next);
+    final bar = tester.widget<AppBar>(find.byType(AppBar));
+    expect(bar.toolbarHeight, 48);
+    expect(bar.actions, hasLength(1));
+    expect(
+      tester.getSize(find.byKey(const ValueKey('reader-progress-strip'))).height,
+      48,
+    );
+    expect(tester.getSize(find.byType(PageView)), const Size(320, 640));
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('reader-controls')),
+        matching: find.byType(IconButton),
+      ),
+      findsNothing,
+    );
+    await tester.tapAt(const Offset(160, 320));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(PageView)), const Size(320, 640));
+    await tester.tapAt(const Offset(160, 320));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('reader-chapter-picker')));
+    await tester.pumpAndSettle();
+    final third = find.byKey(ValueKey('chapter-picker-${fixture.units[2].id}'));
+    await tester.ensureVisible(third);
+    await tester.pumpAndSettle();
+    await tester.tap(third);
     await tester.pumpAndSettle();
     expect(fixture.requests.last, 'chapter-3');
-    expect(tester.widget<IconButton>(next).onPressed, isNull);
-    await tester.tap(previous);
+    expect(tester.widget<ReaderScreen>(find.byType(ReaderScreen)).unitUrl,
+        'chapter-3');
+    await tester.tap(find.byKey(const ValueKey('reader-chapter-picker')));
+    await tester.pumpAndSettle();
+    final second = find.byKey(ValueKey('chapter-picker-${fixture.units[1].id}'));
+    await tester.ensureVisible(second);
+    await tester.pumpAndSettle();
+    await tester.tap(second);
     await tester.pumpAndSettle();
     expect(tester.widget<ReaderScreen>(find.byType(ReaderScreen)).unitUrl,
         'chapter-2');
     // This chapter was already opened: the provider reuses its resources
     // instead of performing another source request just to navigate back.
     expect(fixture.requests, ['chapter-2', 'chapter-3']);
-    expect(find.text('Scan 8'), findsOneWidget);
-    await _capture(tester, fixture, 'end-controls-ar');
+    expect(find.text('Scan 1'), findsOneWidget);
+    await _capture(tester, fixture, 'minimal-controls-ar');
     expect(tester.takeException(), isNull);
   });
 
@@ -504,7 +539,7 @@ void main() {
     final fixture = await _openReader(tester, pages: 2);
     await tester.drag(find.byType(PageView), const Offset(-600, 0));
     await tester.pumpAndSettle();
-    expect(find.text('End of chapter'), findsOneWidget);
+    expect(find.byTooltip('End of chapter'), findsOneWidget);
     expect(fixture.requests, ['chapter-1']);
     await tester.drag(find.byType(PageView), const Offset(-24, 0));
     await tester.pumpAndSettle();
@@ -536,7 +571,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(fixture.requests.last, 'chapter-1');
     expect(find.text('Scan 8'), findsOneWidget);
-    expect(find.text('End of chapter'), findsOneWidget);
+    expect(find.byTooltip('End of chapter'), findsOneWidget);
+    await _capture(tester, fixture, 'minimal-end-en');
     expect(tester.takeException(), isNull);
   });
 
@@ -590,8 +626,7 @@ void main() {
         'reader_cover_alone': false,
       },
     );
-    await tester.tap(find.byTooltip('Page grid'));
-    await tester.pumpAndSettle();
+    await _openPageGrid(tester);
     final fourth = find
         .descendant(
           of: find.byType(ReaderPageGridSheet),
@@ -751,8 +786,7 @@ void main() {
       fixture.container
           .read(readerBookmarksProvider.notifier)
           .toggle(unit.id, 8);
-      await tester.tap(find.byTooltip(l10n.readerPageGrid));
-      await tester.pumpAndSettle();
+      await _openPageGrid(tester);
       expect(
           tester
               .widget<ReaderPageGridSheet>(find.byType(ReaderPageGridSheet))

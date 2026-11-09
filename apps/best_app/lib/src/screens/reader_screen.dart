@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:best_domain/best_domain.dart';
 import 'package:best_ui/best_ui.dart';
@@ -1029,9 +1028,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     final background = _backgroundFor(settings.readerBackground);
     final viewport = MediaQuery.sizeOf(context);
     _configurePagedLayout(settings, viewport);
-    final bookmarked =
-        (ref.watch(readerBookmarksProvider)[unit.id] ?? const <int>[])
-            .contains(_index);
 
     // Device wake policy is shared; work profiles only override presentation.
     ref.listen(settingsProvider.select((s) => s.readerKeepAwake), (_, next) {
@@ -1059,25 +1055,17 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
         backgroundColor: background,
         extendBodyBehindAppBar: true,
         appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(kToolbarHeight),
+          preferredSize: const Size.fromHeight(BestLayout.minTouch),
           child: AnimatedOpacity(
             opacity: _showChrome ? 1.0 : 0.0,
             duration: BestMotion.normal,
             child: IgnorePointer(
               ignoring: !_showChrome,
               child: AppBar(
+                toolbarHeight: BestLayout.minTouch,
+                leadingWidth: BestLayout.minTouch,
                 backgroundColor: Colors.transparent,
-                foregroundColor: Colors.white,
-                flexibleSpace: ClipRect(
-                  child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
-                      ),
-                    ),
-                  ),
-                ),
+                foregroundColor: BestColors.blue,
                 title: Tooltip(
                   message: l10n.chapters,
                   child: InkWell(
@@ -1085,57 +1073,61 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                     onTap: widget.data.units.isNotEmpty
                         ? _showChaptersSheet
                         : null,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                unitTitle(l10n, unit),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textDirection: autoTextDirection(
-                                  unitTitle(l10n, unit),
-                                  Directionality.of(context),
-                                ),
-                                style: const TextStyle(
-                                    fontSize: 15, fontWeight: FontWeight.w700),
-                              ),
+                    child: SizedBox(
+                      height: BestLayout.minTouch,
+                      child: Center(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.7),
+                            borderRadius: BorderRadius.circular(BestRadius.xs),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 4,
                             ),
-                            if (widget.data.units.isNotEmpty) ...[
-                              const SizedBox(width: 4),
-                              const Icon(Icons.keyboard_arrow_down_rounded,
-                                  size: 18, color: Colors.white70),
-                            ],
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            if (widget.data.offline) ...[
-                              Tooltip(
-                                message: l10n.offlineBadge,
-                                child: const Icon(
-                                  Icons.offline_pin_rounded,
-                                  size: 14,
-                                  color: BestColors.jade,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    unitTitle(l10n, unit),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textDirection: autoTextDirection(
+                                      unitTitle(l10n, unit),
+                                      Directionality.of(context),
+                                    ),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: BestSpace.xs),
-                            ],
-                            Expanded(
-                              child: Text(
-                                widget.data.media.displayTitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    fontSize: 11, color: Colors.white70),
-                              ),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 4),
+                                  child: Text('·',
+                                      style: TextStyle(color: Colors.white54)),
+                                ),
+                                Flexible(
+                                  child: Text(
+                                    widget.data.media.displayTitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textDirection: autoTextDirection(
+                                      widget.data.media.displayTitle,
+                                      Directionality.of(context),
+                                    ),
+                                    style: const TextStyle(
+                                        fontSize: 10, color: Colors.white70),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -1229,11 +1221,9 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                         child: ReaderControlsBar(
                           key: const ValueKey('reader-controls'),
                           chapterId: unit.id,
-                          chapterTitle: unitTitle(l10n, unit),
                           pageIndex: _index,
                           pageCount: total,
                           pageLabel: (page) => _pagePositionLabel(l10n, page),
-                          bookmarked: bookmarked,
                           rightToLeft: direction.isRtl,
                           finished: _atEnd,
                           partialEnd: widget.data.partial && _atAvailableEnd,
@@ -1243,11 +1233,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                           onSeek: _jumpToPage,
                           onScrubStart: () => _chromeTimer?.cancel(),
                           onScrubEnd: _scheduleChromeHide,
-                          onBookmark: _toggleBookmark,
-                          onPageGrid: () => _showPageGrid(),
-                          onChapters: _showChaptersSheet,
-                          onPreviousChapter:
-                              _previousUnit == null ? null : _openPreviousUnit,
                           onNextChapter:
                               _nextUnit == null || widget.data.partial
                                   ? null
