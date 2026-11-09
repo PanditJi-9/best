@@ -272,7 +272,8 @@ class MemoryLibraryRepository implements LibraryRepository {
       final media = _media[unit.mediaId];
       if (media == null || !media.inLibrary) continue;
       final progress = _progress[unit.id];
-      if (progress != null && (progress.started || progress.completed)) {
+      if (progress != null &&
+          (progress.started || progress.completed || progress.position > 0)) {
         continue;
       }
       updates.add(LibraryUpdate(

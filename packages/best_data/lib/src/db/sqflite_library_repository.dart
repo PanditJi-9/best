@@ -387,6 +387,7 @@ class SqfliteLibraryRepository implements LibraryRepository {
         AND u.first_seen_at > 0
         AND (p.started IS NULL OR p.started = 0)
         AND (p.completed IS NULL OR p.completed = 0)
+        AND (p.position IS NULL OR p.position <= 0)
       ORDER BY u.first_seen_at DESC, u.number DESC
       LIMIT ?
     ''', [limit]);

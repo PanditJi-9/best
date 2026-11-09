@@ -3252,6 +3252,10 @@ class LibraryAutoRefreshController extends Notifier<DateTime?> {
   Future<void> refreshNow() async {
     if (ref.read(libraryRefreshProvider).running) return;
     await ref.read(libraryRefreshProvider.notifier).refreshAll();
+    final progress = ref.read(libraryRefreshProvider);
+    // A total failure (offline, every source down) must not silence the next
+    // attempt for a whole interval; a partial refresh is still worth recording.
+    if (progress.total > 0 && progress.done == 0) return;
     final now = DateTime.now();
     state = now;
     await ref

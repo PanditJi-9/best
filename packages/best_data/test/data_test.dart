@@ -477,7 +477,10 @@ void main() {
       options: OpenDatabaseOptions(
         version: 4,
         onCreate: (db, version) async {
-          await db.execute('CREATE TABLE media (id TEXT PRIMARY KEY)');
+          await db.execute(
+            'CREATE TABLE media (id TEXT PRIMARY KEY, '
+            'in_library INTEGER NOT NULL DEFAULT 0)',
+          );
           await db.execute('''
             CREATE TABLE unit (
               id TEXT PRIMARY KEY,
