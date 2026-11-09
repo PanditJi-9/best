@@ -83,6 +83,19 @@ class MemoryLibraryRepository implements LibraryRepository {
   }
 
   @override
+  Future<void> resetProgress(String mediaId) async {
+    final units = _units.values
+        .where((unit) => unit.mediaId == mediaId)
+        .map((unit) => unit.id)
+        .toSet();
+    var removed = false;
+    for (final unitId in units) {
+      removed = _progress.remove(unitId) != null || removed;
+    }
+    if (removed) _notify();
+  }
+
+  @override
   Future<void> saveMedia(Media media) async {
     final existing = _media[media.id];
     if (existing == null) {

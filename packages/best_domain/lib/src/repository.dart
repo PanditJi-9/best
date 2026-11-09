@@ -26,6 +26,11 @@ abstract interface class LibraryRepository {
   /// Takes a work off the recently opened list. Its progress and shelf stay.
   Future<void> forgetOpened(String mediaId);
 
+  /// Forgets every stored reading position of a work, so its units count as
+  /// unread again. The work row, its categories, favourite state and downloads
+  /// stay. The caller must confirm this with the person first.
+  Future<void> resetProgress(String mediaId);
+
   /// Inserts or refreshes a work. A refresh never erases local history.
   Future<void> saveMedia(Media media);
 

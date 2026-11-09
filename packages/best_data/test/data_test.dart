@@ -564,6 +564,56 @@ void main() {
     expect(rows.single.bytes, 8);
   });
 
+  test('resetProgress clears one work only and keeps its shelf row', () async {
+    final memory = MemoryLibraryRepository();
+    addTearDown(memory.close);
+    for (final store in <LibraryRepository>[repository, memory]) {
+      await store.saveMedia(work('reset', favorite: true));
+      await store.saveMedia(work('keep'));
+      await store.saveUnits([
+        unit('reset', 1),
+        unit('reset', 2),
+        unit('keep', 1),
+      ]);
+      await store.saveProgress(UnitProgress(
+        unitId: unit('reset', 1).id,
+        position: 4,
+        total: 20,
+        started: true,
+        updatedAt: 100,
+      ));
+      await store.saveProgress(UnitProgress(
+        unitId: unit('reset', 2).id,
+        position: 19,
+        total: 20,
+        completed: true,
+        updatedAt: 200,
+      ));
+      await store.saveProgress(UnitProgress(
+        unitId: unit('keep', 1).id,
+        position: 2,
+        total: 10,
+        started: true,
+        updatedAt: 300,
+      ));
+      expect(await store.continueReading(), hasLength(2));
+
+      await store.resetProgress('test::reset');
+
+      expect(await store.progressFor(unit('reset', 1).id), isNull);
+      expect(await store.progressFor(unit('reset', 2).id), isNull);
+      expect(await store.progressFor(unit('keep', 1).id), isNotNull);
+      final media = await store.mediaById('test::reset');
+      expect(media, isNotNull);
+      expect(media!.favorite, isTrue);
+      expect(media.inLibrary, isTrue);
+      final entry = (await store.library())
+          .firstWhere((entry) => entry.media.title == 'reset');
+      expect(entry.completedUnits, 0);
+      expect(entry.unreadUnits, 2);
+    }
+  });
+
   test('the guide has units and generated pages', () async {
     final source = DemoSource();
     final works = await source.popular();

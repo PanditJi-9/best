@@ -1929,6 +1929,123 @@ final FutureProvider<List<Media>> recentProvider =
   return ref.watch(repositoryProvider).recent(limit: 40);
 });
 
+/// What the history screen is allowed to show. Komikku exposes tri-state
+/// filters for unfinished works, unfinished chapters and works outside the
+/// library; Best keeps the same questions as plain switches plus a kind.
+enum HistoryKindFilter { all, reading, watching }
+
+class HistoryFilter {
+  const HistoryFilter({
+    this.kind = HistoryKindFilter.all,
+    this.onlyUnread = false,
+    this.onlyNotOnShelf = false,
+    this.onlyFavorites = false,
+  });
+
+  final HistoryKindFilter kind;
+  final bool onlyUnread;
+  final bool onlyNotOnShelf;
+  final bool onlyFavorites;
+
+  bool get isActive =>
+      kind != HistoryKindFilter.all ||
+      onlyUnread ||
+      onlyNotOnShelf ||
+      onlyFavorites;
+
+  int get activeCount =>
+      (kind == HistoryKindFilter.all ? 0 : 1) +
+      (onlyUnread ? 1 : 0) +
+      (onlyNotOnShelf ? 1 : 0) +
+      (onlyFavorites ? 1 : 0);
+
+  HistoryFilter copyWith({
+    HistoryKindFilter? kind,
+    bool? onlyUnread,
+    bool? onlyNotOnShelf,
+    bool? onlyFavorites,
+  }) =>
+      HistoryFilter(
+        kind: kind ?? this.kind,
+        onlyUnread: onlyUnread ?? this.onlyUnread,
+        onlyNotOnShelf: onlyNotOnShelf ?? this.onlyNotOnShelf,
+        onlyFavorites: onlyFavorites ?? this.onlyFavorites,
+      );
+
+  Map<String, Object> toJson() => {
+        'kind': kind.name,
+        'onlyUnread': onlyUnread,
+        'onlyNotOnShelf': onlyNotOnShelf,
+        'onlyFavorites': onlyFavorites,
+      };
+
+  factory HistoryFilter.fromJson(Map<String, Object?> json) {
+    final kind = HistoryKindFilter.values.firstWhere(
+      (value) => value.name == json['kind'],
+      orElse: () => HistoryKindFilter.all,
+    );
+    return HistoryFilter(
+      kind: kind,
+      onlyUnread: json['onlyUnread'] == true,
+      onlyNotOnShelf: json['onlyNotOnShelf'] == true,
+      onlyFavorites: json['onlyFavorites'] == true,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is HistoryFilter &&
+      other.kind == kind &&
+      other.onlyUnread == onlyUnread &&
+      other.onlyNotOnShelf == onlyNotOnShelf &&
+      other.onlyFavorites == onlyFavorites;
+
+  @override
+  int get hashCode =>
+      Object.hash(kind, onlyUnread, onlyNotOnShelf, onlyFavorites);
+}
+
+class HistoryFilterController extends Notifier<HistoryFilter> {
+  static const String _key = 'history_filters_v1';
+
+  @override
+  HistoryFilter build() {
+    final raw = ref.watch(preferencesProvider)?.getString(_key);
+    if (raw == null || raw.isEmpty) return const HistoryFilter();
+    try {
+      final decoded = jsonDecode(raw);
+      return decoded is Map<String, Object?>
+          ? HistoryFilter.fromJson(decoded)
+          : const HistoryFilter();
+    } catch (_) {
+      // A corrupt preference must not hide the person's history.
+      return const HistoryFilter();
+    }
+  }
+
+  void setKind(HistoryKindFilter kind) => _set(state.copyWith(kind: kind));
+  void setOnlyUnread(bool value) => _set(state.copyWith(onlyUnread: value));
+  void setOnlyNotOnShelf(bool value) =>
+      _set(state.copyWith(onlyNotOnShelf: value));
+  void setOnlyFavorites(bool value) =>
+      _set(state.copyWith(onlyFavorites: value));
+  void clear() => _set(const HistoryFilter());
+
+  void _set(HistoryFilter next) {
+    if (next == state) return;
+    state = next;
+    unawaited(
+      ref.read(preferencesProvider)?.setString(_key, jsonEncode(next.toJson())),
+    );
+  }
+}
+
+final NotifierProvider<HistoryFilterController, HistoryFilter>
+    historyFilterProvider =
+    NotifierProvider<HistoryFilterController, HistoryFilter>(
+  HistoryFilterController.new,
+);
+
 /// Re-read after every write, including the one the manager makes per page.
 final FutureProvider<List<DownloadTask>> downloadsProvider =
     FutureProvider<List<DownloadTask>>((ref) async {

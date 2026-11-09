@@ -90,6 +90,16 @@ class SqfliteLibraryRepository implements LibraryRepository {
   }
 
   @override
+  Future<void> resetProgress(String mediaId) async {
+    final removed = await _db.rawDelete(
+      'DELETE FROM progress WHERE unit_id IN '
+      '(SELECT id FROM unit WHERE media_id = ?)',
+      [mediaId],
+    );
+    if (removed > 0) _notify();
+  }
+
+  @override
   Future<void> saveMedia(Media media) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     final addedAt =
