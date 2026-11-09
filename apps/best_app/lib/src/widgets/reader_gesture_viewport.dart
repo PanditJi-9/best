@@ -102,6 +102,7 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
   bool _cooling = false;
   bool _inputLocked = false;
   bool _quickScaleEligible = false;
+  bool _doubleTapDownPending = false;
   bool _quickScaling = false;
   Offset _quickStart = Offset.zero;
   Offset _quickOffset = Offset.zero;
@@ -222,7 +223,10 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
       _hadMultiplePointers = false;
       _moved = false;
       _dragReported = false;
-      _quickScaleEligible = false;
+      // A child's recognizer can report the second tap while addPointer is
+      // running, before this outer listener receives that same pointer down.
+      _quickScaleEligible = _doubleTapDownPending;
+      _doubleTapDownPending = false;
       _quickScaling = false;
       _downTime = event.timeStamp;
       _longHeld = false;
@@ -330,6 +334,7 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
   }
 
   void _doubleTap(TapDownDetails details) {
+    _doubleTapDownPending = _pointers.isEmpty;
     _focalPoint = details.localPosition;
     _quickStart = _focalPoint;
     _quickOffset = _offset;

@@ -1124,11 +1124,16 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
 
   Widget _buildPagedView(AppSettings settings, ReaderViewportGeometry geometry) {
     final layout = _pagedLayout!;
+    final interfaceDirection = Directionality.of(context);
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) => identical(layout, _pagedLayout)
           ? _handlePagedScroll(notification)
           : false,
-      child: PageView.builder(
+      // PageView already reverses for the reading direction. Inheriting Arabic
+      // UI direction here would reverse its drag axis a second time.
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: PageView.builder(
         key: ValueKey((layout, settings.readerDirection)),
         reverse: settings.readerDirection.isRtl,
         physics: settings.readerFit == ReaderFit.original ||
@@ -1161,8 +1166,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                  manualScroll: geometry.manualScroll,
                  active: activePages.contains(page),
               );
-          if (pages.length == 1) return scan(pages.single);
-          return Row(
+          final content = pages.length == 1 ? scan(pages.single) : Row(
             // Reading direction, not interface language, orders the artwork.
             textDirection: settings.readerDirection.isRtl
                 ? TextDirection.rtl
@@ -1173,7 +1177,9 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
               Expanded(child: scan(pages.last)),
             ],
           );
+          return Directionality(textDirection: interfaceDirection, child: content);
         },
+        ),
       ),
     );
   }
@@ -1511,7 +1517,19 @@ class _PageLoading extends StatelessWidget {
         ),
       ),
     );
-    if (fill) return SizedBox.expand(child: content);
+    if (fill) {
+      return LayoutBuilder(builder: (context, constraints) {
+        // FittedBox and original-size pan surfaces intentionally give their
+        // children unbounded constraints. A loading scan is a viewport slot,
+        // not an infinitely large image.
+        final viewport = MediaQuery.sizeOf(context);
+        return SizedBox(
+          width: constraints.hasBoundedWidth ? constraints.maxWidth : viewport.width,
+          height: constraints.hasBoundedHeight ? constraints.maxHeight : viewport.height,
+          child: content,
+        );
+      });
+    }
     return SizedBox(
       width: double.infinity,
       height: MediaQuery.sizeOf(context).width * 1.4,
