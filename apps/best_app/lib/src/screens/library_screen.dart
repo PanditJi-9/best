@@ -605,15 +605,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             builder: (context, constraints) {
               final width = constraints.crossAxisExtent;
               final columns = (width / 170).floor().clamp(2, 6).toInt();
-              final tileWidth = (width - 40 - (columns - 1) * 14) / columns;
+              final tileWidth = (width - 40 - (columns - 1) * 12) / columns;
               return SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 sliver: SliverGrid(
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: columns,
-                    mainAxisSpacing: 22,
-                    crossAxisSpacing: 14,
-                    mainAxisExtent: tileWidth * 1.5 + 104,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    mainAxisExtent: tileWidth * 1.5 + 80,
                   ),
                   delegate: SliverChildBuilderDelegate((context, index) {
                     final entry = entries[index];

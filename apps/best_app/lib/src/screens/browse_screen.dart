@@ -411,7 +411,7 @@ class _BrowseGrid extends StatelessWidget {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final columns = (width / 170).floor().clamp(2, 6).toInt();
-        final tileWidth = (width - 40 - (columns - 1) * 14) / columns;
+        final tileWidth = (width - 40 - (columns - 1) * 12) / columns;
 
         return RefreshIndicator(
           onRefresh: onRefresh,
@@ -420,9 +420,9 @@ class _BrowseGrid extends StatelessWidget {
             physics: const AlwaysScrollableScrollPhysics(),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
-              mainAxisSpacing: 22,
-              crossAxisSpacing: 14,
-              mainAxisExtent: tileWidth * 1.5 + 88,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              mainAxisExtent: tileWidth * 1.5 + 66,
             ),
             itemCount: works.length,
             itemBuilder: (context, index) {
