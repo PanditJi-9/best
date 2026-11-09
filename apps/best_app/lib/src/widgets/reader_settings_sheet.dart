@@ -43,12 +43,10 @@ class ReaderSettingsSheet extends ConsumerWidget {
     final bookmarks =
         ref.watch(readerBookmarksProvider)[unit.id] ?? const <int>[];
 
-    return SafeArea(
-      top: false,
-      child: SingleChildScrollView(
+    final content = SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
           BestSpace.xl,
-          BestSpace.sm,
+          0,
           BestSpace.xl,
           BestSpace.xl,
         ),
@@ -56,24 +54,6 @@ class ReaderSettingsSheet extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    l10n.readerSettings,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      fontFamily: BestFontFamily.heading,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close_rounded, size: 20),
-                ),
-              ],
-            ),
             Text(
               l10n.readerSettingsBody,
               style: theme.textTheme.bodySmall?.copyWith(
@@ -440,11 +420,10 @@ class ReaderSettingsSheet extends ConsumerWidget {
               subtitle: Text(l10n.readerOcrBody),
             ),
             const SizedBox(height: BestSpace.sm),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(BestRadius.md),
-              ),
+            Material(
+              color: theme.colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(BestRadius.md),
+              clipBehavior: Clip.antiAlias,
               child: ExpansionTile(
                 tilePadding: const EdgeInsets.symmetric(
                   horizontal: BestSpace.md,
@@ -503,6 +482,42 @@ class ReaderSettingsSheet extends ConsumerWidget {
             ),
           ],
         ),
+      );
+
+    return SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              BestSpace.xl,
+              BestSpace.sm,
+              BestSpace.xl,
+              BestSpace.sm,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.readerSettings,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontFamily: BestFontFamily.heading,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  key: const ValueKey('reader-tools-close'),
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded, size: 20),
+                ),
+              ],
+            ),
+          ),
+          Flexible(child: content),
+        ],
       ),
     );
   }

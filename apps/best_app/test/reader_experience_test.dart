@@ -489,7 +489,11 @@ void main() {
     expect(tester.widget<IconButton>(next).onPressed, isNull);
     await tester.tap(previous);
     await tester.pumpAndSettle();
-    expect(fixture.requests.last, 'chapter-2');
+    expect(tester.widget<ReaderScreen>(find.byType(ReaderScreen)).unitUrl,
+        'chapter-2');
+    // This chapter was already opened: the provider reuses its resources
+    // instead of performing another source request just to navigate back.
+    expect(fixture.requests, ['chapter-2', 'chapter-3']);
     expect(find.text('Scan 8'), findsOneWidget);
     await _capture(tester, fixture, 'end-controls-ar');
     expect(tester.takeException(), isNull);

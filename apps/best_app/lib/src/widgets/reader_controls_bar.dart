@@ -270,7 +270,7 @@ class _ReaderControlsBarState extends State<ReaderControlsBar> {
                               const SizedBox(width: BestSpace.sm),
                               Expanded(
                                 child: Tooltip(
-                                  message: l10n.chapters,
+                                  message: widget.chapterTitle,
                                   child: TextButton(
                                     key: const ValueKey('reader-chapter-navigation'),
                                     onPressed: widget.onChapters,
@@ -294,7 +294,7 @@ class _ReaderControlsBarState extends State<ReaderControlsBar> {
                                         const SizedBox(width: BestSpace.sm),
                                         Expanded(
                                           child: Text(
-                                            widget.chapterTitle,
+                                            l10n.chapters,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             textAlign: TextAlign.center,
