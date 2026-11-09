@@ -382,8 +382,10 @@ class DownloadManager {
 
   Future<void> _drain() async {
     if (_disposed || !mayDownload()) return;
-    if (!(await _repository.downloads()).any(
-        (task) => task.status == DownloadStatus.queued)) return;
+    if (!(await _repository.downloads())
+        .any((task) => task.status == DownloadStatus.queued)) {
+      return;
+    }
     await prepareSources();
 
     final inFlight = <String, Future<void>>{};

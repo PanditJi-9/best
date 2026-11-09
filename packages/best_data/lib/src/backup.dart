@@ -69,6 +69,7 @@ class LibraryBackup {
             'publishedAt': unit.publishedAt,
             'pageCount': unit.pageCount,
             'memo': unit.memo,
+            'firstSeenAt': unit.firstSeenAt,
           },
       ],
       'progress': [
@@ -202,6 +203,7 @@ class LibraryBackup {
       publishedAt: _int(row['publishedAt']),
       pageCount: _int(row['pageCount']),
       memo: _optionalString(row['memo']) ?? '',
+      firstSeenAt: _int(row['firstSeenAt']),
     );
   }
 
