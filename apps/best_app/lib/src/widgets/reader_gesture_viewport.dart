@@ -323,7 +323,9 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
 
   void _tap(TapUpDetails details) {
     if (_tapBlocked || _moved || _hadMultiplePointers || _inputLocked ||
-        _pointers.isNotEmpty) return;
+        _pointers.isNotEmpty) {
+      return;
+    }
     widget.onTap(details.localPosition);
   }
 
