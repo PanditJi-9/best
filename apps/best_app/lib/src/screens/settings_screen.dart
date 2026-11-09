@@ -195,6 +195,30 @@ class SettingsScreen extends ConsumerWidget {
                       end: 2,
                     ),
                   ),
+                  const Divider(height: 1),
+                  SwitchListTile.adaptive(
+                    value: ref.watch(libraryShowEmptyCategoriesProvider),
+                    onChanged: (bool value) => ref
+                        .read(libraryShowEmptyCategoriesProvider.notifier)
+                        .set(value),
+                    secondary: const Icon(Icons.tab_rounded, size: 19),
+                    title: Text(
+                      l10n.libraryShowEmpty,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: Text(
+                      l10n.libraryShowEmptyBody,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    contentPadding: const EdgeInsetsDirectional.only(
+                      start: 2,
+                      end: 2,
+                    ),
+                  ),
                 ],
               ),
             ),

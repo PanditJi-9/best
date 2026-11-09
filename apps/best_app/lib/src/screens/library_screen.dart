@@ -166,16 +166,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final l10n = AppLocalizations.of(context);
     final query = ref.watch(libraryQueryProvider);
     final shelf = ref.watch(libraryProvider);
-    final tabs = ref.watch(libraryTabsProvider).value;
-    final reveal = ref.watch(revealHiddenProvider);
+    final tabs = ref.watch(libraryVisibleTabsProvider).value;
     final shelfKind = query.shelf ?? LibraryShelf.reading;
     final filtering = query.filter != LibraryFilter.all;
     final currentTag = query.tag;
     final total = tabs?.total;
-    final categories = [
-      for (final category in tabs?.categories ?? const <CategorySummary>[])
-        if (reveal || !category.hidden) category,
-    ];
+    final categories = tabs?.categories ?? const <CategorySummary>[];
+    final defaultCount = tabs?.uncategorized ?? 0;
 
     return SafeArea(
       bottom: false,
@@ -221,7 +218,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             const SizedBox(height: 8),
             _ShelfTabs(
               defaultLabel: l10n.categoryDefault,
-              defaultCount: tabs?.uncategorized ?? 0,
+              defaultCount: defaultCount,
               defaultSelected: query.uncategorized && currentTag == null,
               categories: categories,
               selectedTag: currentTag,
@@ -243,6 +240,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   onChanged: _onSearch,
                   decoration: InputDecoration(
                     hintText: l10n.searchLibrary,
+                    helperText: l10n.librarySearchHint,
+                    helperMaxLines: 2,
                     prefixIcon: const Icon(Icons.search, size: 20),
                     suffixIcon: _search.text.isEmpty
                         ? null

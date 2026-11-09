@@ -47,6 +47,7 @@ String sortLabel(AppLocalizations l10n, LibrarySort sort) => switch (sort) {
       LibrarySort.title => l10n.sortTitle,
       LibrarySort.recentlyRead => l10n.sortRecentlyRead,
       LibrarySort.recentlyAdded => l10n.sortRecentlyAdded,
+      LibrarySort.random => l10n.sortRandom,
     };
 
 String themeLabel(AppLocalizations l10n, ThemeMode mode) => switch (mode) {

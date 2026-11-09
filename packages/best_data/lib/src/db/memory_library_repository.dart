@@ -37,14 +37,24 @@ class MemoryLibraryRepository implements LibraryRepository {
       final units = _units.values.where((unit) => unit.mediaId == media.id);
       final total = units.length;
       var completed = 0;
+      UnitProgress? latest;
       for (final unit in units) {
-        if (_progress[unit.id]?.completed ?? false) completed++;
+        final progress = _progress[unit.id];
+        if (progress?.completed ?? false) completed++;
+        if (progress == null || !UnitNavigation.hasStarted(progress)) continue;
+        if (latest == null ||
+            progress.updatedAt > latest.updatedAt ||
+            (progress.updatedAt == latest.updatedAt &&
+                progress.unitId.compareTo(latest.unitId) > 0)) {
+          latest = progress;
+        }
       }
       entries.add(
         LibraryEntry(
           media: media,
           totalUnits: total,
           completedUnits: completed,
+          lastProgress: latest,
           offlineUnits: _downloads.values
               .where((task) => task.mediaId == media.id && task.isFinished)
               .length,

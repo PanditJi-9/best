@@ -29,11 +29,22 @@ class SqfliteLibraryRepository implements LibraryRepository {
       SELECT m.*,
              COUNT(DISTINCT u.id) AS total_units,
              COUNT(DISTINCT CASE WHEN p.completed = 1 THEN u.id END) AS completed_units,
-             COUNT(DISTINCT CASE WHEN d.status = 'done' THEN d.unit_id END) AS offline_units
+             COUNT(DISTINCT CASE WHEN d.status = 'done' THEN d.unit_id END) AS offline_units,
+             latest.unit_id AS latest_unit_id,
+             latest.position AS latest_position, latest.total AS latest_total,
+             latest.completed AS latest_completed, latest.started AS latest_started,
+             latest.updated_at AS latest_updated_at
       FROM media m
       LEFT JOIN unit u ON u.media_id = m.id
       LEFT JOIN progress p ON p.unit_id = u.id
       LEFT JOIN downloads d ON d.media_id = m.id
+      LEFT JOIN progress latest ON latest.unit_id = (
+        SELECT candidate.unit_id FROM progress candidate
+        JOIN unit candidate_unit ON candidate_unit.id = candidate.unit_id
+        WHERE candidate_unit.media_id = m.id
+          AND (candidate.position > 0 OR candidate.started = 1 OR candidate.completed = 1)
+        ORDER BY candidate.updated_at DESC, candidate.unit_id DESC LIMIT 1
+      )
       WHERE m.in_library = 1
       GROUP BY m.id
     ''');
@@ -44,6 +55,16 @@ class SqfliteLibraryRepository implements LibraryRepository {
         totalUnits: (row['total_units'] as int?) ?? 0,
         completedUnits: (row['completed_units'] as int?) ?? 0,
         offlineUnits: (row['offline_units'] as int?) ?? 0,
+        lastProgress: row['latest_unit_id'] == null
+            ? null
+            : UnitProgress(
+                unitId: row['latest_unit_id'] as String,
+                position: (row['latest_position'] as int?) ?? 0,
+                total: (row['latest_total'] as int?) ?? 0,
+                completed: row['latest_completed'] == 1,
+                started: row['latest_started'] == 1,
+                updatedAt: (row['latest_updated_at'] as int?) ?? 0,
+              ),
       );
     });
 

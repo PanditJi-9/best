@@ -84,6 +84,32 @@ void main() {
     expect(progress.updatedAt, 200);
   });
 
+  test('library filters recognize first-page and partially read sessions',
+      () async {
+    final memory = MemoryLibraryRepository();
+    addTearDown(memory.close);
+    for (final store in <LibraryRepository>[repository, memory]) {
+      await store.saveMedia(work('started'));
+      await store.saveMedia(work('untouched'));
+      await store.saveUnits([unit('started', 1), unit('untouched', 1)]);
+      await store.saveProgress(UnitProgress(
+        unitId: unit('started', 1).id,
+        position: 0,
+        total: 20,
+        started: true,
+        updatedAt: 100,
+      ));
+      final started = await store.library(
+          const LibraryQuery(filter: LibraryFilter.inProgress));
+      expect(started.single.media.title, 'started');
+      expect(started.single.lastProgress!.unitId, unit('started', 1).id);
+      final unread =
+          await store.library(const LibraryQuery(filter: LibraryFilter.unread));
+      expect(unread.single.media.title, 'untouched');
+      expect(unread.single.lastProgress, isNull);
+    }
+  });
+
   test(
       'version-8 progress migration distinguishes opened rows from untouched zero rows',
       () async {

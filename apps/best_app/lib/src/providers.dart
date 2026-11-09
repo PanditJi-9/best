@@ -1182,8 +1182,18 @@ class LibraryQueryController extends Notifier<LibraryQuery> {
   }
 
   void setSort(LibrarySort sort) {
+    if (sort == LibrarySort.random) {
+      // A fresh seed each time the person asks to shuffle; the seed keeps the
+      // order stable across rebuilds until they ask again.
+      final now = DateTime.now().microsecondsSinceEpoch;
+      state = state.copyWith(
+        sort: sort,
+        randomSeed: now > state.randomSeed ? now : state.randomSeed + 1,
+      );
+      return;
+    }
     if (state.sort == sort) return;
-    state = state.copyWith(sort: sort);
+    state = state.copyWith(sort: sort, randomSeed: 0);
   }
 
   /// One category tab. Selecting the active one again does nothing.
@@ -1624,6 +1634,26 @@ class RevealHiddenController extends Notifier<bool> {
 final NotifierProvider<RevealHiddenController, bool> revealHiddenProvider =
     NotifierProvider<RevealHiddenController, bool>(RevealHiddenController.new);
 
+/// Komikku hides empty category tabs while a search or filter is active. Some
+/// readers prefer the strip to stay put, so it is a preference, not a rule.
+class LibraryShowEmptyController extends Notifier<bool> {
+  static const String _key = 'library_show_empty_categories';
+
+  @override
+  bool build() => ref.watch(preferencesProvider)?.getBool(_key) ?? false;
+
+  Future<void> set(bool value) async {
+    await ref.read(preferencesProvider)?.setBool(_key, value);
+    state = value;
+  }
+}
+
+final NotifierProvider<LibraryShowEmptyController, bool>
+    libraryShowEmptyCategoriesProvider =
+    NotifierProvider<LibraryShowEmptyController, bool>(
+  LibraryShowEmptyController.new,
+);
+
 /// A category plus how many works currently carry it.
 class CategorySummary {
   const CategorySummary({
@@ -1700,6 +1730,58 @@ final FutureProvider<ShelfTabs> libraryTabsProvider =
           count: counts[name] ?? 0,
           hidden: hidden.contains(name),
         ),
+    ]),
+  );
+});
+
+/// The on-screen strip, unlike the category manager, follows search/filter
+/// matches. Ignore the selected category when counting: other tabs must remain
+/// reachable. Hidden works must never contribute to a visible tab's count.
+final FutureProvider<ShelfTabs> libraryVisibleTabsProvider =
+    FutureProvider<ShelfTabs>((ref) async {
+  final query = ref.watch(libraryQueryProvider);
+  final hidden = ref.watch(hiddenCategoriesProvider);
+  final reveal = ref.watch(revealHiddenProvider);
+  final showEmpty = ref.watch(libraryShowEmptyCategoriesProvider);
+  final tabsFuture = ref.watch(libraryTabsProvider.future);
+  final entriesFuture = ref.watch(allLibraryProvider.future);
+  final tabs = await tabsFuture;
+  final entries = await entriesFuture;
+  final matches = LibraryPolicy.apply(
+    entries,
+    query.copyWith(
+      clearTag: true,
+      uncategorized: false,
+      hiddenTags: hidden,
+      includeHidden: reveal,
+    ),
+  );
+  final counts = <String, int>{};
+  var uncategorized = 0;
+  for (final entry in matches) {
+    final names = {
+      for (final tag in entry.media.tags)
+        if (tag.trim().isNotEmpty) tag.trim(),
+    };
+    if (names.isEmpty) uncategorized++;
+    for (final name in names) {
+      counts[name] = (counts[name] ?? 0) + 1;
+    }
+  }
+  final narrowing = query.search.trim().isNotEmpty ||
+      query.filter != LibraryFilter.all;
+  return ShelfTabs(
+    total: matches.length,
+    uncategorized: uncategorized,
+    categories: List.unmodifiable([
+      for (final category in tabs.categories)
+        if (reveal || !category.hidden)
+          if (!narrowing || showEmpty || (counts[category.name] ?? 0) > 0)
+            CategorySummary(
+              name: category.name,
+              count: counts[category.name] ?? 0,
+              hidden: category.hidden,
+            ),
     ]),
   );
 });
