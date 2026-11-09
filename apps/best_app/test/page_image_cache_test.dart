@@ -1,4 +1,3 @@
-// ignore_for_file: avoid_print
 import 'dart:io';
 
 import 'package:best_app/src/reader/page_image_cache.dart';
@@ -23,9 +22,7 @@ void main() {
   late int calls;
 
   setUp(() async {
-    print('cache-test: setUp start');
     directory = await Directory.systemTemp.createTemp('best-page-cache-');
-    print('cache-test: setUp done ${directory.path}');
     calls = 0;
   });
 
@@ -38,30 +35,15 @@ void main() {
         directory: directory,
       );
 
-  test('sanity', () async {
-    print('cache-test: sanity body');
-    expect(1, 1);
-  });
-
   test('a page is fetched once and then served from memory', () async {
     final client = MockClient((request) async {
-      print('cache-test: mock hit');
       calls++;
       return http.Response.bytes(const [1, 2, 3, 4], 200);
     });
     final pages = cache(client);
     const page = ImageResource('https://cdn.test/one.jpg');
 
-    print('cache-test: before load');
-    final first = await pages.load(page).timeout(
-      const Duration(seconds: 5),
-      onTimeout: () {
-        print('cache-test: load timed out');
-        return null;
-      },
-    );
-    print('cache-test: after load $first');
-    expect(first, const [1, 2, 3, 4]);
+    expect(await pages.load(page), const [1, 2, 3, 4]);
     expect(await pages.load(page), const [1, 2, 3, 4]);
     expect(calls, 1);
   });

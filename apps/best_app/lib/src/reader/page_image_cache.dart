@@ -49,7 +49,9 @@ class PageImageCache {
     }
     return _inFlight.putIfAbsent(
       key,
-      () => _load(key, resource).whenComplete(() => _inFlight.remove(key)),
+      () => _load(key, resource).whenComplete(() {
+        _inFlight.remove(key);
+      }),
     );
   }
 
