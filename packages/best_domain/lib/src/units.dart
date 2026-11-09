@@ -17,6 +17,7 @@ class MediaUnit {
     this.publishedAt = 0,
     this.pageCount = 0,
     this.memo = '',
+    this.firstSeenAt = 0,
   });
 
   final String mediaId;
@@ -40,6 +41,11 @@ class MediaUnit {
   /// pages. Stored as the source wrote it; Best never interprets the contents.
   final String memo;
 
+  /// When this unit first appeared on a work that was already on the shelf.
+  /// `0` means "not an update": the unit was part of the first chapter list,
+  /// so adding a work never floods the updates feed with its back catalogue.
+  final int firstSeenAt;
+
   String get id => unitIdOf(mediaId, url);
 
   String get displayTitle => title.trim().isNotEmpty ? title : _fallbackTitle;
@@ -57,6 +63,7 @@ class MediaUnit {
     int? pageCount,
     int? publishedAt,
     String? memo,
+    int? firstSeenAt,
   }) {
     return MediaUnit(
       mediaId: mediaId,
@@ -67,6 +74,7 @@ class MediaUnit {
       publishedAt: publishedAt ?? this.publishedAt,
       pageCount: pageCount ?? this.pageCount,
       memo: memo ?? this.memo,
+      firstSeenAt: firstSeenAt ?? this.firstSeenAt,
     );
   }
 

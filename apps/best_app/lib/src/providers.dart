@@ -115,6 +115,7 @@ final Provider<DownloadManager> downloadManagerProvider =
     manager.mayDownload =
         () => !settings.wifiOnly || network != NetworkKind.mobile;
     manager.storageCap = () => settings.storageCapGb * 1024 * 1024 * 1024;
+    manager.maxConcurrent = () => settings.downloadConcurrency;
     if (manager.mayDownload()) {
       unawaited(manager.pump().catchError((Object _) {}));
     }
@@ -552,6 +553,7 @@ class AppSettings {
     this.readerFit = ReaderFit.screen,
     this.readerBackground = ReaderBackground.black,
     this.readerTapZones = true,
+    this.readerTapZoneSize = ReaderTapZoneSize.medium,
     this.readerKeepAwake = true,
     this.readerPreload = true,
     this.readerWebtoonGap = 0,
@@ -562,6 +564,10 @@ class AppSettings {
     this.readerAutoAdvance = true,
     this.ocrTranslationEnabled = false,
     this.biometricLockEnabled = false,
+    this.autoRefreshLibrary = true,
+    this.refreshIntervalHours = 12,
+    this.updateWifiOnly = true,
+    this.downloadConcurrency = 1,
   });
 
   /// `null` follows the system locale.
@@ -598,6 +604,9 @@ class AppSettings {
   /// Off, any tap only toggles chrome.
   final bool readerTapZones;
 
+  /// How wide the page-turn edges are in paged mode.
+  final ReaderTapZoneSize readerTapZoneSize;
+
   /// Keep the display awake while a chapter is open.
   final bool readerKeepAwake;
 
@@ -627,6 +636,7 @@ class AppSettings {
         fit: readerFit,
         background: readerBackground,
         tapZones: readerTapZones,
+        tapZoneSize: readerTapZoneSize,
         webtoonGap: readerWebtoonGap,
         filterMode: readerFilterMode,
         brightness: readerBrightness,
@@ -640,6 +650,7 @@ class AppSettings {
         readerFit: preferences.fit,
         readerBackground: preferences.background,
         readerTapZones: preferences.tapZones,
+        readerTapZoneSize: preferences.tapZoneSize,
         readerWebtoonGap: preferences.webtoonGap,
         readerFilterMode: preferences.filterMode,
         readerBrightness: preferences.brightness,
@@ -652,6 +663,19 @@ class AppSettings {
 
   /// Protects the app with biometrics / device passcode.
   final bool biometricLockEnabled;
+
+  /// Refresh the shelf on launch/resume when the interval has elapsed.
+  final bool autoRefreshLibrary;
+
+  /// Hours between automatic shelf refreshes.
+  final int refreshIntervalHours;
+
+  /// Automatic refreshes wait for Wi-Fi. Manual refresh always runs.
+  final bool updateWifiOnly;
+
+  /// How many chapters the offline queue may fetch at once. One is the polite
+  /// default; more is an explicit choice for a fast connection.
+  final int downloadConcurrency;
 
   AppSettings copyWith({
     String? languageCode,
@@ -666,6 +690,7 @@ class AppSettings {
     ReaderFit? readerFit,
     ReaderBackground? readerBackground,
     bool? readerTapZones,
+    ReaderTapZoneSize? readerTapZoneSize,
     bool? readerKeepAwake,
     bool? readerPreload,
     int? readerWebtoonGap,
@@ -676,6 +701,10 @@ class AppSettings {
     bool? readerAutoAdvance,
     bool? ocrTranslationEnabled,
     bool? biometricLockEnabled,
+    bool? autoRefreshLibrary,
+    int? refreshIntervalHours,
+    bool? updateWifiOnly,
+    int? downloadConcurrency,
   }) {
     return AppSettings(
       languageCode: clearLanguage ? null : (languageCode ?? this.languageCode),
@@ -688,6 +717,7 @@ class AppSettings {
       readerFit: readerFit ?? this.readerFit,
       readerBackground: readerBackground ?? this.readerBackground,
       readerTapZones: readerTapZones ?? this.readerTapZones,
+      readerTapZoneSize: readerTapZoneSize ?? this.readerTapZoneSize,
       readerKeepAwake: readerKeepAwake ?? this.readerKeepAwake,
       readerPreload: readerPreload ?? this.readerPreload,
       readerWebtoonGap: readerWebtoonGap ?? this.readerWebtoonGap,
@@ -699,6 +729,10 @@ class AppSettings {
       ocrTranslationEnabled:
           ocrTranslationEnabled ?? this.ocrTranslationEnabled,
       biometricLockEnabled: biometricLockEnabled ?? this.biometricLockEnabled,
+      autoRefreshLibrary: autoRefreshLibrary ?? this.autoRefreshLibrary,
+      refreshIntervalHours: refreshIntervalHours ?? this.refreshIntervalHours,
+      updateWifiOnly: updateWifiOnly ?? this.updateWifiOnly,
+      downloadConcurrency: downloadConcurrency ?? this.downloadConcurrency,
     );
   }
 }
@@ -714,6 +748,7 @@ class SettingsController extends Notifier<AppSettings> {
   static const String _readerFitKey = 'reader_fit';
   static const String _readerBackgroundKey = 'reader_background';
   static const String _readerTapZonesKey = 'reader_tap_zones';
+  static const String _readerTapZoneSizeKey = 'reader_tap_zone_size';
   static const String _readerKeepAwakeKey = 'reader_keep_awake';
   static const String _readerPreloadKey = 'reader_preload';
   static const String _readerWebtoonGapKey = 'reader_webtoon_gap';
@@ -724,6 +759,10 @@ class SettingsController extends Notifier<AppSettings> {
   static const String _readerAutoAdvanceKey = 'reader_auto_advance';
   static const String _ocrTranslationKey = 'ocr_translation_enabled';
   static const String _biometricLockKey = 'biometric_lock_enabled';
+  static const String _autoRefreshKey = 'library_auto_refresh';
+  static const String _refreshIntervalKey = 'library_refresh_interval_hours';
+  static const String _updateWifiOnlyKey = 'library_update_wifi_only';
+  static const String _downloadConcurrencyKey = 'download_concurrency';
 
   @override
   AppSettings build() {
@@ -747,6 +786,9 @@ class SettingsController extends Notifier<AppSettings> {
         preferences?.getString(_readerBackgroundKey),
       ),
       readerTapZones: preferences?.getBool(_readerTapZonesKey) ?? true,
+      readerTapZoneSize: ReaderTapZoneSize.fromName(
+        preferences?.getString(_readerTapZoneSizeKey),
+      ),
       readerKeepAwake: preferences?.getBool(_readerKeepAwakeKey) ?? true,
       readerPreload: preferences?.getBool(_readerPreloadKey) ?? true,
       readerWebtoonGap:
@@ -760,6 +802,12 @@ class SettingsController extends Notifier<AppSettings> {
       readerAutoAdvance: preferences?.getBool(_readerAutoAdvanceKey) ?? true,
       ocrTranslationEnabled: preferences?.getBool(_ocrTranslationKey) ?? false,
       biometricLockEnabled: preferences?.getBool(_biometricLockKey) ?? false,
+      autoRefreshLibrary: preferences?.getBool(_autoRefreshKey) ?? true,
+      refreshIntervalHours:
+          (preferences?.getInt(_refreshIntervalKey) ?? 12).clamp(1, 168).toInt(),
+      updateWifiOnly: preferences?.getBool(_updateWifiOnlyKey) ?? true,
+      downloadConcurrency:
+          (preferences?.getInt(_downloadConcurrencyKey) ?? 1).clamp(1, 4).toInt(),
     );
   }
 
@@ -826,6 +874,41 @@ class SettingsController extends Notifier<AppSettings> {
     state = state.copyWith(readerTapZones: value);
   }
 
+  void setReaderTapZoneSize(ReaderTapZoneSize value) {
+    unawaited(
+      ref
+          .read(preferencesProvider)
+          ?.setString(_readerTapZoneSizeKey, value.name),
+    );
+    state = state.copyWith(readerTapZoneSize: value);
+  }
+
+  void setAutoRefreshLibrary(bool value) {
+    unawaited(ref.read(preferencesProvider)?.setBool(_autoRefreshKey, value));
+    state = state.copyWith(autoRefreshLibrary: value);
+  }
+
+  void setRefreshIntervalHours(int value) {
+    final hours = value.clamp(1, 168).toInt();
+    unawaited(ref.read(preferencesProvider)?.setInt(_refreshIntervalKey, hours));
+    state = state.copyWith(refreshIntervalHours: hours);
+  }
+
+  void setUpdateWifiOnly(bool value) {
+    unawaited(
+      ref.read(preferencesProvider)?.setBool(_updateWifiOnlyKey, value),
+    );
+    state = state.copyWith(updateWifiOnly: value);
+  }
+
+  void setDownloadConcurrency(int value) {
+    final limit = value.clamp(1, 4).toInt();
+    unawaited(
+      ref.read(preferencesProvider)?.setInt(_downloadConcurrencyKey, limit),
+    );
+    state = state.copyWith(downloadConcurrency: limit);
+  }
+
   void setReaderKeepAwake(bool value) {
     unawaited(
       ref.read(preferencesProvider)?.setBool(_readerKeepAwakeKey, value),
@@ -870,6 +953,7 @@ class SettingsController extends Notifier<AppSettings> {
       _readerFitKey,
       _readerBackgroundKey,
       _readerTapZonesKey,
+      _readerTapZoneSizeKey,
       _readerWebtoonGapKey,
       _readerFilterModeKey,
       _readerBrightnessKey,
@@ -894,6 +978,7 @@ class SettingsController extends Notifier<AppSettings> {
       _readerFitKey: next.fit.name,
       _readerBackgroundKey: next.background.name,
       _readerTapZonesKey: next.tapZones,
+      _readerTapZoneSizeKey: next.tapZoneSize.name,
       _readerWebtoonGapKey: next.webtoonGap,
       _readerFilterModeKey: next.filterMode,
       _readerBrightnessKey: next.brightness,
@@ -1066,6 +1151,8 @@ class ReaderSettingsController {
       _update((p) => p.copyWith(background: value));
   void setReaderTapZones(bool value) =>
       _update((p) => p.copyWith(tapZones: value));
+  void setReaderTapZoneSize(ReaderTapZoneSize value) =>
+      _update((p) => p.copyWith(tapZoneSize: value));
   void setReaderWebtoonGap(int value) =>
       _update((p) => p.copyWith(webtoonGap: value));
   void setReaderSpreadMode(ReaderSpreadMode value) =>
@@ -1820,6 +1907,13 @@ final FutureProvider<List<LibraryEntry>> allLibraryProvider =
     FutureProvider<List<LibraryEntry>>((ref) async {
   ref.watch(libraryChangesProvider);
   return ref.watch(repositoryProvider).library(const LibraryQuery());
+});
+
+/// New unread chapters from works already on the shelf, newest first.
+final FutureProvider<List<LibraryUpdate>> libraryUpdatesProvider =
+    FutureProvider<List<LibraryUpdate>>((ref) async {
+  ref.watch(libraryChangesProvider);
+  return ref.watch(repositoryProvider).libraryUpdates();
 });
 
 /// The shelf, filtered by the same text a reader types into search. It is a
@@ -3123,6 +3217,53 @@ final NotifierProvider<LibraryRefreshController, RefreshProgress>
     libraryRefreshProvider =
     NotifierProvider<LibraryRefreshController, RefreshProgress>(
   LibraryRefreshController.new,
+);
+
+/// Runs the shelf refresh on launch/resume, at most once per chosen interval.
+///
+/// Android cannot run a Dart source extension while the app is killed, so this
+/// is an in-app schedule, not a promise of work while the app is closed. A
+/// manual refresh ignores both the interval and the Wi-Fi rule.
+class LibraryAutoRefreshController extends Notifier<DateTime?> {
+  static const String _lastKey = 'library_last_refresh_at';
+
+  @override
+  DateTime? build() {
+    final raw = ref.watch(preferencesProvider)?.getInt(_lastKey);
+    return raw == null ? null : DateTime.fromMillisecondsSinceEpoch(raw);
+  }
+
+  Future<void> maybeRefresh() async {
+    final settings = ref.read(settingsProvider);
+    if (!settings.autoRefreshLibrary) return;
+    if (ref.read(libraryRefreshProvider).running) return;
+    final network = ref.read(networkProvider).value ?? NetworkKind.unknown;
+    if (network == NetworkKind.none) return;
+    if (settings.updateWifiOnly && network == NetworkKind.mobile) return;
+    final last = state;
+    if (last != null &&
+        DateTime.now().difference(last) <
+            Duration(hours: settings.refreshIntervalHours)) {
+      return;
+    }
+    await refreshNow();
+  }
+
+  Future<void> refreshNow() async {
+    if (ref.read(libraryRefreshProvider).running) return;
+    await ref.read(libraryRefreshProvider.notifier).refreshAll();
+    final now = DateTime.now();
+    state = now;
+    await ref
+        .read(preferencesProvider)
+        ?.setInt(_lastKey, now.millisecondsSinceEpoch);
+  }
+}
+
+final NotifierProvider<LibraryAutoRefreshController, DateTime?>
+    libraryAutoRefreshProvider =
+    NotifierProvider<LibraryAutoRefreshController, DateTime?>(
+  LibraryAutoRefreshController.new,
 );
 
 /// Where the encrypted copy lives. The passphrase is deliberately absent: it is

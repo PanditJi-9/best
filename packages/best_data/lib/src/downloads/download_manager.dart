@@ -74,6 +74,10 @@ class DownloadManager {
   /// finishes, so the offline store never grows past the limit a person set.
   int Function() storageCap = () => 0;
 
+  /// How many chapters may fetch pages at once. One is the polite default; a
+  /// person who chooses more accepts the extra load on the source.
+  int Function() maxConcurrent = () => 1;
+
   /// Android may need to warm its installed extension catalogue before a cold
   /// worker can resolve a saved source. No second manager or writer is created.
   Future<void> Function() prepareSources = () async {};
@@ -381,17 +385,36 @@ class DownloadManager {
     if (!(await _repository.downloads()).any(
         (task) => task.status == DownloadStatus.queued)) return;
     await prepareSources();
+
+    final inFlight = <String, Future<void>>{};
     while (!_disposed) {
-      if (!mayDownload()) return;
+      if (!mayDownload()) break;
       final tasks = await _repository.downloads();
-      DownloadTask? next;
-      for (final task in tasks) {
-        if (task.status != DownloadStatus.queued) continue;
-        if (next == null || task.updatedAt < next.updatedAt) next = task;
+      final queued = tasks
+          .where((task) =>
+              task.status == DownloadStatus.queued &&
+              !inFlight.containsKey(task.unitId))
+          .toList()
+        ..sort((a, b) => a.updatedAt.compareTo(b.updatedAt));
+
+      final limit = maxConcurrent().clamp(1, 8);
+      var launched = false;
+      for (final task in queued) {
+        if (inFlight.length >= limit) break;
+        launched = true;
+        inFlight[task.unitId] = _run(task.unitId).whenComplete(() {
+          inFlight.remove(task.unitId);
+        });
       }
-      if (next == null) return;
-      await _run(next.unitId);
+      if (inFlight.isEmpty) {
+        // A worker can finish before the next check; re-read the queue instead
+        // of ending the drain while more chapters are still queued.
+        if (!launched) break;
+        continue;
+      }
+      await Future.any(inFlight.values.toList(growable: false));
     }
+    if (inFlight.isNotEmpty) await Future.wait(inFlight.values);
   }
 
   Future<void> _run(String unitId) async {

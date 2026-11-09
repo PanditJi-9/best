@@ -628,6 +628,46 @@ void main() {
     expect(pages.first, isA<SyntheticPage>());
   });
 
+  test('only chapters added after the first list become updates', () async {
+    final memory = MemoryLibraryRepository();
+    addTearDown(memory.close);
+    for (final store in <LibraryRepository>[repository, memory]) {
+      await store.saveMedia(work('fresh'));
+      await store.saveUnits([unit('fresh', 1), unit('fresh', 2)]);
+      expect(await store.libraryUpdates(), isEmpty,
+          reason: 'the first chapter list is not news');
+
+      await store.saveUnits([unit('fresh', 3)]);
+      final updates = await store.libraryUpdates();
+      expect(updates, hasLength(1));
+      expect(updates.single.unit.number, 3);
+      expect(updates.single.firstSeenAt, greaterThan(0));
+
+      await store.saveProgress(UnitProgress(
+        unitId: unit('fresh', 3).id,
+        position: 0,
+        total: 20,
+        started: true,
+        updatedAt: 100,
+      ));
+      expect(await store.libraryUpdates(), isEmpty,
+          reason: 'a started chapter is no longer new');
+    }
+  });
+
+  test('a work added later does not expose its back catalogue as updates',
+      () async {
+    final memory = MemoryLibraryRepository();
+    addTearDown(memory.close);
+    for (final store in <LibraryRepository>[repository, memory]) {
+      await store.saveMedia(work('off-shelf', inLibrary: false));
+      await store.saveUnits([unit('off-shelf', 1), unit('off-shelf', 2)]);
+      await store.setInLibrary('test::off-shelf', true);
+
+      expect(await store.libraryUpdates(), isEmpty);
+    }
+  });
+
   test('the guide streams a real sample for episodes', () async {
     final source = DemoSource();
     final works = await source.popular();

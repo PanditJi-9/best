@@ -13,6 +13,7 @@ import 'screens/downloads_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/library_screen.dart';
+import 'screens/library_updates_screen.dart';
 import 'screens/manage_sources_screen.dart';
 import 'screens/manga_screen.dart';
 import 'screens/meta_detail_screen.dart';
@@ -54,6 +55,14 @@ GoRouter buildRouter() => GoRouter(
                 GoRoute(
                   path: Routes.library,
                   builder: (context, state) => const LibraryScreen(),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: Routes.updates,
+                  builder: (context, state) => const LibraryUpdatesScreen(),
                 ),
               ],
             ),

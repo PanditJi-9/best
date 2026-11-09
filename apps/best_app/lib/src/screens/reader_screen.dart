@@ -442,9 +442,10 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
       return;
     }
     final dx = details.localPosition.dx;
-    if (dx < width * 0.3) {
+    final zones = settings.readerTapZoneSize;
+    if (dx < width * zones.middleStart) {
       _turnPage(settings.readerDirection.isRtl ? 1 : -1);
-    } else if (dx > width * 0.7) {
+    } else if (dx > width * zones.middleEnd) {
       _turnPage(settings.readerDirection.isRtl ? -1 : 1);
     } else {
       _toggleChrome();
@@ -2041,6 +2042,7 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
 
   BoxFit get _imageFit {
     if (_fitsWidth) return BoxFit.fitWidth;
+    if (widget.fit == ReaderFit.height) return BoxFit.fitHeight;
     if (widget.fit == ReaderFit.original) return BoxFit.none;
     return BoxFit.contain;
   }
@@ -2084,6 +2086,11 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
               ),
             );
           },
+        ),
+      ReaderFit.height => SizedBox.expand(
+          // The whole viewport height is used; a wider scan is cropped rather
+          // than shrunk into a letterbox. PageView still owns horizontal swipes.
+          child: FittedBox(fit: BoxFit.fitHeight, child: withFilter),
         ),
       ReaderFit.original => InteractiveViewer(
           constrained: false,

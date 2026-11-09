@@ -238,6 +238,13 @@ class ReaderSettingsSheet extends ConsumerWidget {
                   ),
                   _chip(
                     context,
+                    label: l10n.readerFitHeight,
+                    icon: Icons.height_rounded,
+                    selected: settings.readerFit == ReaderFit.height,
+                    onSelected: () => notifier.setReaderFit(ReaderFit.height),
+                  ),
+                  _chip(
+                    context,
                     label: l10n.readerFitOriginal,
                     icon: Icons.zoom_out_map_rounded,
                     selected: settings.readerFit == ReaderFit.original,
@@ -356,6 +363,34 @@ class ReaderSettingsSheet extends ConsumerWidget {
                   ),
                 ),
               ),
+            if (settings.readerMode == ReaderMode.paged &&
+                settings.readerTapZones) ...[
+              _section(theme, l10n.readerTapZoneSize),
+              Wrap(
+                spacing: BestSpace.sm,
+                runSpacing: BestSpace.sm,
+                children: [
+                  for (final size in ReaderTapZoneSize.values)
+                    _chip(
+                      context,
+                      label: switch (size) {
+                        ReaderTapZoneSize.small => l10n.readerTapZoneSmall,
+                        ReaderTapZoneSize.medium => l10n.readerTapZoneMedium,
+                        ReaderTapZoneSize.large => l10n.readerTapZoneLarge,
+                      },
+                      icon: switch (size) {
+                        ReaderTapZoneSize.small => Icons.compress_rounded,
+                        ReaderTapZoneSize.medium => Icons.touch_app_outlined,
+                        ReaderTapZoneSize.large => Icons.open_in_full_rounded,
+                      },
+                      selected: settings.readerTapZoneSize == size,
+                      onSelected: () =>
+                          notifier.setReaderTapZoneSize(size),
+                    ),
+                ],
+              ),
+              _hint(theme, l10n.readerTapZoneSizeBody),
+            ],
             _section(theme, l10n.readerDeviceSettings),
             _hint(theme, l10n.readerDeviceSettingsBody),
             SwitchListTile.adaptive(

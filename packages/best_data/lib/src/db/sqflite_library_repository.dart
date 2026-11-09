@@ -292,14 +292,45 @@ class SqfliteLibraryRepository implements LibraryRepository {
 
   @override
   Future<void> saveUnits(Iterable<MediaUnit> units) async {
+    final list = units.toList(growable: false);
+    if (list.isEmpty) return;
+
+    // A unit is "new" only when its work was already on the shelf and already
+    // had chapters. The first list of a work is its back catalogue, not news.
+    final mediaIds = list.map((unit) => unit.mediaId).toSet().toList();
+    final placeholders = List.filled(mediaIds.length, '?').join(',');
+    final mediaRows = await _db.rawQuery(
+      'SELECT id, in_library FROM media WHERE id IN ($placeholders)',
+      mediaIds,
+    );
+    final onShelf = <String>{
+      for (final row in mediaRows)
+        if (((row['in_library'] as int?) ?? 0) == 1) row['id'] as String,
+    };
+    final unitRows = await _db.rawQuery(
+      'SELECT DISTINCT media_id FROM unit WHERE media_id IN ($placeholders)',
+      mediaIds,
+    );
+    final hadUnits = <String>{
+      for (final row in unitRows) row['media_id'] as String,
+    };
+    final now = DateTime.now().millisecondsSinceEpoch;
+
     final batch = _db.batch();
-    var wrote = false;
-    for (final unit in units) {
-      wrote = true;
+    for (final unit in list) {
+      final firstSeen = unit.firstSeenAt > 0
+          ? unit.firstSeenAt
+          : onShelf.contains(unit.mediaId) &&
+                  hadUnits.contains(unit.mediaId)
+              ? now
+              : 0;
       batch.rawInsert(
         '''
-        INSERT INTO unit (id, media_id, url, kind, number, title, published_at, page_count, memo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO unit (
+          id, media_id, url, kind, number, title, published_at, page_count,
+          memo, first_seen_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           number = excluded.number,
           title = CASE WHEN excluded.title = '' THEN unit.title ELSE excluded.title END,
@@ -317,10 +348,10 @@ class SqfliteLibraryRepository implements LibraryRepository {
           unit.publishedAt,
           unit.pageCount,
           unit.memo,
+          firstSeen,
         ],
       );
     }
-    if (!wrote) return;
     await batch.commit(noResult: true);
     _notify();
   }
@@ -334,6 +365,51 @@ class SqfliteLibraryRepository implements LibraryRepository {
       orderBy: 'number ASC',
     );
     return rows.map(_unitFromRow).toList(growable: false);
+  }
+
+  @override
+  Future<List<LibraryUpdate>> libraryUpdates({int limit = 100}) async {
+    final rows = await _db.rawQuery('''
+      SELECT m.*,
+             u.id AS update_unit_id,
+             u.url AS update_unit_url,
+             u.kind AS update_unit_kind,
+             u.number AS update_unit_number,
+             u.title AS update_unit_title,
+             u.published_at AS update_unit_published_at,
+             u.page_count AS update_unit_page_count,
+             u.memo AS update_unit_memo,
+             u.first_seen_at AS update_first_seen_at
+      FROM unit u
+      JOIN media m ON m.id = u.media_id
+      LEFT JOIN progress p ON p.unit_id = u.id
+      WHERE m.in_library = 1
+        AND u.first_seen_at > 0
+        AND (p.started IS NULL OR p.started = 0)
+        AND (p.completed IS NULL OR p.completed = 0)
+      ORDER BY u.first_seen_at DESC, u.number DESC
+      LIMIT ?
+    ''', [limit]);
+
+    return rows.map((row) {
+      final media = _mediaFromRow(row);
+      final unit = MediaUnit(
+        mediaId: media.id,
+        url: row['update_unit_url'] as String,
+        number: (row['update_unit_number'] as num).toDouble(),
+        title: row['update_unit_title'] as String,
+        kind: UnitKind.values.byName(row['update_unit_kind'] as String),
+        publishedAt: (row['update_unit_published_at'] as int?) ?? 0,
+        pageCount: (row['update_unit_page_count'] as int?) ?? 0,
+        memo: (row['update_unit_memo'] as String?) ?? '',
+        firstSeenAt: (row['update_first_seen_at'] as int?) ?? 0,
+      );
+      return LibraryUpdate(
+        media: media,
+        unit: unit,
+        firstSeenAt: unit.firstSeenAt,
+      );
+    }).toList(growable: false);
   }
 
   @override
@@ -621,6 +697,7 @@ class SqfliteLibraryRepository implements LibraryRepository {
       publishedAt: (row['published_at'] as int?) ?? 0,
       pageCount: (row['page_count'] as int?) ?? 0,
       memo: (row['memo'] as String?) ?? '',
+      firstSeenAt: (row['first_seen_at'] as int?) ?? 0,
     );
   }
 

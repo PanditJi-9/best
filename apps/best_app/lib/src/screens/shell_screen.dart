@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:best_ui/best_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,11 +9,11 @@ import 'package:go_router/go_router.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../providers.dart';
 
-/// The five rooms of the app: the chosen catalogue, the shelf, offline
-/// downloads, the encyclopedia, and the reading history. Settings is a pushed
-/// screen from the home masthead, so the dock stays for content only.
+/// The six rooms of the app: the chosen catalogue, the shelf, new chapters,
+/// offline downloads, the encyclopedia, and the reading history. Settings is a
+/// pushed screen from the home masthead, so the dock stays for content only.
 ///
-/// A quiet, full-width dock keeps all five destinations legible in either
+/// A quiet, full-width dock keeps all six destinations legible in either
 /// language. Switching tabs eases the new page in (a short fade, never a
 /// slide: tabs are peers, not steps) and gives a light haptic tick.
 class ShellScreen extends ConsumerStatefulWidget {
@@ -32,6 +34,22 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
   );
   late final Animation<double> _opacity = Tween<double>(begin: 0.4, end: 1)
       .animate(CurvedAnimation(parent: _fade, curve: BestMotion.curve));
+  AppLifecycleListener? _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onResume: _autoRefresh);
+    // A cold launch never fires onResume, so ask once the first frame is ready.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _autoRefresh());
+  }
+
+  void _autoRefresh() {
+    if (!mounted) return;
+    unawaited(
+      ref.read(libraryAutoRefreshProvider.notifier).maybeRefresh(),
+    );
+  }
 
   @override
   void didUpdateWidget(covariant ShellScreen oldWidget) {
@@ -45,6 +63,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
 
   @override
   void dispose() {
+    _lifecycle?.dispose();
     _fade.dispose();
     super.dispose();
   }
@@ -79,6 +98,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
         label: l10n.navLibrary,
         icon: Icons.collections_bookmark_outlined,
         selectedIcon: Icons.collections_bookmark_rounded,
+      ),
+      _Destination(
+        label: l10n.navUpdates,
+        icon: Icons.new_releases_outlined,
+        selectedIcon: Icons.new_releases_rounded,
       ),
       _Destination(
         label: l10n.navDownloads,

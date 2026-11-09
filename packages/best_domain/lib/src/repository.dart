@@ -70,6 +70,10 @@ abstract interface class LibraryRepository {
 
   Future<List<MediaUnit>> unitsFor(String mediaId);
 
+  /// Unread units that appeared after their work was already on the shelf,
+  /// newest first. A work's first chapter list is not an update.
+  Future<List<LibraryUpdate>> libraryUpdates({int limit = 100});
+
   Future<UnitProgress?> progressFor(String unitId);
 
   /// Merges with the stored progress; see [UnitProgress.merge].

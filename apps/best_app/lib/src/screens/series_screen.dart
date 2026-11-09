@@ -202,10 +202,17 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
       progress: data.progress,
       downloads: tasks,
     );
-    final pendingDownloads = visible.where((unit) {
+    bool pending(MediaUnit unit) {
       final task = tasks[unit.id];
       return task == null || task.isFailed;
-    }).length;
+    }
+
+    final pendingDownloads = visible.where(pending).length;
+    final bookmarks = ref.watch(readerBookmarksProvider);
+    final bookmarked = units
+        .where((unit) => bookmarks.containsKey(unit.id))
+        .toList(growable: false);
+    final pendingBookmarked = bookmarked.where(pending).length;
     final continuation = UnitNavigation.continuation(units, data.progress);
     final next = continuation?.unit;
     final needsSource = widget.sourceMissing &&
@@ -359,27 +366,41 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                if (canDownload && pendingDownloads > 0) ...[
+                if (canDownload &&
+                    (pendingDownloads > 0 || pendingBookmarked > 0)) ...[
                   const SizedBox(width: 2),
-                  IconButton(
-                    tooltip:
-                        _query.trim().isNotEmpty || _filter != UnitFilter.all
-                            ? l10n.seriesDownloadShown
-                            : l10n.downloadAll,
-                    visualDensity: VisualDensity.compact,
-                    onPressed: _bulkBusy
-                        ? null
-                        : () => _downloadAll(
-                              context,
-                              ref,
-                              media,
-                              visible,
-                              tasks,
-                            ),
+                  PopupMenuButton<bool>(
+                    tooltip: l10n.downloadAll,
+                    enabled: !_bulkBusy,
                     icon: const Icon(
                       Icons.download_for_offline_outlined,
                       size: 20,
                     ),
+                    onSelected: (bookmarkedOnly) => _downloadAll(
+                      context,
+                      ref,
+                      media,
+                      bookmarkedOnly ? bookmarked : visible,
+                      tasks,
+                      bookmarkedOnly: bookmarkedOnly,
+                    ),
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: false,
+                        enabled: pendingDownloads > 0,
+                        child: Text(
+                          _query.trim().isNotEmpty ||
+                                  _filter != UnitFilter.all
+                              ? l10n.seriesDownloadShown
+                              : l10n.downloadAll,
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: true,
+                        enabled: pendingBookmarked > 0,
+                        child: Text(l10n.downloadBookmarked),
+                      ),
+                    ],
                   ),
                 ],
               ],
@@ -756,8 +777,9 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
     WidgetRef ref,
     Media media,
     List<MediaUnit> units,
-    Map<String, DownloadTask> tasks,
-  ) async {
+    Map<String, DownloadTask> tasks, {
+    bool bookmarkedOnly = false,
+  }) async {
     if (_bulkBusy) return;
     final l10n = AppLocalizations.of(context);
     final pending = units.where((unit) {
@@ -769,7 +791,9 @@ class _SeriesBodyState extends ConsumerState<_SeriesBody> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(l10n.downloadAllTitle),
+        title: Text(
+          bookmarkedOnly ? l10n.downloadBookmarked : l10n.downloadAllTitle,
+        ),
         content: Text(l10n.downloadAllBody(pending.length)),
         actions: [
           TextButton(

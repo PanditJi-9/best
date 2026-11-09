@@ -224,6 +224,83 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           _Group(
+            title: l10n.updatesGroup,
+            icon: Icons.new_releases_outlined,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SwitchListTile.adaptive(
+                    value: settings.autoRefreshLibrary,
+                    onChanged: (bool value) => ref
+                        .read(settingsProvider.notifier)
+                        .setAutoRefreshLibrary(value),
+                    secondary: const Icon(Icons.autorenew_rounded, size: 19),
+                    title: Text(
+                      l10n.updatesAutoRefresh,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: Text(
+                      l10n.updatesAutoRefreshBody,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  if (settings.autoRefreshLibrary) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n.updatesInterval,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _Segmented<int>(
+                      selected: settings.refreshIntervalHours,
+                      options: [
+                        for (final hours in const [6, 12, 24, 48])
+                          _SegmentOption(
+                            value: hours,
+                            icon: Icons.schedule_rounded,
+                            label: '${hours}h',
+                          ),
+                      ],
+                      onSelect: (hours) => ref
+                          .read(settingsProvider.notifier)
+                          .setRefreshIntervalHours(hours),
+                    ),
+                    const SizedBox(height: 6),
+                    SwitchListTile.adaptive(
+                      value: settings.updateWifiOnly,
+                      onChanged: (bool value) => ref
+                          .read(settingsProvider.notifier)
+                          .setUpdateWifiOnly(value),
+                      secondary: const Icon(Icons.wifi_rounded, size: 19),
+                      title: Text(
+                        l10n.updatesWifiOnly,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      subtitle: Text(
+                        l10n.updatesWifiOnlyBody,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          _Group(
             title: l10n.offlineGroup,
             icon: Icons.cloud_download_outlined,
             child: Column(
@@ -293,6 +370,55 @@ class SettingsScreen extends ConsumerWidget {
                         onSelect: (value) => ref
                             .read(settingsProvider.notifier)
                             .setStorageCapGb(value),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, indent: 52),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.speed_rounded,
+                            size: 19,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              l10n.downloadConcurrency,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        l10n.downloadConcurrencyBody,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _Segmented<int>(
+                        selected: settings.downloadConcurrency,
+                        options: [
+                          for (final limit in const [1, 2, 3, 4])
+                            _SegmentOption(
+                              value: limit,
+                              icon: Icons.downloading_rounded,
+                              label: '$limit',
+                            ),
+                        ],
+                        onSelect: (value) => ref
+                            .read(settingsProvider.notifier)
+                            .setDownloadConcurrency(value),
                       ),
                     ],
                   ),

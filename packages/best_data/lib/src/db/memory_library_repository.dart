@@ -229,12 +229,26 @@ class MemoryLibraryRepository implements LibraryRepository {
 
   @override
   Future<void> saveUnits(Iterable<MediaUnit> units) async {
-    var wrote = false;
-    for (final unit in units) {
-      wrote = true;
+    final list = units.toList(growable: false);
+    if (list.isEmpty) return;
+    final mediaIds = list.map((unit) => unit.mediaId).toSet();
+    final hadUnits = <String>{
+      for (final unit in _units.values)
+        if (mediaIds.contains(unit.mediaId)) unit.mediaId,
+    };
+    final now = DateTime.now().millisecondsSinceEpoch;
+    for (final unit in list) {
       final existing = _units[unit.id];
+      final media = _media[unit.mediaId];
+      final firstSeen = unit.firstSeenAt > 0
+          ? unit.firstSeenAt
+          : existing != null
+              ? existing.firstSeenAt
+              : (media?.inLibrary ?? false) && hadUnits.contains(unit.mediaId)
+                  ? now
+                  : 0;
       _units[unit.id] = existing == null
-          ? unit
+          ? unit.copyWith(firstSeenAt: firstSeen)
           : unit.copyWith(
               title: unit.title.isEmpty ? existing.title : unit.title,
               publishedAt: unit.publishedAt > existing.publishedAt
@@ -244,9 +258,34 @@ class MemoryLibraryRepository implements LibraryRepository {
                   ? unit.pageCount
                   : existing.pageCount,
               memo: unit.memo.isEmpty ? existing.memo : unit.memo,
+              firstSeenAt: existing.firstSeenAt,
             );
     }
-    if (wrote) _notify();
+    _notify();
+  }
+
+  @override
+  Future<List<LibraryUpdate>> libraryUpdates({int limit = 100}) async {
+    final updates = <LibraryUpdate>[];
+    for (final unit in _units.values) {
+      if (unit.firstSeenAt <= 0) continue;
+      final media = _media[unit.mediaId];
+      if (media == null || !media.inLibrary) continue;
+      final progress = _progress[unit.id];
+      if (progress != null && (progress.started || progress.completed)) {
+        continue;
+      }
+      updates.add(LibraryUpdate(
+        media: media,
+        unit: unit,
+        firstSeenAt: unit.firstSeenAt,
+      ));
+    }
+    updates.sort((a, b) {
+      final time = b.firstSeenAt.compareTo(a.firstSeenAt);
+      return time != 0 ? time : b.unit.number.compareTo(a.unit.number);
+    });
+    return List.unmodifiable(updates.take(limit));
   }
 
   @override

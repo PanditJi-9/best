@@ -22,10 +22,32 @@ enum ReaderDirection {
 enum ReaderFit {
   screen,
   width,
+  height,
   original;
 
   static ReaderFit fromName(String? name) =>
       _named(values, name, ReaderFit.screen);
+}
+
+/// How much of the left and right edge turns a page.
+///
+/// A small zone leaves a wide middle for the controls, which suits a phone held
+/// one-handed; a large zone makes the edges easier to hit on a tablet.
+enum ReaderTapZoneSize {
+  small(0.20),
+  medium(0.30),
+  large(0.40);
+
+  const ReaderTapZoneSize(this.edge);
+
+  /// Fraction of the reader width on each side.
+  final double edge;
+
+  double get middleStart => edge;
+  double get middleEnd => 1 - edge;
+
+  static ReaderTapZoneSize fromName(String? name) =>
+      _named(values, name, ReaderTapZoneSize.medium);
 }
 
 enum ReaderBackground {
@@ -61,6 +83,7 @@ class ReaderPreferences {
     this.fit = ReaderFit.screen,
     this.background = ReaderBackground.black,
     this.tapZones = true,
+    this.tapZoneSize = ReaderTapZoneSize.medium,
     this.webtoonGap = 0,
     this.filterMode = 'none',
     this.brightness = 0,
@@ -73,6 +96,7 @@ class ReaderPreferences {
   final ReaderFit fit;
   final ReaderBackground background;
   final bool tapZones;
+  final ReaderTapZoneSize tapZoneSize;
   final int webtoonGap;
   final String filterMode;
   final int brightness;
@@ -100,6 +124,7 @@ class ReaderPreferences {
     ReaderFit? fit,
     ReaderBackground? background,
     bool? tapZones,
+    ReaderTapZoneSize? tapZoneSize,
     int? webtoonGap,
     String? filterMode,
     int? brightness,
@@ -112,6 +137,7 @@ class ReaderPreferences {
         fit: fit ?? this.fit,
         background: background ?? this.background,
         tapZones: tapZones ?? this.tapZones,
+        tapZoneSize: tapZoneSize ?? this.tapZoneSize,
         webtoonGap: (webtoonGap ?? this.webtoonGap).clamp(0, 32),
         filterMode: filterMode ?? this.filterMode,
         brightness: (brightness ?? this.brightness).clamp(-75, 0),
@@ -125,6 +151,7 @@ class ReaderPreferences {
         'fit': fit.name,
         'background': background.name,
         'tapZones': tapZones,
+        'tapZoneSize': tapZoneSize.name,
         'webtoonGap': webtoonGap,
         'filterMode': filterMode,
         'brightness': brightness,
@@ -152,6 +179,7 @@ class ReaderPreferences {
       fit: ReaderFit.fromName(text('fit')),
       background: ReaderBackground.fromName(text('background')),
       tapZones: flag('tapZones', true),
+      tapZoneSize: ReaderTapZoneSize.fromName(text('tapZoneSize')),
       webtoonGap: number('webtoonGap').clamp(0, 32),
       filterMode:
           const {'none', 'greyscale', 'invert', 'custom'}.contains(filter)
@@ -171,6 +199,7 @@ class ReaderPreferences {
       fit == other.fit &&
       background == other.background &&
       tapZones == other.tapZones &&
+      tapZoneSize == other.tapZoneSize &&
       webtoonGap == other.webtoonGap &&
       filterMode == other.filterMode &&
       brightness == other.brightness &&
@@ -179,5 +208,5 @@ class ReaderPreferences {
 
   @override
   int get hashCode => Object.hash(mode, direction, fit, background, tapZones,
-      webtoonGap, filterMode, brightness, spreadMode, coverAlone);
+      tapZoneSize, webtoonGap, filterMode, brightness, spreadMode, coverAlone);
 }

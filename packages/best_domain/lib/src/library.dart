@@ -217,6 +217,19 @@ class LibraryEntry {
   int get unreadUnits => (totalUnits - completedUnits).clamp(0, totalUnits);
 }
 
+/// One unread unit that appeared after its work was already on the shelf.
+class LibraryUpdate {
+  const LibraryUpdate({
+    required this.media,
+    required this.unit,
+    required this.firstSeenAt,
+  });
+
+  final Media media;
+  final MediaUnit unit;
+  final int firstSeenAt;
+}
+
 /// The row the "continue" rail opens directly.
 class ContinueEntry {
   const ContinueEntry({

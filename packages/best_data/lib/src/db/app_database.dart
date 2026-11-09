@@ -8,7 +8,7 @@ import 'package:sqflite_common/sqlite_api.dart';
 class AppDatabase {
   AppDatabase._(this.db);
 
-  static const int schemaVersion = 9;
+  static const int schemaVersion = 10;
   static const String fileName = 'best.db';
 
   final Database db;
@@ -52,6 +52,9 @@ class AppDatabase {
           }
           if (oldVersion < 9) {
             await _addProgressStarted(db);
+          }
+          if (oldVersion < 10) {
+            await _addUnitFirstSeen(db);
           }
         },
       ),
@@ -97,6 +100,7 @@ class AppDatabase {
         published_at INTEGER NOT NULL DEFAULT 0,
         page_count INTEGER NOT NULL DEFAULT 0,
         memo TEXT NOT NULL DEFAULT '',
+        first_seen_at INTEGER NOT NULL DEFAULT 0,
         UNIQUE (media_id, url)
       )
     ''');
@@ -118,6 +122,9 @@ class AppDatabase {
 
     await db.execute('CREATE INDEX media_library ON media (in_library, title)');
     await db.execute('CREATE INDEX unit_media ON unit (media_id, number)');
+    await db.execute(
+      'CREATE INDEX unit_first_seen ON unit (first_seen_at DESC)',
+    );
     await db
         .execute('CREATE INDEX progress_recent ON progress (updated_at DESC)');
   }
@@ -136,6 +143,25 @@ class AppDatabase {
     if (columns.any((row) => row['name'] == 'memo')) return;
     await db.execute(
       "ALTER TABLE unit ADD COLUMN memo TEXT NOT NULL DEFAULT ''",
+    );
+  }
+
+  /// Version 10 marks chapters that appear after a work is already on the
+  /// shelf. Existing rows stay at zero: an upgrade must not present a whole
+  /// back catalogue as new.
+  static Future<void> _addUnitFirstSeen(Database db) async {
+    final tables = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'unit'",
+    );
+    if (tables.isEmpty) return;
+    final columns = await db.rawQuery('PRAGMA table_info(unit)');
+    if (columns.any((row) => row['name'] == 'first_seen_at')) return;
+    await db.execute(
+      'ALTER TABLE unit ADD COLUMN first_seen_at INTEGER NOT NULL DEFAULT 0',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS unit_first_seen '
+      'ON unit (first_seen_at DESC)',
     );
   }
 
