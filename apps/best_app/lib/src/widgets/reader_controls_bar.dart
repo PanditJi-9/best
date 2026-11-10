@@ -8,6 +8,11 @@ import '../l10n/generated/app_localizations.dart';
 
 /// A single-line progress overlay, not a panel that takes space from the scan.
 /// The 48 dp hit area stays generous while the visible track is only 2 dp.
+///
+/// The rule reads as one object: the page label, how far through the chapter
+/// the reader is, then the scrubber. Auto-scroll lives here because it is a
+/// property of moving through the strip — but it is an [InkResponse], not a
+/// second action button crowding the next-chapter step.
 class ReaderControlsBar extends StatefulWidget {
   const ReaderControlsBar({
     super.key,
@@ -23,6 +28,9 @@ class ReaderControlsBar extends StatefulWidget {
     required this.onScrubEnd,
     this.nextChapterTitle,
     this.onNextChapter,
+    this.autoScrollAvailable = false,
+    this.autoScrolling = false,
+    this.onToggleAutoScroll,
   }) : assert(pageCount > 0);
 
   final String chapterId;
@@ -37,6 +45,9 @@ class ReaderControlsBar extends StatefulWidget {
   final VoidCallback onScrubStart;
   final VoidCallback onScrubEnd;
   final VoidCallback? onNextChapter;
+  final bool autoScrollAvailable;
+  final bool autoScrolling;
+  final VoidCallback? onToggleAutoScroll;
 
   @override
   State<ReaderControlsBar> createState() => _ReaderControlsBarState();
@@ -94,7 +105,11 @@ class _ReaderControlsBarState extends State<ReaderControlsBar> {
     final value = (_scrubValue ?? (widget.pageIndex + 1).toDouble())
         .clamp(1.0, widget.pageCount.toDouble())
         .toDouble();
-    final label = widget.pageLabel(_pageFor(value));
+    final preview = _pageFor(value);
+    final label = widget.pageLabel(preview);
+    final percent = ((preview + 1) / widget.pageCount * 100).round();
+    final showAutoScroll =
+        widget.autoScrollAvailable && widget.onToggleAutoScroll != null;
     return SafeArea(
       top: false,
       child: SizedBox(
@@ -108,19 +123,23 @@ class _ReaderControlsBarState extends State<ReaderControlsBar> {
                 message: widget.finished
                     ? l10n.readerFinished
                     : widget.partialEnd
-                        ? l10n.readerPartialOffline
-                        : label,
+                    ? l10n.readerPartialOffline
+                    : label,
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 128),
+                  constraints: const BoxConstraints(maxWidth: 132),
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(BestRadius.xs),
+                      color: BestColors.inkDeep.withValues(alpha: 0.82),
+                      borderRadius: BorderRadius.circular(BestRadius.sm),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.10),
+                        width: 0.8,
+                      ),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 4,
+                        horizontal: 7,
+                        vertical: 5,
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -146,15 +165,30 @@ class _ReaderControlsBarState extends State<ReaderControlsBar> {
                               style: TextStyle(
                                 color: _scrubValue == null
                                     ? Colors.white
-                                    : BestColors.blueSoft,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
+                                    : BestColors.emberSoft,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 7),
+              SizedBox(
+                width: 34,
+                child: Text(
+                  '$percent%',
+                  key: const ValueKey('reader-progress-percent'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: BestFontFamily.mono,
+                    color: Colors.white.withValues(alpha: 0.64),
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -175,10 +209,10 @@ class _ReaderControlsBarState extends State<ReaderControlsBar> {
                       overlayShape: const RoundSliderOverlayShape(
                         overlayRadius: 16,
                       ),
-                      activeTrackColor: BestColors.blue,
-                      inactiveTrackColor: const Color(0xFF777777),
-                      thumbColor: BestColors.blue,
-                      overlayColor: BestColors.blue.withValues(alpha: 0.1),
+                      activeTrackColor: BestColors.ember,
+                      inactiveTrackColor: Colors.white.withValues(alpha: 0.22),
+                      thumbColor: BestColors.emberSoft,
+                      overlayColor: BestColors.ember.withValues(alpha: 0.14),
                       activeTickMarkColor: Colors.transparent,
                       inactiveTickMarkColor: Colors.transparent,
                       showValueIndicator: ShowValueIndicator.never,
@@ -188,8 +222,9 @@ class _ReaderControlsBarState extends State<ReaderControlsBar> {
                       value: value,
                       min: 1,
                       max: widget.pageCount.toDouble(),
-                      divisions:
-                          widget.pageCount > 1 ? widget.pageCount - 1 : null,
+                      divisions: widget.pageCount > 1
+                          ? widget.pageCount - 1
+                          : null,
                       semanticFormatterCallback: (value) =>
                           widget.pageLabel(_pageFor(value)),
                       onChangeStart: _startScrub,
@@ -199,6 +234,11 @@ class _ReaderControlsBarState extends State<ReaderControlsBar> {
                   ),
                 ),
               ),
+              if (showAutoScroll)
+                _AutoScrollAction(
+                  active: widget.autoScrolling,
+                  onTap: widget.onToggleAutoScroll!,
+                ),
               if (widget.finished && widget.onNextChapter != null)
                 IconButton(
                   key: const ValueKey('reader-next-chapter'),
@@ -206,15 +246,71 @@ class _ReaderControlsBarState extends State<ReaderControlsBar> {
                       ? l10n.readerNextChapter
                       : '${l10n.readerNextChapter} · ${widget.nextChapterTitle}',
                   onPressed: widget.onNextChapter,
-                  color: BestColors.blue,
+                  style: IconButton.styleFrom(
+                    foregroundColor: BestColors.emberSoft,
+                    backgroundColor: BestColors.ember.withValues(alpha: 0.16),
+                    minimumSize: const Size(40, 40),
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                   icon: Icon(
                     widget.rightToLeft
                         ? Icons.chevron_left_rounded
                         : Icons.chevron_right_rounded,
-                    size: 22,
+                    size: 21,
                   ),
                 ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AutoScrollAction extends StatelessWidget {
+  const _AutoScrollAction({required this.active, required this.onTap});
+
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final label = active ? l10n.readerAutoScrollPause : l10n.readerAutoScroll;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: 2),
+      child: Semantics(
+        button: true,
+        toggled: active,
+        label: label,
+        child: Tooltip(
+          message: label,
+          child: Material(
+            color: active
+                ? BestColors.ember.withValues(alpha: 0.16)
+                : Colors.transparent,
+            shape: const CircleBorder(),
+            child: InkResponse(
+              key: const ValueKey('reader-auto-scroll'),
+              onTap: onTap,
+              radius: 18,
+              containedInkWell: true,
+              customBorder: const CircleBorder(),
+              child: SizedBox(
+                width: 32,
+                height: 32,
+                child: Icon(
+                  active
+                      ? Icons.pause_rounded
+                      : Icons.slow_motion_video_rounded,
+                  size: 18,
+                  color: active
+                      ? BestColors.emberSoft
+                      : Colors.white.withValues(alpha: 0.66),
+                ),
+              ),
+            ),
           ),
         ),
       ),

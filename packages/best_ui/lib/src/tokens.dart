@@ -1,63 +1,67 @@
 import 'package:flutter/material.dart';
 
-/// A deep navy reading room with one electric blue accent.
+/// "Ink & Ember" — the identity of Best 2.0.
 ///
-/// The palette is deliberately closer to a streaming app than to a printed
-/// magazine: near-black blue surfaces, a single saturated action colour, and
-/// amber reserved for scores. Covers carry the colour; the chrome stays quiet.
+/// Warm ink instead of blue-black, one sealed vermilion for action, and amber
+/// for editorial accents. Artwork still carries the colour: the chrome is a
+/// quiet dark room around a lit page.
 ///
-/// The historical names (`ink`, `cinnabar`, `brass`) are kept because every
-/// screen and test already speaks them. They now describe the blue system:
-/// `cinnabar` is the action blue, `brass` is the soft-blue accent, and the
-/// amber used for ranks has its own token.
+/// The historical names (`blue`, `cinnabar`, `brass`) are kept because every
+/// screen and test already speaks them. They now describe the ember system:
+/// `cinnabar` is the action vermilion, `brass` is the warm editorial accent,
+/// and the gold used for ranks has its own token.
 abstract final class BestColors {
   // Night surfaces, darkest first. `inkDeep` is the page behind a hero;
   // `inkLift` is the surface a selected row or chip sits on.
-  static const Color inkDeep = Color(0xFF05080F);
-  static const Color ink = Color(0xFF070B14);
-  static const Color inkRaised = Color(0xFF0C1322);
-  static const Color inkElevated = Color(0xFF111A2B);
-  static const Color inkLift = Color(0xFF17233A);
-  static const Color inkLine = Color(0xFF1D2940);
+  static const Color inkDeep = Color(0xFF060508);
+  static const Color ink = Color(0xFF0A090D);
+  static const Color inkRaised = Color(0xFF121016);
+  static const Color inkElevated = Color(0xFF19161E);
+  static const Color inkLift = Color(0xFF241F28);
+  static const Color inkLine = Color(0xFF2E2733);
 
-  // Day surfaces, for the light theme. `paperSunken` is the well a search
-  // field or an unselected chip sits in.
-  static const Color paper = Color(0xFFF5F7FA);
-  static const Color paperRaised = Color(0xFFFFFFFF);
-  static const Color paperSunken = Color(0xFFEBF0F7);
-  static const Color paperLine = Color(0xFFE2E8F0);
+  // Day surfaces: warm paper rather than a blue-white office screen.
+  // `paperSunken` is the well a search field or an unselected chip sits in.
+  static const Color paper = Color(0xFFF7F2E9);
+  static const Color paperRaised = Color(0xFFFFFCF7);
+  static const Color paperSunken = Color(0xFFEDE4D4);
+  static const Color paperLine = Color(0xFFE2D7C4);
 
-  // The action colour.
-  static const Color blue = Color(0xFF3B82F6);
-  static const Color blueDeep = Color(0xFF2563EB);
-  static const Color blueSoft = Color(0xFF60A5FA);
-  static const Color cyan = Color(0xFF22D3EE);
+  // The seal: the one action colour, warm and unmistakable.
+  static const Color ember = Color(0xFFF25B4C);
+  static const Color emberDeep = Color(0xFFD63E31);
+  static const Color emberSoft = Color(0xFFFF8C7E);
 
-  /// Legacy alias: the primary action colour.
-  static const Color cinnabar = blue;
-  static const Color cinnabarDeep = blueDeep;
+  /// Warm editorial accent: section numerals, quiet links, small marks.
+  static const Color amber = Color(0xFFE8A45C);
 
-  /// Secondary accent. Soft blue keeps section indices and quiet links in the
-  /// same family as the primary action instead of introducing a second hue.
-  static const Color brass = Color(0xFF7CA6FF);
+  // Legacy aliases. Screens written against the old blue system keep working;
+  // every value now belongs to the ember family.
+  static const Color blue = ember;
+  static const Color blueDeep = emberDeep;
+  static const Color blueSoft = emberSoft;
+  static const Color cyan = amber;
+  static const Color cinnabar = ember;
+  static const Color cinnabarDeep = emberDeep;
+  static const Color brass = Color(0xFFCF8A4B);
 
-  static const Color gold = Color(0xFFF5B942);
-  static const Color jade = Color(0xFF34D399);
-  static const Color jadeDeep = Color(0xFF059669);
-  static const Color danger = Color(0xFFF87171);
-  static const Color rankGold = Color(0xFFF5B942);
-  static const Color rankSilver = Color(0xFFC7D2E5);
-  static const Color rankBronze = Color(0xFFD08A5A);
+  static const Color gold = Color(0xFFF0C266);
+  static const Color jade = Color(0xFF45D6A4);
+  static const Color jadeDeep = Color(0xFF0E9F72);
+  static const Color danger = Color(0xFFFF7A70);
+  static const Color rankGold = Color(0xFFF0C266);
+  static const Color rankSilver = Color(0xFFCFC8BC);
+  static const Color rankBronze = Color(0xFFC08552);
 
-  /// The signature gradient: action blue into cyan. Used on the mark, the
+  /// The signature gradient: vermilion into amber. Used on the mark, the
   /// selected destination and the progress rule — never as a page background.
-  static const List<Color> aurora = <Color>[blue, cyan];
+  static const List<Color> aurora = <Color>[ember, amber];
 
   /// The scrim under a hero: transparent at the artwork, solid at the text.
   static const List<Color> heroScrim = <Color>[
-    Color(0x00050810),
-    Color(0xB3050810),
-    Color(0xF5050810),
+    Color(0x00060508),
+    Color(0xB3060508),
+    Color(0xF5060508),
   ];
 }
 
@@ -65,7 +69,10 @@ abstract final class BestColors {
 /// name. Asking for the bare name silently falls back to the system face, so
 /// every style goes through these constants.
 abstract final class BestFonts {
+  /// Editorial display face: Amiri carries the masthead and page titles.
   static const String display = 'packages/best_ui/BestDisplay';
+
+  /// The working UI face: bilingual, legible at card sizes.
   static const String text = 'packages/best_ui/BestText';
 }
 
@@ -80,15 +87,15 @@ abstract final class BestSpace {
   static const double huge = 44;
 }
 
-/// Softer than the previous build, but not bubbly: a poster grid needs a
-/// radius small enough that nine covers still read as a grid.
+/// Sharper than the old build: an editorial page, not a bubbly storefront.
+/// The pill exists only for status dots and progress.
 abstract final class BestRadius {
-  static const double xs = 6;
-  static const double sm = 8;
-  static const double md = 12;
-  static const double lg = 16;
+  static const double xs = 4;
+  static const double sm = 7;
+  static const double md = 10;
+  static const double lg = 14;
   static const double xl = 20;
-  static const double sheet = 28;
+  static const double sheet = 26;
   static const double pill = 999;
 }
 
@@ -96,9 +103,9 @@ abstract final class BestRadius {
 /// progress rule, `slow` a sheet or a page reveal. `emphasized` is the curve
 /// that makes a short move feel deliberate instead of abrupt.
 abstract final class BestMotion {
-  static const Duration fast = Duration(milliseconds: 140);
-  static const Duration normal = Duration(milliseconds: 220);
-  static const Duration slow = Duration(milliseconds: 340);
+  static const Duration fast = Duration(milliseconds: 130);
+  static const Duration normal = Duration(milliseconds: 210);
+  static const Duration slow = Duration(milliseconds: 320);
   static const Curve curve = Curves.easeOutCubic;
   static const Curve emphasized = Curves.easeOutQuint;
   static const Curve enter = Curves.easeOutBack;
@@ -142,14 +149,17 @@ abstract final class BestType {
   static double tracking(BuildContext context, double value) =>
       _rtl(context) ? 0 : value;
 
-  /// The name of a screen: "Library", "The Database".
+  /// The name of a screen: "Library", "The Database". Amiri gives a page
+  /// title an editorial voice the UI face cannot; Arabic joins cleanly and
+  /// Latin reads as a masthead rather than a button.
   static TextStyle pageTitle(BuildContext context) {
     final theme = Theme.of(context);
     return theme.textTheme.displaySmall!.copyWith(
-      fontSize: 30,
-      fontWeight: FontWeight.w800,
-      height: 1.08,
-      letterSpacing: tracking(context, -0.6),
+      fontFamily: BestFonts.display,
+      fontSize: 34,
+      fontWeight: FontWeight.w700,
+      height: 1.16,
+      letterSpacing: tracking(context, -0.4),
     );
   }
 
@@ -157,7 +167,7 @@ abstract final class BestType {
   static TextStyle sectionTitle(BuildContext context) {
     final theme = Theme.of(context);
     return theme.textTheme.titleMedium!.copyWith(
-      fontSize: 17,
+      fontSize: 18,
       fontWeight: FontWeight.w800,
       height: 1.2,
       letterSpacing: tracking(context, -0.2),
@@ -356,7 +366,7 @@ abstract final class BestMetricType {
 /// Deliberately not "0", not "--%": a zero would be read as a measurement.
 const String bestValueUnavailable = '—';
 
-/// Font families for the enhanced three-family typography system.
+/// Font families for the three-family typography system.
 ///
 /// - [heading]: Cairo — Arabic-optimized geometric face for titles and tabs.
 /// - [reading]: Tajawal — warm, highly legible face for body text and synopses.

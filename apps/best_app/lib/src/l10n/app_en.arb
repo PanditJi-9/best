@@ -1251,6 +1251,8 @@
   "readerLastChapter": "This is the last chapter.",
   "readerAutoAdvance": "Auto-advance chapters",
   "readerAutoAdvanceBody": "Pushing past the last page opens the next chapter, without a button.",
+  "readerAutoScroll": "Auto-scroll",
+  "readerAutoScrollPause": "Pause auto-scroll",
   "readerOcrTitle": "Automatic manga translation (OCR)",
   "readerOcrBody": "Find speech bubbles and translate them on the device, offline.",
   "readerTranslating": "Translating…",

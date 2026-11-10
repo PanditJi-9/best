@@ -13,9 +13,11 @@ import '../providers.dart';
 /// offline downloads, the encyclopedia, and the reading history. Settings is a
 /// pushed screen from the home masthead, so the dock stays for content only.
 ///
-/// A quiet, full-width dock keeps all six destinations legible in either
-/// language. Switching tabs eases the new page in (a short fade, never a
-/// slide: tabs are peers, not steps) and gives a light haptic tick.
+/// The 2.0 dock floats inside the page like a printed index tab: a warm raised
+/// bar with a hairline edge, one vermilion selected pill, and labels that stay
+/// visible in both languages. Switching tabs eases the new page in (a short
+/// fade, never a slide: tabs are peers, not steps) and gives a light haptic
+/// tick.
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key, required this.navigationShell});
 
@@ -32,8 +34,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
     duration: BestMotion.normal,
     value: 1,
   );
-  late final Animation<double> _opacity = Tween<double>(begin: 0.4, end: 1)
-      .animate(CurvedAnimation(parent: _fade, curve: BestMotion.curve));
+  late final Animation<double> _opacity = Tween<double>(
+    begin: 0.4,
+    end: 1,
+  ).animate(CurvedAnimation(parent: _fade, curve: BestMotion.curve));
   AppLifecycleListener? _lifecycle;
 
   @override
@@ -46,9 +50,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
 
   void _autoRefresh() {
     if (!mounted) return;
-    unawaited(
-      ref.read(libraryAutoRefreshProvider.notifier).maybeRefresh(),
-    );
+    unawaited(ref.read(libraryAutoRefreshProvider.notifier).maybeRefresh());
   }
 
   @override
@@ -83,6 +85,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     // Keeps the offline queue alive while any tab is open: leaving Downloads
     // must not pause a chapter that is already downloading.
@@ -124,42 +127,67 @@ class _ShellScreenState extends ConsumerState<ShellScreen>
     return Scaffold(
       body: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: const Alignment(0, -1.25),
-            radius: 1.1,
-            colors: [
-              theme.colorScheme.primary.withValues(
-                alpha: theme.brightness == Brightness.dark ? 0.10 : 0.05,
-              ),
-              theme.colorScheme.surface,
-            ],
-            stops: const [0, 0.7],
+          // The room: ink at the foot, a breath of ember at the crown. The
+          // glow is an atmosphere, never a background gradient behind text.
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark
+                ? const [Color(0xFF120D0D), BestColors.ink, BestColors.inkDeep]
+                : const [Color(0xFFFFF8EC), BestColors.paper, BestColors.paper],
+            stops: const [0, 0.38, 1],
           ),
         ),
-        // Tabs use InkWell for their cards and rows. Scaffold does not put a
-        // Material above its body, so without this the ink lookups fail in
-        // debug as soon as a tab with a tappable card is opened.
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final contentWidth =
-                constraints.maxWidth > BestLayout.maxContentWidth
-                    ? BestLayout.maxContentWidth
-                    : constraints.maxWidth;
-            return Align(
-              alignment: Alignment.topCenter,
-              child: SizedBox(
-                width: contentWidth,
-                height: constraints.maxHeight,
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: FadeTransition(
-                    opacity: _opacity,
-                    child: widget.navigationShell,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            PositionedDirectional(
+              top: -180,
+              start: -120,
+              child: IgnorePointer(
+                child: Container(
+                  width: 420,
+                  height: 420,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        BestColors.ember.withValues(
+                          alpha: isDark ? 0.16 : 0.09,
+                        ),
+                        BestColors.ember.withValues(alpha: 0),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            );
-          },
+            ),
+            // Tabs use InkWell for their cards and rows. Scaffold does not put
+            // a Material above its body, so without this the ink lookups fail
+            // in debug as soon as a tab with a tappable card is opened.
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final contentWidth =
+                    constraints.maxWidth > BestLayout.maxContentWidth
+                    ? BestLayout.maxContentWidth
+                    : constraints.maxWidth;
+                return Align(
+                  alignment: Alignment.topCenter,
+                  child: SizedBox(
+                    width: contentWidth,
+                    height: constraints.maxHeight,
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: FadeTransition(
+                        opacity: _opacity,
+                        child: widget.navigationShell,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: _NavigationDock(
@@ -197,18 +225,27 @@ class _NavigationDock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Material(
-      color: theme.colorScheme.surfaceContainerLow,
+    final isDark = theme.brightness == Brightness.dark;
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          border:
-              Border(top: BorderSide(color: theme.colorScheme.outlineVariant)),
+          color: isDark ? BestColors.inkRaised : BestColors.paperRaised,
+          borderRadius: BorderRadius.circular(BestRadius.xl),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.42 : 0.10),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
-        child: SafeArea(
-          top: false,
-          minimum: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(BestRadius.xl),
           child: SizedBox(
-            height: 64,
+            height: 66,
             child: Row(
               children: [
                 for (var index = 0; index < destinations.length; index++)
@@ -257,15 +294,15 @@ class _NavItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(BestRadius.lg),
         child: ExcludeSemantics(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 5),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 AnimatedContainer(
                   duration: duration,
                   curve: BestMotion.curve,
-                  width: selected ? 52 : 40,
-                  height: 30,
+                  width: selected ? 46 : 36,
+                  height: 28,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: selected
@@ -275,27 +312,40 @@ class _NavItem extends StatelessWidget {
                   ),
                   child: Icon(
                     selected ? destination.selectedIcon : destination.icon,
-                    size: 23,
+                    size: 21.5,
                     color: color,
                   ),
                 ),
                 const SizedBox(height: 3),
                 SizedBox(
-                  height: 17,
+                  height: 15,
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(
                       destination.label,
                       maxLines: 1,
                       style: theme.textTheme.labelSmall?.copyWith(
-                        fontSize: 11.5,
-                        height: 1.2,
+                        fontSize: 10.5,
+                        height: 1.1,
                         letterSpacing: 0,
-                        fontWeight:
-                            selected ? FontWeight.w700 : FontWeight.w500,
+                        fontWeight: selected
+                            ? FontWeight.w800
+                            : FontWeight.w500,
                         color: color,
                       ),
                     ),
+                  ),
+                ),
+                // A hair of vermilion under the active label: the seal again,
+                // at the smallest scale the dock can carry.
+                AnimatedContainer(
+                  duration: duration,
+                  margin: const EdgeInsets.only(top: 2),
+                  width: selected ? 12 : 0,
+                  height: 2,
+                  decoration: BoxDecoration(
+                    color: scheme.primary,
+                    borderRadius: BorderRadius.circular(1),
                   ),
                 ),
               ],

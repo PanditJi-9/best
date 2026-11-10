@@ -101,13 +101,15 @@ class _CoverFallback extends StatelessWidget {
 
   final String title;
 
+  // Warm, ink and mineral grounds: an offline cover should look printed on
+  // the same paper as the rest of the app, not like a default blue tile.
   static const List<List<Color>> _palettes = [
-    [Color(0xFF14233F), Color(0xFF2F5FA8)],
-    [Color(0xFF12292B), Color(0xFF2F7F86)],
-    [Color(0xFF1C1F3A), Color(0xFF5B5FC7)],
-    [Color(0xFF1B2433), Color(0xFF355C7D)],
-    [Color(0xFF2A1B33), Color(0xFF7A4F9E)],
-    [Color(0xFF13262E), Color(0xFF3F7A8C)],
+    [Color(0xFF2A0F0C), Color(0xFF8E2F22)],
+    [Color(0xFF2B1C0B), Color(0xFF9A6326)],
+    [Color(0xFF1E1220), Color(0xFF5E2C4A)],
+    [Color(0xFF0E211C), Color(0xFF276B57)],
+    [Color(0xFF141521), Color(0xFF3A3F66)],
+    [Color(0xFF221812), Color(0xFF6E4530)],
   ];
 
   @override

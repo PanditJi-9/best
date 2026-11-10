@@ -1079,6 +1079,8 @@
   "readerLastChapter": "هذا آخر فصل.",
   "readerAutoAdvance": "الانتقال التلقائي للفصل التالي",
   "readerAutoAdvanceBody": "عند تجاوز آخر صفحة يُفتح الفصل التالي مباشرة دون زر.",
+  "readerAutoScroll": "تمرير تلقائي",
+  "readerAutoScrollPause": "إيقاف التمرير التلقائي",
   "readerOcrTitle": "ترجمة المانجا التلقائية (OCR)",
   "readerOcrBody": "التعرف على فقاعات الحوار وترجمتها على الجهاز دون إنترنت.",
   "readerTranslating": "جارِ الترجمة…",

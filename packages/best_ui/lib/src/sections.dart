@@ -42,9 +42,10 @@ class SectionHeader extends StatelessWidget {
             Text(
               index!.padLeft(2, '0'),
               style: theme.textTheme.labelSmall?.copyWith(
+                fontFamily: BestFontFamily.mono,
                 color: BestColors.brass,
                 fontWeight: FontWeight.w700,
-                letterSpacing: 1.2,
+                letterSpacing: BestType.tracking(context, 1.0),
               ),
             ),
             const SizedBox(width: BestSpace.sm),
@@ -97,22 +98,21 @@ class SectionHeader extends StatelessWidget {
   }
 }
 
+/// A short vermilion rule: the seal language at section scale. The gradient
+/// is deliberately not used here — section markers are printed ink, while the
+/// gradient belongs to the mark and to progress.
 class _AccentTick extends StatelessWidget {
   const _AccentTick();
 
   @override
   Widget build(BuildContext context) {
-    return const ExcludeSemantics(
+    return ExcludeSemantics(
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: BestColors.aurora,
-          ),
-          borderRadius: BorderRadius.all(Radius.circular(BestRadius.pill)),
+          color: Theme.of(context).colorScheme.primary,
+          borderRadius: const BorderRadius.all(Radius.circular(2)),
         ),
-        child: SizedBox(width: 4, height: 20),
+        child: const SizedBox(width: 3, height: 18),
       ),
     );
   }
@@ -141,16 +141,30 @@ class PageMasthead extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // A short aurora rule instead of a full-width hairline: the same accent
-        // a section tick uses, so the masthead reads as the brand.
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: BestColors.aurora),
-            borderRadius: BorderRadius.all(Radius.circular(BestRadius.pill)),
-          ),
-          child: SizedBox(width: 28, height: 3),
+        // A short double rule: a full ember stroke over a hairline. It gives
+        // the masthead a printed edge without the old gradient's glow.
+        Row(
+          children: [
+            Container(
+              width: 34,
+              height: 3,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 5),
+            Container(
+              width: 6,
+              height: 3,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.secondary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 13),
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -161,11 +175,7 @@ class PageMasthead extends StatelessWidget {
                   title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.displaySmall?.copyWith(
-                    fontSize: 32,
-                    height: 1.12,
-                    letterSpacing: BestType.tracking(context, -0.6),
-                  ),
+                  style: BestType.pageTitle(context),
                 ),
               ),
             ),

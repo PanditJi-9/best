@@ -1,6 +1,6 @@
 # Best — identity and structure
 
-Version 1.4.0 · "Ink & Aurora"
+Version 2.0 · "Ink & Ember"
 
 Best is one shelf for manga, manhwa, manhua, webtoons, anime and Asian drama.
 The design has to do something hard: feel premium next to Mihon and HikariManga,
@@ -13,15 +13,15 @@ wrong.
 
 ## 1. Design thesis
 
-**Ink and aurora.**
+**Ink and ember.**
 
-- **Ink** is the ground: deep blue-black in dark mode and cool paper in light mode.
-- **Blue** is the primary action and the selected state. It should identify the next useful tap, not decorate every surface.
-- **Cyan** supports the blue in the mark and occasional progress emphasis.
+- **Ink** is the ground: warm near-black in dark mode and warm paper in light mode. The room should feel like a reading lamp, not a server rack.
+- **Ember** is the primary action and the selected state: a sealed vermilion, warm and unmistakable. It should identify the next useful tap, not decorate every surface.
+- **Amber** is the editorial accent: section numerals, quiet links and the second half of the signature gradient.
 - **Gold** marks ratings and ranks. **Jade** is reserved for completed and offline states.
 - Artwork carries most of the colour; controls stay quiet and readable in Arabic and English.
 
-Best is a personal media shelf, not a storefront. Every screen should make the next action obvious, keep local progress visible, and use motion only to confirm a change.
+Best is a personal media shelf, not a storefront. Every screen should make the next action obvious, keep local progress visible, and use motion only to confirm a change. The identity is printed rather than neon: a warm page, a seal, a hairline — the artwork supplies the spectacle.
 
 ---
 
@@ -37,30 +37,33 @@ these tokens instead of introducing screen-specific colours.
 
 | Token | Value | Use |
 |-------|-------|-----|
-| `inkDeep` | `#05080F` | Dark hero and reader surfaces |
-| `ink` | `#070B14` | Dark app background |
-| `inkRaised` / `inkElevated` | `#0C1322` / `#111A2B` | Cards and inputs |
-| `paper` / `paperRaised` | `#F5F7FA` / `#FFFFFF` | Light background and cards |
-| `blue` | `#3B82F6` | Primary action and selected state |
-| `cyan` | `#22D3EE` | Signature gradient and secondary emphasis |
-| `gold` | `#F5B942` | Ratings and rank numerals |
-| `jade` | `#34D399` | Progress and offline state |
-| `danger` | `#F87171` | Errors and destructive actions |
+| `inkDeep` | `#060508` | Dark hero and reader surfaces |
+| `ink` | `#0A090D` | Dark app background |
+| `inkRaised` / `inkElevated` | `#121016` / `#19161E` | Cards and inputs |
+| `inkLift` / `inkLine` | `#241F28` / `#2E2733` | Selected rows, hairlines |
+| `paper` / `paperRaised` | `#F7F2E9` / `#FFFCF7` | Warm light background and cards |
+| `ember` | `#F25B4C` | Primary action and selected state (dark theme) |
+| `emberDeep` | `#D63E31` | Primary action in the light theme |
+| `amber` / `brass` | `#E8A45C` / `#CF8A4B` | Signature gradient and editorial accents |
+| `gold` | `#F0C266` | Ratings and rank numerals |
+| `jade` | `#45D6A4` | Progress and offline state |
+| `danger` | `#FF7A70` | Errors and destructive actions |
 
-The signature gradient `aurora = [blue, cyan]` belongs on the mark and a small
-number of meaningful progress moments. Never use it as a page background.
+The signature gradient `aurora = [ember, amber]` belongs on the mark and a
+small number of meaningful progress moments. Never use it as a page background.
+The legacy token names `blue`, `cyan` and `cinnabar` remain as aliases so older
+screens keep their meaning while rendering the ember system.
 
 ---
 
 ### Type
 
-The app UI uses the bundled IBM Plex Sans Arabic family for headings, controls,
-metadata, and body text. It stays readable in Arabic and English and avoids
-turning every catalogue title into a decorative headline. Amiri is reserved for
-small display moments and the deterministic cover fallback. CJK native titles
-fall back to the system face.
+The working UI uses the bundled IBM Plex Sans Arabic family for controls,
+metadata and body text. **Amiri carries every display role**: the wordmark,
+page titles and mastheads, so a screen opens like a printed page instead of a
+settings panel. CJK native titles fall back to the system face.
 
-- Page titles are strong and compact; section titles are 17–21 px.
+- Page titles are strong and compact (34 px Amiri); section titles are 18 px.
 - Poster titles are 14 px, with up to two lines. Metadata is 11.5 px and body
   copy on cards 12.5 px. Nothing outside the reader and player overlays is set
   below 10.5 px: Arabic needs more optical size than Latin to stay legible.
@@ -76,10 +79,10 @@ fall back to the system face.
 ### Space, radius, motion
 
 - Space: `4 / 8 / 12 / 16 / 24 / 32` (`BestSpace.xs … xxl`).
-- Radius: `6 / 10 / 16 / 22 / pill` (`sm / md / lg / xl / pill`). The page is
-  sharper than a typical Material app; the pill is only for progress and
-  status dots.
-- Motion: `140 ms` fast, `220 ms` normal, `340 ms` slow, `easeOutCubic`. No
+- Radius: `4 / 7 / 10 / 14 / 20 / 26 / pill` (`xs … sheet`). The page is
+  sharper than the old build: an editorial sheet, not a bubbly storefront. The
+  pill is only for progress, status dots and the selected dock icon.
+- Motion: `130 ms` fast, `210 ms` normal, `320 ms` slow, `easeOutCubic`. No
   spring, no bounce. Every decorative animation asks `BestMotionPolicy.reduced`
   first and stays still when the system has animations turned off.
 - Gutter: `BestLayout.gutter` (20 dp). Rails bleed to the screen edge and carry
@@ -91,16 +94,18 @@ fall back to the system face.
 
 No drop shadows on cards. Separation comes from a one-pixel border
 (`outlineVariant`) plus a slightly raised surface. Shadows are reserved for the
-floating cover in the series hero and the spotlight artwork.
+floating cover in the series hero, the spotlight artwork and the floating
+navigation dock, which must read as lifted above the page.
 
 ---
 
 ## 3. Brand
 
-- **Mark** — a four-point sparkle cut from the blue-to-cyan gradient, drawn
-  with a `CustomPainter` (`BestMark`). The tile is squared off and hairlined.
-- **Wordmark** — mark + localized product name + optional tagline
-  (`BestWordmark`), set in the app UI face with zero tracking in Arabic.
+- **Seal** — a vermilion-to-amber stamp holding an ivory four-point spark and
+  an inset hairline, drawn with a `CustomPainter` (`BestMark`). It reads as a
+  printed seal at 20 px and at 96 px.
+- **Wordmark** — mark + localized product name in Amiri + optional tagline
+  (`BestWordmark`), with zero tracking in Arabic.
 - **Backdrop** — a blurred, dimmed cover behind a title (`BestBackdrop`). Used
   on series pages and error/empty states where a cover exists.
 - **Stat strip** — three numbers in one bordered card (`StatStrip`). Values are
@@ -112,14 +117,17 @@ The mark is the only place the full gradient is allowed at full strength.
 
 ## 4. Information architecture
 
-Four destinations. Anything deeper is a pushed route.
+Six content destinations share the floating dock. Settings is a pushed route
+from the Home masthead, so the dock never spends a column on configuration.
 
 | Tab | Route | Question it answers |
 |-----|-------|---------------------|
 | Home | `/` | What is new in the source I chose? |
-| Library | `/library` | What do I own, and what is offline? |
+| Library | `/library` | What do I own? |
+| Updates | `/updates` | Which shelved work has new chapters? |
+| Downloads | `/downloads` | What is offline right now? |
+| Encyclopedia | `/database` | What exists beyond my installed sources? |
 | History | `/history` | What did I read or watch recently? |
-| Settings | `/settings` | How should Best behave for me? |
 
 Routes: `/series?source=&url=`, `/read?source=&url=&unit=`,
 `/watch?source=&url=&unit=`. Source ids and URLs are query parameters, never
@@ -128,27 +136,34 @@ path segments — a source URL can contain slashes and dots.
 `openUnit` chooses `/read` or `/watch` from `MediaKind.isReading`; screens never
 branch on a source name.
 
-### Why these four
+### Why these six
 
 Home is source-first: a pinned source strip scopes one catalogue at a time, so
 manga and anime never mix in one grid. The source itself declares its kind, so
 there is no global Manga/Anime switch taking space from a reader who only uses
-one half. Library now owns
-offline content too — a finished-download rail sits above the shelf, and active
-or failed transfers appear as one quiet banner that opens the manager. History
-takes the old Database position because recent activity is the thing a reader
-returns to. Settings is a tab instead of a menu item, which removed a whole
-intermediate screen. Database, Discover and the old Menu are no longer tabs.
+one half. Library is the shelf; Downloads owns the offline queue and its
+history, so a finished chapter never turns the shelf into a transfer manager.
+Updates is a short, explicit "new chapters" inbox. The Encyclopedia is the
+optional external catalogue, and History is the activity trail. Settings is a
+pushed screen, not a tab: identity before configuration.
+
+All six sit on one floating bar. Six equal columns is the maximum that keeps
+Arabic labels legible at 320 dp; a seventh would force a "More" sheet and make
+the two least-used rooms undiscoverable.
 
 ### The index bar
 
-- 64 px tall plus the safe-area inset, flat, with a one-pixel outline and no
-  shadow.
-- Four equal columns. The selected column puts its filled icon on a 52×30 blue
-  pill (16% tint) that grows from the 40 px resting width, with a blue label;
-  the other four use outlined icons and muted labels.
+- A floating, 66 px raised dock inset 12 px from the screen edges and 8 px from
+  the safe area, with a 20 px radius, a hairline outline and one soft shadow.
+  It is the only lifted surface in the app chrome.
+- Six equal columns. The selected column puts its filled icon on a 46×28 ember
+  pill (16% tint) that grows from the 36 px resting width, with an ember label
+  and a 12 px ember tick underneath; the others use outlined icons and muted
+  labels.
+- The page behind the dock is warm ink at the foot with a breath of ember at
+  the crown. The glow is atmosphere only, never a gradient behind text.
 - Switching tabs gives a light haptic tick and eases the new page in with a
-  220 ms fade (never a slide: tabs are peers, not steps).
+  210 ms fade (never a slide: tabs are peers, not steps).
 - Labels stay visible and scale down when needed so English and Arabic fit on
   small phones. Keep the selected tab accessible through `Semantics`.
 
@@ -156,14 +171,17 @@ intermediate screen. Database, Discover and the old Menu are no longer tabs.
 
 ### Home — the front door
 
-1. **Wordmark and one search box** — the only global action on the page.
-2. **Pinned source strip** — compact chips with the source's own image open
-   that catalogue directly, and the remembered source is restored on launch.
-   A source declares whether it publishes manga or anime, so a reader who
-   installs only manga sources never sees an anime control — and the same is
-   true in reverse. Add source opens the directory without forcing a half.
-3. **Latest / Popular** — the two feeds a source can actually answer.
-   Infinite scroll pages past the first batch; pull to refresh.
+1. **Title page masthead** — the 44 px seal, the product name in Amiri, the
+   role line in amber, and two circular actions (universal search, settings).
+   This is the only global chrome on the page.
+2. **Pinned source strip** — compact rounded chips with the source's own image
+   open that catalogue directly, and the remembered source is restored on
+   launch. A source declares whether it publishes manga or anime, so a reader
+   who installs only manga sources never sees an anime control — and the same
+   is true in reverse. Add source opens the directory without forcing a half.
+3. **Latest / Popular** — two text tabs with a short animated ember rule, the
+   editorial replacement for the old segmented pill. Infinite scroll pages
+   past the first batch; pull to refresh.
 4. **Long-press** — adds the work to the library, or removes it, without
    opening the details page.
 
@@ -195,7 +213,8 @@ content is centered and capped instead of stretching text and cards edge to edge
 ### Series — the work
 
 1. **Hero** — a compact 216 px artwork block with a 124×186 cover. The primary
-   reading action should not be pushed below a large decorative gap.
+   reading action should not be pushed below a large decorative gap. The cover
+   floats; the page beneath it stays warm ink.
 2. **Identity** — centered title, native title, kind · year · status · offline
    count, author, genre pills.
 3. **Actions** — a primary button naming the exact next chapter and saved
@@ -216,10 +235,15 @@ content is centered and capped instead of stretching text and cards edge to edge
 
 - Edge-to-edge black by default; charcoal, sepia and white are reader choices,
   not changes to the app's colour identity.
-- App bar: 14 px blur over 45% black, unit + work titles. Offline status sits in
-  the subtitle rather than competing with phone-width controls.
-- Mode, bookmark and settings remain direct controls. Wide screens also show
-  OCR directly; the same OCR switch stays in settings on every viewport.
+- Top chrome is a short ink gradient, not a panel: an editorial unit title over
+  the work name, with previous/next chapter steps framed around the chapter
+  picker. The single toolkit action stays separate. Offline status sits in the
+  subtitle rather than competing with phone-width controls.
+- A floating quick dock above the progress rule carries the five one-tap
+  actions a reader reaches for: bookmark, page grid, chapters, paged/vertical
+  mode and colour/display. Settings still holds the complete toolkit; wide
+  screens also show OCR there, and the same OCR switch stays in settings on
+  every viewport.
 - Tapping the unit title opens the complete chapter picker at the current
   chapter. Numeric search accepts Arabic/Persian digits; finding current clears
   the search without reloading the chapter.
@@ -231,9 +255,11 @@ content is centered and capped instead of stretching text and cards edge to edge
 - Page one may stand alone. A leftover final scan never crosses chapters.
 - Settings starts with **App defaults / This work** scope and explains what is
   shared. Wake, preload and OCR are grouped as device-wide choices.
-- Bottom chrome has a real source-page counter (or pair range), grid jump,
-  slider and chapter navigation. A deliberate edge drag may change chapter;
-  landing at an edge during the same drag never does.
+- Bottom chrome has a real source-page counter (or pair range), a live
+  percentage, the scrubber and chapter navigation. Continuous mode adds a
+  restrained auto-scroll control to the same 48 dp rule; a drag, pinch, page
+  jump, mode change or chapter change stops it. A deliberate edge drag may
+  change chapter; landing at an edge during the same drag never does.
 - Progress saves 320 ms after a page change and again on dispose. Pairing never
   renumbers pages or bookmarks; completion accounts for the last visible scan.
 - Partial downloads never count a prefix as the whole chapter. They retain the
@@ -326,7 +352,8 @@ in, which keeps the package reusable and testable.
   action.
 - **Offline** — jade badge in the reader; offline counts on the series page.
 - **Destructive** — confirmation dialog with the count of affected items.
-- **Success** — floating snackbar, never a full-screen toast.
+- **Success** — floating snackbar, never a full-screen toast. The snackbar is
+  warm ink in both themes, with an ivory label.
 
 ---
 

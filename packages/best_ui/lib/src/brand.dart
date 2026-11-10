@@ -5,9 +5,12 @@ import 'package:flutter/material.dart';
 import 'cover.dart';
 import 'tokens.dart';
 
-/// The Best mark: a four-point sparkle cut out of the signature gradient.
-/// Drawn rather than shipped as an asset so it stays sharp at every size and
-/// costs the bundle nothing.
+/// The Best seal: a vermilion stamp holding a four-point spark.
+///
+/// The 2.0 mark reads as a printed seal rather than an app-store tile: the
+/// gradient is the stamp, the inset hairline is the impression, and the spark
+/// is ivory paper. Drawn rather than shipped as an asset so it stays sharp at
+/// every size and costs the bundle nothing.
 class BestMark extends StatelessWidget {
   const BestMark({super.key, this.size = 36});
 
@@ -24,60 +27,83 @@ class BestMark extends StatelessWidget {
             end: Alignment.bottomRight,
             colors: BestColors.aurora,
           ),
-          borderRadius: BorderRadius.circular(size * 0.2),
+          borderRadius: BorderRadius.circular(size * 0.28),
           border: Border.all(
-            color: Colors.black.withValues(alpha: 0.18),
+            color: BestColors.inkDeep.withValues(alpha: 0.24),
             width: 0.8,
           ),
         ),
-        child: const CustomPaint(painter: _SparkPainter(color: BestColors.ink)),
+        child: CustomPaint(
+          painter: _SealPainter(side: size),
+        ),
       ),
     );
   }
 }
 
-class _SparkPainter extends CustomPainter {
-  const _SparkPainter({required this.color});
+class _SealPainter extends CustomPainter {
+  const _SealPainter({required this.side});
 
-  final Color color;
+  final double side;
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
-    final radius = size.shortestSide * 0.28;
+    final inset = size.shortestSide * 0.11;
+    final stamp = RRect.fromRectAndRadius(
+      Rect.fromLTRB(inset, inset, size.width - inset, size.height - inset),
+      Radius.circular(size.shortestSide * 0.18),
+    );
+    canvas.drawRRect(
+      stamp,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = (size.shortestSide * 0.03).clamp(0.8, 1.6)
+        ..color = const Color(0xFFFFF4E4).withValues(alpha: 0.55),
+    );
+
+    final radius = size.shortestSide * 0.27;
     final path = Path()
       ..moveTo(center.dx, center.dy - radius)
-      ..quadraticBezierTo(
-        center.dx + radius * 0.18,
-        center.dy - radius * 0.18,
+      ..cubicTo(
+        center.dx + radius * 0.10,
+        center.dy - radius * 0.34,
+        center.dx + radius * 0.30,
+        center.dy - radius * 0.12,
         center.dx + radius,
         center.dy,
       )
-      ..quadraticBezierTo(
-        center.dx + radius * 0.18,
-        center.dy + radius * 0.18,
+      ..cubicTo(
+        center.dx + radius * 0.30,
+        center.dy + radius * 0.12,
+        center.dx + radius * 0.10,
+        center.dy + radius * 0.34,
         center.dx,
         center.dy + radius,
       )
-      ..quadraticBezierTo(
-        center.dx - radius * 0.18,
-        center.dy + radius * 0.18,
+      ..cubicTo(
+        center.dx - radius * 0.10,
+        center.dy + radius * 0.34,
+        center.dx - radius * 0.30,
+        center.dy + radius * 0.12,
         center.dx - radius,
         center.dy,
       )
-      ..quadraticBezierTo(
-        center.dx - radius * 0.18,
-        center.dy - radius * 0.18,
+      ..cubicTo(
+        center.dx - radius * 0.30,
+        center.dy - radius * 0.12,
+        center.dx - radius * 0.10,
+        center.dy - radius * 0.34,
         center.dx,
         center.dy - radius,
       )
       ..close();
-    canvas.drawPath(path, Paint()..color = color);
+    canvas.drawPath(path, Paint()..color = const Color(0xFFFFF6E9));
   }
 
   @override
-  bool shouldRepaint(covariant _SparkPainter oldDelegate) =>
-      oldDelegate.color != color;
+  bool shouldRepaint(covariant _SealPainter oldDelegate) =>
+      oldDelegate.side != side;
 }
 
 /// Mark plus wordmark. The tagline is optional because the same lockup is used

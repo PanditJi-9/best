@@ -143,10 +143,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     try {
       final works = await _fetch(source, feed, page);
       if (mounted) {
-        ref.read(sourceHealthProvider.notifier).recordSuccess(
-              source.id,
-              DateTime.now().difference(started),
-            );
+        ref
+            .read(sourceHealthProvider.notifier)
+            .recordSuccess(source.id, DateTime.now().difference(started));
       }
       if (!mounted || generation != _generation) return;
       final seen = {for (final work in _works) work.id};
@@ -320,60 +319,66 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Padding(
             padding: const EdgeInsetsDirectional.fromSTEB(
               BestLayout.gutter,
-              BestSpace.md,
-              BestSpace.sm,
+              BestSpace.lg,
+              BestLayout.gutter - 4,
               0,
             ),
             child: Row(
               children: [
-                const BestMark(size: 40),
+                const BestMark(size: 44),
                 const SizedBox(width: BestSpace.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        l10n.appName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontSize: 25,
-                          fontWeight: FontWeight.w900,
-                          height: 1,
-                          letterSpacing: BestType.tracking(context, -0.7),
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          l10n.appName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.displaySmall?.copyWith(
+                            fontFamily: BestFonts.display,
+                            fontSize: 31,
+                            fontWeight: FontWeight.w700,
+                            height: 0.98,
+                            letterSpacing: BestType.tracking(context, -0.2),
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
                         l10n.homeRole,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                          color: theme.colorScheme.secondary,
                           fontSize: 10.5,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: BestType.tracking(context, 0.6),
                         ),
                       ),
                     ],
                   ),
                 ),
-                IconButton(
+                _MastheadAction(
                   key: const ValueKey('home-unified-search'),
                   tooltip: l10n.searchEverything,
+                  icon: Icons.search_rounded,
                   onPressed: () => context.push(Routes.metaSearch),
-                  icon: const Icon(Icons.search_rounded),
                 ),
-                IconButton(
+                const SizedBox(width: 6),
+                _MastheadAction(
                   key: const ValueKey('home-settings'),
                   tooltip: l10n.navSettings,
+                  icon: Icons.settings_outlined,
                   onPressed: () => context.push(Routes.settings),
-                  icon: const Icon(Icons.settings_outlined),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: BestSpace.sm),
+          const SizedBox(height: BestSpace.lg),
           _SourceStrip(
             sources: sources,
             current: current,
@@ -381,7 +386,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onManage: () => _openSourcePicker(context, current, sources),
             manageLabel: l10n.homeChooseSource,
           ),
-          const SizedBox(height: BestSpace.sm),
+          const SizedBox(height: BestSpace.md),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: BestLayout.gutter),
             child: _FeedTabs(
@@ -393,9 +398,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           const SizedBox(height: BestSpace.sm),
-          Expanded(
-            child: _body(context, l10n, current, feed),
-          ),
+          Expanded(child: _body(context, l10n, current, feed)),
         ],
       ),
     );
@@ -444,9 +447,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           title: l10n.mangaNoSourcesTitle,
           body: l10n.mangaNoSourcesBody,
           action: FilledButton.icon(
-            onPressed: () => context.push(
-              Routes.sources,
-            ),
+            onPressed: () => context.push(Routes.sources),
             icon: const Icon(Icons.add_rounded, size: 18),
             label: Text(l10n.homeAddSources),
           ),
@@ -526,25 +527,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     crossAxisSpacing: 12,
                     mainAxisExtent: tileWidth * 1.5 + 80,
                   ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final media = _works[index];
-                      return WorkCard(
-                        title: media.displayTitle,
-                        subtitle: media.genres.isEmpty
-                            ? null
-                            : media.genres.take(2).join(' · '),
-                        coverUrl: media.coverUrl,
-                        badge: media.inLibrary
-                            ? '${kindLabel(l10n, media.kind)} ✓'
-                            : kindLabel(l10n, media.kind),
-                        rating: media.rating,
-                        onTap: () => openSeries(context, ref, media),
-                        onLongPress: () => _toggleShelf(media, l10n),
-                      );
-                    },
-                    childCount: _works.length,
-                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final media = _works[index];
+                    return WorkCard(
+                      title: media.displayTitle,
+                      subtitle: media.genres.isEmpty
+                          ? null
+                          : media.genres.take(2).join(' · '),
+                      coverUrl: media.coverUrl,
+                      badge: media.inLibrary
+                          ? '${kindLabel(l10n, media.kind)} ✓'
+                          : kindLabel(l10n, media.kind),
+                      rating: media.rating,
+                      onTap: () => openSeries(context, ref, media),
+                      onLongPress: () => _toggleShelf(media, l10n),
+                    );
+                  }, childCount: _works.length),
                 );
               },
             ),
@@ -633,26 +631,26 @@ class _SourceChip extends StatelessWidget {
       label: source.name,
       child: Material(
         color: selected
-            ? theme.colorScheme.primaryContainer
+            ? theme.colorScheme.primary.withValues(alpha: 0.10)
             : theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(BestRadius.pill),
+        borderRadius: BorderRadius.circular(BestRadius.md),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(BestRadius.pill),
+          borderRadius: BorderRadius.circular(BestRadius.md),
           child: Container(
-            padding: const EdgeInsetsDirectional.only(start: 6, end: 14),
+            padding: const EdgeInsetsDirectional.only(start: 6, end: 13),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(BestRadius.pill),
+              borderRadius: BorderRadius.circular(BestRadius.md),
               border: Border.all(
                 color: selected
-                    ? theme.colorScheme.primary.withValues(alpha: 0.55)
+                    ? theme.colorScheme.primary.withValues(alpha: 0.45)
                     : theme.colorScheme.outlineVariant,
               ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SourceAvatar(source: source, size: 32),
+                SourceAvatar(source: source, size: 30),
                 const SizedBox(width: 8),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 150),
@@ -661,9 +659,10 @@ class _SourceChip extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.labelLarge?.copyWith(
+                      fontSize: 12.5,
                       fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                       color: selected
-                          ? theme.colorScheme.onPrimaryContainer
+                          ? theme.colorScheme.primary
                           : theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
@@ -677,6 +676,9 @@ class _SourceChip extends StatelessWidget {
   }
 }
 
+/// Two editorial feed tabs, not a segmented control: a running text line
+/// with a short vermilion rule under the chosen feed. The rule is the only
+/// chrome, so the catalogue beneath it stays the loudest thing on screen.
 class _FeedTabs extends StatelessWidget {
   const _FeedTabs({
     required this.selected,
@@ -699,55 +701,91 @@ class _FeedTabs extends StatelessWidget {
       if (latestAvailable) _Feed.latest: latestLabel,
       _Feed.popular: popularLabel,
     };
-    // One segmented track: the selected feed is a solid pill, the same
-    // selected language as the history chips, so the front door has one voice.
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(BestRadius.pill),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(3),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final entry in options.entries)
-              Semantics(
-                button: true,
-                selected: entry.key == selected,
-                child: InkWell(
-                  key: ValueKey('home-feed-${entry.key.name}'),
-                  onTap: () => onSelected(entry.key),
-                  borderRadius: BorderRadius.circular(BestRadius.pill),
-                  child: AnimatedContainer(
-                    duration: BestMotion.fast,
-                    curve: BestMotion.curve,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: entry.key == selected
-                          ? theme.colorScheme.primary
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(BestRadius.pill),
-                    ),
-                    child: Text(
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final entry in options.entries) ...[
+          if (entry.key != options.keys.first) const SizedBox(width: 22),
+          Semantics(
+            button: true,
+            selected: entry.key == selected,
+            child: InkWell(
+              key: ValueKey('home-feed-${entry.key.name}'),
+              onTap: () => onSelected(entry.key),
+              borderRadius: BorderRadius.circular(BestRadius.xs),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
                       entry.value,
-                      style: theme.textTheme.labelLarge?.copyWith(
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontSize: 15,
                         color: entry.key == selected
-                            ? theme.colorScheme.onPrimary
+                            ? theme.colorScheme.onSurface
                             : theme.colorScheme.onSurfaceVariant,
                         fontWeight: entry.key == selected
                             ? FontWeight.w800
-                            : FontWeight.w600,
+                            : FontWeight.w500,
                       ),
                     ),
-                  ),
+                    const SizedBox(height: 5),
+                    AnimatedContainer(
+                      duration: BestMotionPolicy.of(context, BestMotion.normal),
+                      curve: BestMotion.curve,
+                      width: entry.key == selected ? 26 : 0,
+                      height: 2.5,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-          ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// A circular masthead action. Two of these are the whole global chrome on
+/// Home; a square icon button made the header look like a toolbar instead of
+/// a title page.
+class _MastheadAction extends StatelessWidget {
+  const _MastheadAction({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: theme.colorScheme.surfaceContainerLow,
+        shape: CircleBorder(
+          side: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+        child: InkWell(
+          onTap: onPressed,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Icon(icon, size: 20, color: theme.colorScheme.onSurface),
+          ),
         ),
       ),
     );

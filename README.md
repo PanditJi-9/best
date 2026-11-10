@@ -6,7 +6,7 @@ Best is a Flutter application with a small Rust core. It is not a website and it
 does not wrap one: the reader, the shelf and the progress engine are native
 Flutter, and every source is an adapter behind one small interface.
 
-**Status: 1.5.3 build 28 — source-health evidence and page-level reader recovery.**
+**Status: 1.6.0 build 29 — an Ink & Ember visual identity and a rebuilt shell.**
 Build 28 passed Flutter analysis, 182 widget and unit tests, 62 Python
 tool tests, the extension runtime JVM gate, and signed four-APK generation in
 [CI](https://github.com/PanditJi-9/best/actions/runs/42378435894). The universal,
@@ -75,10 +75,11 @@ Suwayomi remains as an optional alternative for readers who already run one.
 - **Suwayomi, if you already run one.** Settings → **Suwayomi server** takes one
   address (`http://192.168.1.20:4567`) and Browse gains that server's sources
   over REST. Manga only, off by default.
-- **One visual system.** "Ink & Aurora": blue-black ink, blue for action, gold
-  for ranks and jade kept for progress and offline state. Amiri and IBM Plex
-  Sans Arabic carry the editorial voice. The mark,
-  masthead, numbered sections, cards and reader chrome are shared components,
+- **One visual system.** "Ink & Ember" (2.0): warm near-black and warm paper,
+  a sealed vermilion for action, amber for editorial accents, gold for ranks
+  and jade kept for progress and offline state. Amiri carries every display
+  role, IBM Plex Sans Arabic the working UI. The seal mark, title-page
+  masthead, floating index dock, cards and reader chrome are shared components,
   not per-screen styling. See [docs/DESIGN.md](docs/DESIGN.md).
 - **A real shelf.** Add, remove, favorite, search, filter and sort. Counts and
   progress come from the local database, not from a widget's memory. Started
