@@ -4,6 +4,10 @@ import 'dart:math' as math;
 import 'package:best_ui/best_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
+import 'package:flutter/scheduler.dart';
+
+import '../reader/zoom_physics.dart';
 
 /// Geometry shared by the page renderer and its scroll views.
 class ReaderViewportGeometry {
@@ -73,7 +77,7 @@ class ReaderGestureViewport extends StatefulWidget {
 }
 
 class ReaderGestureViewportState extends State<ReaderGestureViewport>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final Map<int, Offset> _pointers = {};
   final Map<int, Offset> _starts = {};
   late final AnimationController _animation;
@@ -87,6 +91,7 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
   double _pinchScale = 1;
   Offset _pinchFocal = Offset.zero;
   Offset _pinchOffset = Offset.zero;
+  Offset? _lastPinchFocal;
   double _animationStartScale = 1;
   double _animationEndScale = 1;
   Offset _animationStartOffset = Offset.zero;
@@ -106,6 +111,18 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
   double _quickScale = 1;
   Duration _downTime = Duration.zero;
   bool _longHeld = false;
+  // The raw pan before the rubber band, so a drag past an edge keeps its place.
+  Offset _rawOffset = Offset.zero;
+  VelocityTracker? _velocityTracker;
+  late final Ticker _flingTicker;
+  FrictionSimulation? _flingX;
+  FrictionSimulation? _flingY;
+  bool _settling = false;
+
+  static const double _minScale = 0.5;
+  static const double _maxScale = 4.0;
+  static const double _flingDrag = 0.135;
+  static const double _minFlingSpeed = 300;
 
   bool get zoomed => _scale > 1.001;
   double get scale => _scale;
@@ -121,6 +138,7 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
           widget.onZoomEnd();
         }
       });
+    _flingTicker = createTicker(_flingTick);
   }
 
   @override
@@ -130,6 +148,7 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
       _animation.stop();
       _scale = 1;
       _offset = Offset.zero;
+      _rawOffset = Offset.zero;
       // Do not forget a held pointer: its release must not become a menu tap.
       _tapBlocked = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -150,6 +169,7 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
   @override
   void dispose() {
     _scrollCooldown?.cancel();
+    _flingTicker.dispose();
     _animation.dispose();
     super.dispose();
   }
@@ -166,18 +186,37 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
               : offset.dy.clamp(-_size.height * (scale - 1), 0).toDouble(),
         );
 
+  /// Pan offset with resistance past the edges. The content still follows the
+  /// finger but moves less the further it is pulled, and [_settle] brings it back
+  /// on release. At or below fit the content stays centred.
+  Offset _rubberOffset(Offset raw, double scale) {
+    if (scale <= 1) return _bounded(raw, scale);
+    return Offset(
+      rubberPan(raw.dx, _size.width, scale),
+      widget.scrollableContent ? 0 : rubberPan(raw.dy, _size.height, scale),
+    );
+  }
+
+  /// [elastic] lets a pinch stretch past a limit until [_settle] springs it back.
+  /// [exact] is for settle steps, which must not clamp the values they pass
+  /// through, or the content would snap instead of easing.
   void _setZoom(
     double scale,
     Offset offset,
     Offset focal, {
     bool preserveContent = true,
+    bool elastic = false,
+    bool exact = false,
   }) {
-    final next = scale.clamp(0.5, 4.0).toDouble();
+    final next = elastic || exact
+        ? scale
+        : scale.clamp(_minScale, _maxScale).toDouble();
     final old = _scale;
     final beforeFocal = _focalPoint;
     setState(() {
       _scale = next;
-      _offset = _bounded(offset, next);
+      _offset = exact ? offset : _bounded(offset, next);
+      _rawOffset = _offset;
       _focalPoint = focal;
     });
     if ((old - next).abs() > 0.00001 || !preserveContent) {
@@ -201,7 +240,10 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
   void panBy(Offset delta) {
     if (!zoomed) return;
     _readingDrag();
-    setState(() => _offset = _bounded(_offset + delta, _scale));
+    setState(() {
+      _offset = _bounded(_offset + delta, _scale);
+      _rawOffset = _offset;
+    });
     if (widget.scrollableContent && delta.dy != 0) {
       final scroll = -delta.dy / _scale;
       setState(() => _manualScroll += scroll);
@@ -235,10 +277,15 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
       _longHeld = false;
       _tapBlocked = _scrolling || _cooling || _animation.isAnimating;
       _animation.stop();
+      _flingTicker.stop();
+      _rawOffset = _offset;
+      _velocityTracker = VelocityTracker.withKind(event.kind)
+        ..addPosition(event.timeStamp, event.localPosition);
     }
     _pointers[event.pointer] = event.localPosition;
     _starts[event.pointer] = event.localPosition;
     if (_pointers.length >= 2) {
+      _velocityTracker = null;
       _hadMultiplePointers = true;
       _tapBlocked = true;
       _lock(true);
@@ -251,6 +298,7 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
     final points = _pointers.values.take(2).toList();
     _pinchDistance = math.max((points[0] - points[1]).distance, 1.0);
     _pinchFocal = (points[0] + points[1]) / 2;
+    _lastPinchFocal = _pinchFocal;
     _pinchOffset = _offset;
     _pinchScale = _scale;
     _focalPoint = _pinchFocal;
@@ -260,6 +308,9 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
     final previous = _pointers[event.pointer];
     if (previous == null) return;
     _pointers[event.pointer] = event.localPosition;
+    if (_pointers.length == 1) {
+      _velocityTracker?.addPosition(event.timeStamp, event.localPosition);
+    }
     final distance = (event.localPosition - _starts[event.pointer]!).distance;
     if (distance > 8) {
       _moved = true;
@@ -274,23 +325,39 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
       final next =
           (_quickScale *
                   math.exp(-((event.localPosition.dy - _quickStart.dy) / 200)))
-              .clamp(0.5, 4.0)
+              .clamp(_minScale, _maxScale)
               .toDouble();
       final content = (_quickStart - _quickOffset) / _quickScale;
       _setZoom(next, _quickStart - content * next, _quickStart);
     } else if (_pointers.length >= 2) {
       final points = _pointers.values.take(2).toList();
       final focal = (points[0] + points[1]) / 2;
-      final next =
-          (_pinchScale * (points[0] - points[1]).distance / _pinchDistance)
-              .clamp(0.5, 4.0)
-              .toDouble();
+      final next = elasticScale(
+        _pinchScale * (points[0] - points[1]).distance / _pinchDistance,
+        min: _minScale,
+        max: _maxScale,
+      );
       if ((next - _scale).abs() > 0.005) _readingDrag();
+      // Fingers that move together without changing their spread leave the
+      // scale alone, so no zoom anchor follows them. Scroll the strip by that
+      // movement, the same way a single finger scrolls it while input is locked.
+      final previousFocal = _lastPinchFocal;
+      _lastPinchFocal = focal;
+      if (widget.scrollableContent &&
+          previousFocal != null &&
+          (next - _scale).abs() <= 0.00001) {
+        final scroll = -(focal.dy - previousFocal.dy) / _scale;
+        if (scroll != 0) {
+          setState(() => _manualScroll += scroll);
+          widget.onManualScroll?.call(scroll);
+        }
+      }
       final content = (_pinchFocal - _pinchOffset) / _pinchScale;
-      _setZoom(next, focal - content * next, focal);
+      _setZoom(next, focal - content * next, focal, elastic: true);
     } else if (zoomed || _inputLocked) {
       final delta = event.localPosition - previous;
-      setState(() => _offset = _bounded(_offset + delta, _scale));
+      _rawOffset += delta;
+      setState(() => _offset = _rubberOffset(_rawOffset, _scale));
       if (widget.scrollableContent && _inputLocked && delta.dy != 0) {
         final scroll = -delta.dy / _scale;
         setState(() => _manualScroll += scroll);
@@ -311,6 +378,13 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
       // Rebuild once after releasing the pinch so children receive
       // inputLocked=false and can take scroll handoff immediately.
       setState(() {});
+      final tracker = _velocityTracker;
+      _velocityTracker = null;
+      final flick =
+          tracker == null || _quickScaling || event is PointerCancelEvent
+          ? Velocity.zero
+          : tracker.getVelocity();
+      if (!_startFling(flick)) _settle();
       widget.onZoomEnd();
     }
   }
@@ -364,7 +438,63 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
       _focalPoint - point * _animationEndScale,
       _animationEndScale,
     );
+    _settling = false;
     _animation.forward(from: 0);
+  }
+
+  /// Springs the content back inside its limits on release. A scale stretched
+  /// past 0.5x or 4x returns to that limit, and a pan past an edge returns to
+  /// the edge. The anchor is the last pinch point, so what the fingers were on
+  /// stays under them while the scale settles.
+  void _settle() {
+    final target = _scale.clamp(_minScale, _maxScale).toDouble();
+    final point = (_focalPoint - _offset) / _scale;
+    final targetOffset = _bounded(_focalPoint - point * target, target);
+    final scaleMoves = (target - _scale).abs() > 0.0005;
+    final offsetMoves = (targetOffset - _offset).distance > 0.5;
+    if (!scaleMoves && !offsetMoves) return;
+    _settling = true;
+    _animationStartScale = _scale;
+    _animationEndScale = target;
+    _animationStartOffset = _offset;
+    _animationEndOffset = targetOffset;
+    _animation.forward(from: 0);
+  }
+
+  /// A flick while zoomed keeps the pan moving with friction. Strip scrolling is
+  /// not flung here: the list's clamped physics would report overscroll on the
+  /// way past the chapter end, and that can advance the chapter.
+  bool _startFling(Velocity velocity) {
+    if (!zoomed || widget.scrollableContent) return false;
+    if ((_bounded(_offset, _scale) - _offset).distance > 0.5) return false;
+    var speed = velocity.pixelsPerSecond;
+    if (speed.distance < _minFlingSpeed) return false;
+    if (speed.distance > kMaxFlingVelocity) {
+      speed = speed * (kMaxFlingVelocity / speed.distance);
+    }
+    _flingX = FrictionSimulation(_flingDrag, _offset.dx, speed.dx);
+    _flingY = FrictionSimulation(_flingDrag, _offset.dy, speed.dy);
+    _flingTicker.stop();
+    _flingTicker.start();
+    return true;
+  }
+
+  void _flingTick(Duration elapsed) {
+    final t = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
+    final fx = _flingX;
+    final fy = _flingY;
+    if (fx == null || fy == null) {
+      _flingTicker.stop();
+      return;
+    }
+    setState(() {
+      _offset = _bounded(Offset(fx.x(t), fy.x(t)), _scale);
+      _rawOffset = _offset;
+    });
+    if (fx.isDone(t) && fy.isDone(t)) {
+      _flingTicker.stop();
+      widget.onZoomEnd();
+    }
   }
 
   void _animateTick() {
@@ -375,6 +505,7 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
       next,
       Offset.lerp(_animationStartOffset, _animationEndOffset, t)!,
       _focalPoint,
+      exact: _settling,
     );
   }
 
@@ -386,6 +517,7 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
         if (_size != size) {
           _size = size;
           _offset = _bounded(_offset, _scale);
+          _rawOffset = _offset;
         }
         final geometry = ReaderViewportGeometry(
           scale: _scale,

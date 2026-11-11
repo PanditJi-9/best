@@ -15,13 +15,16 @@ import '../l10n/generated/app_localizations.dart';
 import '../labels.dart';
 import '../navigation.dart';
 import '../ocr/bubble_overlay_widget.dart';
+import '../ocr/ocr_client.dart';
 import '../providers.dart';
+import '../reader/vertical_strip.dart';
 import '../widgets/chapter_list_sheet.dart';
 import '../widgets/reader_color_filter.dart';
 import '../widgets/reader_controls_bar.dart';
 import '../widgets/reader_gesture_viewport.dart';
 import '../widgets/reader_page_grid.dart';
 import '../widgets/reader_quick_dock.dart';
+import '../widgets/reader_reading_hud.dart';
 import '../widgets/reader_settings_sheet.dart';
 
 class ReaderScreen extends ConsumerWidget {
@@ -142,6 +145,11 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   late int _index;
   Timer? _saveTimer;
   Timer? _autoScrollTimer;
+
+  /// Share of the strip above the reading line, from 0 to 1. A notifier keeps
+  /// scrolling from rebuilding the whole reader for a percentage.
+  final ValueNotifier<double> _verticalProgress = ValueNotifier<double>(0);
+  late double _autoScrollSpeed = ref.read(readerAutoScrollSpeedProvider);
   bool _autoScrolling = false;
 
   /// The furthest page reached in this session. Activity counts new ground
@@ -528,6 +536,16 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     unawaited(HapticFeedback.selectionClick());
   }
 
+  String? get _autoScrollSpeedLabel => autoScrollSpeedLabel(_autoScrollSpeed);
+
+  /// Long-pressing the auto-scroll button steps through 1x, 2x, 3x and 0.5x.
+  void _cycleAutoScrollSpeed() {
+    final next = nextAutoScrollSpeed(_autoScrollSpeed);
+    setState(() => _autoScrollSpeed = next);
+    ref.read(readerAutoScrollSpeedProvider.notifier).setSpeed(next);
+    unawaited(HapticFeedback.selectionClick());
+  }
+
   /// Continuous mode can crawl at reading speed, one line at a time. It is a
   /// deliberate mode: any drag, pinch, page jump or chapter change gives the
   /// reader their hands back instead of fighting an invisible motor.
@@ -554,7 +572,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
       unawaited(() async {
         try {
           await _verticalOffsetController.animateScroll(
-            offset: 2,
+            offset: 2 * _autoScrollSpeed,
             duration: const Duration(milliseconds: 52),
           );
         } catch (_) {
@@ -649,6 +667,11 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     if (index < 0 || index >= widget.data.units.length - 1) return null;
     return widget.data.units[index + 1];
   }
+
+  /// The chapter the strip's end card offers. A partly offline chapter offers
+  /// none, the rule the control bar and auto-advance already follow, so the end
+  /// of the loaded pages cannot skip the missing ones.
+  MediaUnit? get _stripEndUnit => widget.data.partial ? null : _nextUnit;
 
   void _openPreviousUnit() {
     final previous = _previousUnit;
@@ -993,6 +1016,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
 
   @override
   void dispose() {
+    _verticalProgress.dispose();
     _autoScrollTimer?.cancel();
     _saveTimer?.cancel();
     _saveNow();
@@ -1047,8 +1071,26 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
           position.itemLeadingEdge <= 0.5 && position.itemTrailingEdge > 0.5,
       orElse: () => positions.first,
     );
+    // Progress follows the strip itself: the page at the reading line plus how
+    // far that page has been crossed, so a tall webtoon page moves the bar.
+    final lastVisible = positions.last;
+    final atStripEnd = isAtVerticalStripEnd(
+      lastIndex: lastVisible.index,
+      itemCount: total + (_stripEndUnit == null ? 0 : 1),
+      trailing: lastVisible.itemTrailingEdge,
+    );
+    // A partial chapter's loaded end is not its end, so it never reads complete.
+    _verticalProgress.value = verticalStripProgress(
+      pageCount: total,
+      index: current.index,
+      leading: current.itemLeadingEdge,
+      trailing: current.itemTrailingEdge,
+      atStripEnd: atStripEnd && !widget.data.partial,
+    );
     final index = current.index.clamp(0, total - 1);
-    if (_autoScrolling && index >= total - 1) _stopAutoScroll();
+    // Auto-scroll ends at the bottom of the strip. Stopping once the reading
+    // line reached the last page cut off a tall final page.
+    if (_autoScrolling && atStripEnd) _stopAutoScroll();
     if (index == _index) return;
     setState(() => _index = index);
     _markRead(index);
@@ -1363,8 +1405,18 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                       ? const NeverScrollableScrollPhysics()
                       : const ClampingScrollPhysics(),
                   minCacheExtent: 1600,
-                  itemCount: _resources.length,
+                  itemCount:
+                      _resources.length + (_stripEndUnit == null ? 0 : 1),
                   itemBuilder: (context, index) {
+                    if (index >= _resources.length) {
+                      final next = _stripEndUnit;
+                      return _VerticalChapterEnd(
+                        title: next == null
+                            ? null
+                            : unitTitle(AppLocalizations.of(context), next),
+                        onOpen: _openNextUnit,
+                      );
+                    }
                     final page = _ResourcePage(
                       key: ValueKey(index),
                       unitId: widget.data.unit.id,
@@ -1393,6 +1445,14 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
             : _buildPagedView(settings, geometry),
       ),
     );
+  }
+
+  /// The HUD uses the compact mono form from the design language, not the
+  /// sentence already shown by the controls. It also keeps the two labels from
+  /// competing for the same widget-test finder while both are in the tree.
+  String _hudPositionLabel() {
+    final page = (_index + 1).clamp(1, _chapterTotal <= 0 ? 1 : _chapterTotal);
+    return '$page / $_chapterTotal';
   }
 
   String _pagePositionLabel(AppLocalizations l10n, [int? index]) {
@@ -1646,6 +1706,18 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                   Positioned(
                     left: 0,
                     right: 0,
+                    top: 0,
+                    child: ReaderReadingHud(
+                      chapterTitle: unitTitle(l10n, unit),
+                      pageLabel: _hudPositionLabel(),
+                      visible:
+                          settings.readerMode == ReaderMode.vertical &&
+                          !_showChrome,
+                    ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
                     bottom: 0,
                     child: AnimatedOpacity(
                       opacity: _showChrome ? 1.0 : 0.0,
@@ -1709,6 +1781,12 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                                     settings.readerMode == ReaderMode.vertical,
                                 autoScrolling: _autoScrolling,
                                 onToggleAutoScroll: _toggleAutoScroll,
+                                autoScrollSpeedLabel: _autoScrollSpeedLabel,
+                                onCycleAutoScrollSpeed: _cycleAutoScrollSpeed,
+                                verticalProgress:
+                                    settings.readerMode == ReaderMode.vertical
+                                    ? _verticalProgress
+                                    : null,
                               ),
                             ],
                           ),
@@ -1742,6 +1820,37 @@ Widget _pageFrame(
     image: true,
     child: child,
   );
+}
+
+/// The end of a continuous strip. The next chapter is one tap away here, not
+/// only a drag past the last page or a small icon in the control bar.
+class _VerticalChapterEnd extends StatelessWidget {
+  const _VerticalChapterEnd({required this.title, required this.onOpen});
+
+  final String? title;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 120),
+      child: Center(
+        child: FilledButton.icon(
+          onPressed: onOpen,
+          icon: const Icon(Icons.skip_next_rounded),
+          label: Text(
+            title == null
+                ? l10n.readerNextChapter
+                : '${l10n.readerNextChapter} · $title',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// The page slot while its image is still arriving.
@@ -2183,6 +2292,122 @@ class _OcrPageOverlayState extends ConsumerState<_OcrPageOverlay> {
   }
 }
 
+/// Renders a very tall webtoon scan as native 2048 px tiles instead of one
+/// texture. Flutter can decode a 20,000 px strip, but a single oversized
+/// texture is exactly where low-end GPUs stutter or fail. The native slicer
+/// already existed (ported from HikariManga); this is the missing reader hook.
+class _WebtoonSliceImage extends ConsumerStatefulWidget {
+  const _WebtoonSliceImage({
+    super.key,
+    required this.bytes,
+    required this.pageId,
+    required this.fallback,
+    required this.index,
+    required this.total,
+    required this.cacheWidth,
+  });
+
+  final Uint8List bytes;
+  final String pageId;
+  final Widget fallback;
+  final int index;
+  final int total;
+  final int? cacheWidth;
+
+  @override
+  ConsumerState<_WebtoonSliceImage> createState() => _WebtoonSliceImageState();
+}
+
+class _WebtoonSliceImageState extends ConsumerState<_WebtoonSliceImage> {
+  /// Below this, the method-channel bounds check costs more than decoding the
+  /// page normally. Real long-strip exports are several times this size.
+  static const int _sliceThresholdBytes = 700000;
+
+  Future<List<WebtoonSlice>>? _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _loadSlices();
+  }
+
+  @override
+  void didUpdateWidget(_WebtoonSliceImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.bytes != widget.bytes || oldWidget.pageId != widget.pageId) {
+      _future = _loadSlices();
+    }
+  }
+
+  Future<List<WebtoonSlice>> _loadSlices() async {
+    if (widget.bytes.length < _sliceThresholdBytes) {
+      return const <WebtoonSlice>[];
+    }
+    final client = ref.read(ocrClientProvider);
+    if (!await client.shouldSliceWebtoon(widget.bytes)) {
+      return const <WebtoonSlice>[];
+    }
+    return client.sliceWebtoon(bytes: widget.bytes, pageId: widget.pageId);
+  }
+
+  void _reload() {
+    setState(() => _future = _loadSlices());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.bytes.length < _sliceThresholdBytes) return widget.fallback;
+    return FutureBuilder<List<WebtoonSlice>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _PageLoading(
+            index: widget.index,
+            total: widget.total,
+            fill: true,
+          );
+        }
+        final slices = snapshot.data ?? const <WebtoonSlice>[];
+        if (snapshot.hasError || slices.isEmpty) return widget.fallback;
+        return Semantics(
+          label: AppLocalizations.of(context).pageImage,
+          image: true,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final slice in slices)
+                SizedBox(
+                  width: double.infinity,
+                  child: AspectRatio(
+                    aspectRatio: slice.aspectRatio,
+                    child: RepaintBoundary(
+                      child: Image.file(
+                        File(slice.filePath),
+                        width: double.infinity,
+                        fit: BoxFit.fill,
+                        cacheWidth: widget.cacheWidth,
+                        filterQuality: FilterQuality.medium,
+                        gaplessPlayback: true,
+                        errorBuilder: (context, error, stack) {
+                          return _PageError(
+                            message: '$error',
+                            onRetry: _reload,
+                            index: widget.index,
+                            total: widget.total,
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _ResourcePage extends ConsumerStatefulWidget {
   const _ResourcePage({
     super.key,
@@ -2464,7 +2689,32 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
     };
   }
 
+  /// Stable, filename-safe cache key for the native tile files. FNV-1a keeps
+  /// the key identical across launches without trusting `String.hashCode`.
+  String get _slicePageId {
+    var hash = 2166136261;
+    for (final code in '${widget.unitId}:${widget.index}'.codeUnits) {
+      hash ^= code;
+      hash = (hash * 16777619) & 0xFFFFFFFF;
+    }
+    return '${widget.index}_${hash.toRadixString(16)}';
+  }
+
   Widget _byteImage(Uint8List bytes, {required int? cacheWidth}) {
+    final image = _plainByteImage(bytes, cacheWidth: cacheWidth);
+    if (!widget.continuous) return image;
+    return _WebtoonSliceImage(
+      key: ValueKey('slices-${widget.unitId}-${widget.index}-$_attempt'),
+      bytes: bytes,
+      pageId: _slicePageId,
+      fallback: image,
+      index: widget.index,
+      total: widget.total,
+      cacheWidth: cacheWidth,
+    );
+  }
+
+  Widget _plainByteImage(Uint8List bytes, {required int? cacheWidth}) {
     return RepaintBoundary(
       child: Image.memory(
         bytes,

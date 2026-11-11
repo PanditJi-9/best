@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:best_ui/best_ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -31,6 +32,9 @@ class ReaderControlsBar extends StatefulWidget {
     this.autoScrollAvailable = false,
     this.autoScrolling = false,
     this.onToggleAutoScroll,
+    this.verticalProgress,
+    this.autoScrollSpeedLabel,
+    this.onCycleAutoScrollSpeed,
   }) : assert(pageCount > 0);
 
   final String chapterId;
@@ -48,6 +52,12 @@ class ReaderControlsBar extends StatefulWidget {
   final bool autoScrollAvailable;
   final bool autoScrolling;
   final VoidCallback? onToggleAutoScroll;
+
+  /// Live share of the strip above the reading line. Null in paged modes, where
+  /// the page index already is the progress.
+  final ValueListenable<double>? verticalProgress;
+  final String? autoScrollSpeedLabel;
+  final VoidCallback? onCycleAutoScrollSpeed;
 
   @override
   State<ReaderControlsBar> createState() => _ReaderControlsBarState();
@@ -98,6 +108,18 @@ class _ReaderControlsBarState extends State<ReaderControlsBar> {
     }
     widget.onScrubEnd();
   }
+
+  Widget _percentText(int percent) => Text(
+    '$percent%',
+    key: const ValueKey('reader-progress-percent'),
+    textAlign: TextAlign.center,
+    style: TextStyle(
+      fontFamily: BestFontFamily.mono,
+      color: Colors.white.withValues(alpha: 0.64),
+      fontSize: 9.5,
+      fontWeight: FontWeight.w600,
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -180,17 +202,13 @@ class _ReaderControlsBarState extends State<ReaderControlsBar> {
               const SizedBox(width: 7),
               SizedBox(
                 width: 34,
-                child: Text(
-                  '$percent%',
-                  key: const ValueKey('reader-progress-percent'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: BestFontFamily.mono,
-                    color: Colors.white.withValues(alpha: 0.64),
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                child: widget.verticalProgress == null || _scrubValue != null
+                    ? _percentText(percent)
+                    : ValueListenableBuilder<double>(
+                        valueListenable: widget.verticalProgress!,
+                        builder: (context, progress, _) =>
+                            _percentText((progress * 100).round()),
+                      ),
               ),
               Expanded(
                 child: Directionality(
@@ -238,6 +256,8 @@ class _ReaderControlsBarState extends State<ReaderControlsBar> {
                 _AutoScrollAction(
                   active: widget.autoScrolling,
                   onTap: widget.onToggleAutoScroll!,
+                  speedLabel: widget.autoScrollSpeedLabel,
+                  onLongPress: widget.onCycleAutoScrollSpeed,
                 ),
               if (widget.finished && widget.onNextChapter != null)
                 IconButton(
@@ -269,15 +289,29 @@ class _ReaderControlsBarState extends State<ReaderControlsBar> {
 }
 
 class _AutoScrollAction extends StatelessWidget {
-  const _AutoScrollAction({required this.active, required this.onTap});
+  const _AutoScrollAction({
+    required this.active,
+    required this.onTap,
+    this.speedLabel,
+    this.onLongPress,
+  });
 
   final bool active;
   final VoidCallback onTap;
+  final String? speedLabel;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final label = active ? l10n.readerAutoScrollPause : l10n.readerAutoScroll;
+    final action = active ? l10n.readerAutoScrollPause : l10n.readerAutoScroll;
+    // Screen readers cannot see the speed badge, so it is part of the name.
+    final label = speedLabel == null ? action : '$action ($speedLabel)';
+    // With a badge the row is wider than the icon, so a circle would sit off
+    // centre. A pill keeps the highlight around both.
+    final shape = speedLabel == null
+        ? const CircleBorder()
+        : const StadiumBorder();
     return Padding(
       padding: const EdgeInsetsDirectional.only(start: 2),
       child: Semantics(
@@ -290,25 +324,45 @@ class _AutoScrollAction extends StatelessWidget {
             color: active
                 ? BestColors.ember.withValues(alpha: 0.16)
                 : Colors.transparent,
-            shape: const CircleBorder(),
+            shape: shape,
             child: InkResponse(
               key: const ValueKey('reader-auto-scroll'),
               onTap: onTap,
+              onLongPress: onLongPress,
               radius: 18,
               containedInkWell: true,
-              customBorder: const CircleBorder(),
-              child: SizedBox(
-                width: 32,
-                height: 32,
-                child: Icon(
-                  active
-                      ? Icons.pause_rounded
-                      : Icons.slow_motion_video_rounded,
-                  size: 18,
-                  color: active
-                      ? BestColors.emberSoft
-                      : Colors.white.withValues(alpha: 0.66),
-                ),
+              customBorder: shape,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: Icon(
+                      active
+                          ? Icons.pause_rounded
+                          : Icons.slow_motion_video_rounded,
+                      size: 18,
+                      color: active
+                          ? BestColors.emberSoft
+                          : Colors.white.withValues(alpha: 0.66),
+                    ),
+                  ),
+                  if (speedLabel != null)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(end: 4),
+                      child: Text(
+                        speedLabel!,
+                        key: const ValueKey('reader-auto-scroll-speed'),
+                        style: TextStyle(
+                          fontFamily: BestFontFamily.mono,
+                          color: BestColors.emberSoft,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),

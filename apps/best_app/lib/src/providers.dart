@@ -18,6 +18,7 @@ import 'extension_host.dart';
 import 'network.dart';
 import 'ocr/ocr_client.dart';
 import 'reader/page_image_cache.dart';
+import 'reader/vertical_strip.dart';
 import 'security/biometric_client.dart';
 import 'l10n/generated/app_localizations.dart';
 
@@ -35,17 +36,20 @@ export 'package:best_domain/best_domain.dart'
 /// until it is overridden is better than a nullable global that fails later.
 final Provider<LibraryRepository> repositoryProvider =
     Provider<LibraryRepository>(
-  (ref) => throw StateError('repositoryProvider must be overridden in main().'),
-);
+      (ref) =>
+          throw StateError('repositoryProvider must be overridden in main().'),
+    );
 
 final Provider<BiometricClient> biometricClientProvider =
     Provider<BiometricClient>((ref) => const BiometricClient());
 
-final backupFileSharerProvider =
-    Provider<BackupFileSharer>((ref) => const BackupFileSharer());
+final backupFileSharerProvider = Provider<BackupFileSharer>(
+  (ref) => const BackupFileSharer(),
+);
 
-final backupFileStoreProvider =
-    Provider<BackupFileStore>((ref) => const BackupFileStore());
+final backupFileStoreProvider = Provider<BackupFileStore>(
+  (ref) => const BackupFileStore(),
+);
 
 final Provider<OcrClient> ocrClientProvider = Provider<OcrClient>((ref) {
   return OcrClient(repository: ref.watch(repositoryProvider));
@@ -53,8 +57,8 @@ final Provider<OcrClient> ocrClientProvider = Provider<OcrClient>((ref) {
 
 final Provider<BackgroundDownloadClient> backgroundDownloadClientProvider =
     Provider<BackgroundDownloadClient>(
-  (ref) => const BackgroundDownloadClient(),
-);
+      (ref) => const BackgroundDownloadClient(),
+    );
 
 /// `null` means the platform store is unavailable; settings then live for the
 /// session only. Persistence is a convenience, never a reason to fail a launch.
@@ -71,8 +75,8 @@ final Provider<http.Client> httpClientProvider = Provider<http.Client>((ref) {
 /// every image. Extension pages bypass this cache: their host signs requests.
 final Provider<PageImageCache> pageImageCacheProvider =
     Provider<PageImageCache>((ref) {
-  return PageImageCache(client: ref.watch(httpClientProvider));
-});
+      return PageImageCache(client: ref.watch(httpClientProvider));
+    });
 
 /// Where finished pages live. `main()` overrides this with the app documents
 /// directory; the temp fallback keeps tests and a broken platform store
@@ -81,8 +85,8 @@ final Provider<Directory> downloadRootProvider = Provider<Directory>((ref) {
   return Directory(p.join(Directory.systemTemp.path, 'best-downloads'));
 });
 
-final Provider<DownloadManager> downloadManagerProvider =
-    Provider<DownloadManager>((ref) {
+final Provider<DownloadManager>
+downloadManagerProvider = Provider<DownloadManager>((ref) {
   final manager = DownloadManager(
     repository: ref.watch(repositoryProvider),
     registry: SourceRegistry(
@@ -99,7 +103,8 @@ final Provider<DownloadManager> downloadManagerProvider =
       // A cold worker must not confuse a still-loading extension catalogue
       // with an uninstalled source.
       try {
-        await ref.read(extensionCatalogProvider.future)
+        await ref
+            .read(extensionCatalogProvider.future)
             .timeout(const Duration(seconds: 20));
       } catch (_) {
         // DownloadManager reports an unavailable source honestly, per unit.
@@ -107,7 +112,8 @@ final Provider<DownloadManager> downloadManagerProvider =
       if (!ref.mounted) return;
       if (ref.read(suwayomiClientProvider) != null) {
         try {
-          await ref.read(suwayomiSourcesProvider.future)
+          await ref
+              .read(suwayomiSourcesProvider.future)
               .timeout(const Duration(seconds: 20));
         } catch (_) {}
       }
@@ -120,8 +126,8 @@ final Provider<DownloadManager> downloadManagerProvider =
   void applyPolicy() {
     final settings = ref.read(settingsProvider);
     final network = ref.read(networkProvider).value ?? NetworkKind.unknown;
-    manager.mayDownload =
-        () => !settings.wifiOnly || network != NetworkKind.mobile;
+    manager.mayDownload = () =>
+        !settings.wifiOnly || network != NetworkKind.mobile;
     manager.storageCap = () => settings.storageCapGb * 1024 * 1024 * 1024;
     manager.maxConcurrent = () => settings.downloadConcurrency;
     if (manager.mayDownload()) {
@@ -172,14 +178,17 @@ class BackgroundDownloadsController extends Notifier<BackgroundDownloadState> {
         onFailure: (message) {
           if (ref.mounted) {
             state = BackgroundDownloadState(
-              error: message, openRequests: state.openRequests,
+              error: message,
+              openRequests: state.openRequests,
             );
           }
         },
       );
       if (!ref.mounted) return;
-      state = BackgroundDownloadState(available: available,
-          openRequests: state.openRequests);
+      state = BackgroundDownloadState(
+        available: available,
+        openRequests: state.openRequests,
+      );
       _subscription = repository.changes.listen((_) => unawaited(_publish()));
       ref.listen(settingsProvider, (_, next) => unawaited(_publish()));
       ref.listen(networkProvider, (_, next) => unawaited(_publish()));
@@ -187,7 +196,9 @@ class BackgroundDownloadsController extends Notifier<BackgroundDownloadState> {
     } catch (error) {
       if (ref.mounted) {
         state = BackgroundDownloadState(
-            error: '$error', openRequests: state.openRequests);
+          error: '$error',
+          openRequests: state.openRequests,
+        );
       }
     }
   }
@@ -215,36 +226,44 @@ class BackgroundDownloadsController extends Notifier<BackgroundDownloadState> {
           return a.updatedAt.compareTo(b.updatedAt);
         });
         final settings = ref.read(settingsProvider);
-        final language = settings.languageCode ??
+        final language =
+            settings.languageCode ??
             WidgetsBinding.instance.platformDispatcher.locale.languageCode;
         final l10n = await AppLocalizations.delegate.load(
-            Locale(language == 'ar' ? 'ar' : 'en'));
+          Locale(language == 'ar' ? 'ar' : 'en'),
+        );
         if (!ref.mounted) return;
         final current = pending.isEmpty ? null : pending.first;
         final busy = ref.read(downloadManagerProvider).isDraining;
-        final accepted = await ref.read(backgroundDownloadClientProvider).publish(
-          BackgroundDownloadSnapshot(
-            pending: pending.isNotEmpty || busy,
-            wifiOnly: settings.wifiOnly,
-            title: current?.mediaTitle ?? l10n.downloadsTitle,
-            detail: current == null
-                ? (busy ? l10n.downloadFinishingRequest : l10n.downloadDone) :
-                '${current.unitTitle} · ${l10n.downloadProgress(current.completed, current.total)}',
-            unitId: current?.unitId ?? '',
-            progress: current?.completed ?? 0,
-            total: current?.total ?? 0,
-            pauseLabel: l10n.downloadPauseAll,
-          ),
-        );
+        final accepted = await ref
+            .read(backgroundDownloadClientProvider)
+            .publish(
+              BackgroundDownloadSnapshot(
+                pending: pending.isNotEmpty || busy,
+                wifiOnly: settings.wifiOnly,
+                title: current?.mediaTitle ?? l10n.downloadsTitle,
+                detail: current == null
+                    ? (busy ? l10n.downloadFinishingRequest : l10n.downloadDone)
+                    : '${current.unitTitle} · ${l10n.downloadProgress(current.completed, current.total)}',
+                unitId: current?.unitId ?? '',
+                progress: current?.completed ?? 0,
+                total: current?.total ?? 0,
+                pauseLabel: l10n.downloadPauseAll,
+              ),
+            );
         if (!accepted && ref.mounted) {
-          state = BackgroundDownloadState(error: 'Background service unavailable',
-              openRequests: state.openRequests);
+          state = BackgroundDownloadState(
+            error: 'Background service unavailable',
+            openRequests: state.openRequests,
+          );
         }
       } while (_again && ref.mounted);
     } catch (error) {
       if (ref.mounted) {
-        state = BackgroundDownloadState(error: '$error',
-            openRequests: state.openRequests);
+        state = BackgroundDownloadState(
+          error: '$error',
+          openRequests: state.openRequests,
+        );
       }
     } finally {
       _publishing = false;
@@ -256,8 +275,11 @@ class BackgroundDownloadsController extends Notifier<BackgroundDownloadState> {
   Future<void> notificationAction(String action, String? unitId) async {
     if (!ref.mounted) return;
     if (action == 'open') {
-      state = BackgroundDownloadState(available: state.available,
-          error: state.error, openRequests: state.openRequests + 1);
+      state = BackgroundDownloadState(
+        available: state.available,
+        error: state.error,
+        openRequests: state.openRequests + 1,
+      );
       return;
     }
     if (!const {'pause', 'stop', 'resume'}.contains(action)) return;
@@ -277,8 +299,10 @@ class BackgroundDownloadsController extends Notifier<BackgroundDownloadState> {
   }
 }
 
-final backgroundDownloadsProvider = NotifierProvider<BackgroundDownloadsController,
-    BackgroundDownloadState>(BackgroundDownloadsController.new);
+final backgroundDownloadsProvider =
+    NotifierProvider<BackgroundDownloadsController, BackgroundDownloadState>(
+      BackgroundDownloadsController.new,
+    );
 
 /// Packs the person installed, newest last. Broken documents are dropped on
 /// load instead of blocking the app: a bad edit must never cost the library.
@@ -289,9 +313,7 @@ class SourcePacksController extends Notifier<List<SourcePack>> {
   @override
   List<SourcePack> build() {
     final preferences = ref.watch(preferencesProvider);
-    return _parseAll(
-      preferences?.getStringList(_key) ?? const <String>[],
-    );
+    return _parseAll(preferences?.getStringList(_key) ?? const <String>[]);
   }
 
   List<SourcePack> _parseAll(List<String> raws) {
@@ -318,9 +340,8 @@ class SourcePacksController extends Notifier<List<SourcePack>> {
       return 'The id "${pack.id}" is reserved by a built-in source.';
     }
     final preferences = ref.read(preferencesProvider);
-    final raws = <String>[
-      ...?preferences?.getStringList(_key),
-    ]..removeWhere((stored) {
+    final raws = <String>[...?preferences?.getStringList(_key)]
+      ..removeWhere((stored) {
         try {
           return SourcePack.parse(stored).id == pack.id;
         } on SourcePackException {
@@ -349,9 +370,8 @@ class SourcePacksController extends Notifier<List<SourcePack>> {
 
   void remove(String id) {
     final preferences = ref.read(preferencesProvider);
-    final raws = <String>[
-      ...?preferences?.getStringList(_key),
-    ]..removeWhere((stored) {
+    final raws = <String>[...?preferences?.getStringList(_key)]
+      ..removeWhere((stored) {
         try {
           return SourcePack.parse(stored).id == id;
         } on SourcePackException {
@@ -364,30 +384,29 @@ class SourcePacksController extends Notifier<List<SourcePack>> {
 }
 
 final NotifierProvider<SourcePacksController, List<SourcePack>>
-    sourcePacksProvider =
-    NotifierProvider<SourcePacksController, List<SourcePack>>(
+sourcePacksProvider = NotifierProvider<SourcePacksController, List<SourcePack>>(
   SourcePacksController.new,
 );
 
 /// `null` when no server is configured, or when the address is not a URL.
 final Provider<SuwayomiClient?> suwayomiClientProvider =
     Provider<SuwayomiClient?>((ref) {
-  final url = ref.watch(settingsProvider).suwayomiUrl;
-  if (url == null || url.trim().isEmpty) return null;
-  try {
-    return SuwayomiClient(
-      baseUrl: url,
-      client: ref.watch(httpClientProvider),
-    );
-  } on SuwayomiException {
-    return null;
-  }
-});
+      final url = ref.watch(settingsProvider).suwayomiUrl;
+      if (url == null || url.trim().isEmpty) return null;
+      try {
+        return SuwayomiClient(
+          baseUrl: url,
+          client: ref.watch(httpClientProvider),
+        );
+      } on SuwayomiException {
+        return null;
+      }
+    });
 
 /// What the server hosts. An unreachable server yields an empty list instead of
 /// breaking the app: the built-in catalogues keep working.
-final FutureProvider<List<SuwayomiSourceInfo>> suwayomiSourcesProvider =
-    FutureProvider<List<SuwayomiSourceInfo>>((ref) async {
+final FutureProvider<List<SuwayomiSourceInfo>>
+suwayomiSourcesProvider = FutureProvider<List<SuwayomiSourceInfo>>((ref) async {
   final client = ref.watch(suwayomiClientProvider);
   if (client == null) return const <SuwayomiSourceInfo>[];
   try {
@@ -402,11 +421,12 @@ final FutureProvider<List<SuwayomiSourceInfo>> suwayomiSourcesProvider =
 
 /// The Kotlin extension host. Extensions are programs, so they live on the
 /// native side and this is the only door to them.
-final Provider<ExtensionHost> extensionHostProvider =
-    Provider<ExtensionHost>((ref) => ExtensionHost());
+final Provider<ExtensionHost> extensionHostProvider = Provider<ExtensionHost>(
+  (ref) => ExtensionHost(),
+);
 
-final Provider<ExtensionInstaller> extensionInstallerProvider =
-    Provider<ExtensionInstaller>((ref) {
+final Provider<ExtensionInstaller>
+extensionInstallerProvider = Provider<ExtensionInstaller>((ref) {
   final client = ref.watch(httpClientProvider);
   return ExtensionInstaller(
     host: ref.watch(extensionHostProvider),
@@ -432,29 +452,53 @@ final Provider<ExtensionInstaller> extensionInstallerProvider =
 /// Inventory reads never install anything on a first launch.
 final FutureProvider<ExtensionCatalog> extensionCatalogProvider =
     FutureProvider<ExtensionCatalog>((ref) async {
-  final host = ref.watch(extensionHostProvider);
-  if (!host.isAvailable) return const ExtensionCatalog.empty();
-  return host.catalog();
-});
+      final host = ref.watch(extensionHostProvider);
+      if (!host.isAvailable) return const ExtensionCatalog.empty();
+      return host.catalog();
+    });
 
 final extensionDirectoryProvider = FutureProvider<ExtensionDirectory>(
-    (ref) => ref.watch(extensionInstallerProvider).directory());
+  (ref) => ref.watch(extensionInstallerProvider).directory(),
+);
 
 class ExtensionAutoUpdatesController extends Notifier<bool> {
   @override
   bool build() =>
       ref.watch(preferencesProvider)?.getBool('extension_auto_updates') ?? true;
   void setEnabled(bool enabled) {
-    unawaited(ref
-        .read(preferencesProvider)
-        ?.setBool('extension_auto_updates', enabled));
+    unawaited(
+      ref.read(preferencesProvider)?.setBool('extension_auto_updates', enabled),
+    );
     state = enabled;
   }
 }
 
 final extensionAutoUpdatesProvider =
     NotifierProvider<ExtensionAutoUpdatesController, bool>(
-        ExtensionAutoUpdatesController.new);
+      ExtensionAutoUpdatesController.new,
+    );
+
+/// Auto-scroll speed for the vertical reader, remembered across sessions. Only
+/// the speeds the long-press control cycles through are accepted.
+class ReaderAutoScrollSpeedController extends Notifier<double> {
+  static const String _key = 'reader_auto_scroll_speed';
+
+  @override
+  double build() {
+    final stored = ref.watch(preferencesProvider)?.getDouble(_key);
+    return stored != null && autoScrollSpeeds.contains(stored) ? stored : 1.0;
+  }
+
+  void setSpeed(double speed) {
+    unawaited(ref.read(preferencesProvider)?.setDouble(_key, speed));
+    state = speed;
+  }
+}
+
+final readerAutoScrollSpeedProvider =
+    NotifierProvider<ReaderAutoScrollSpeedController, double>(
+      ReaderAutoScrollSpeedController.new,
+    );
 
 class ExtensionUpdatesController
     extends Notifier<AsyncValue<ExtensionUpdateResult>> {
@@ -465,8 +509,9 @@ class ExtensionUpdatesController
     if (state.isLoading) return;
     state = const AsyncLoading();
     try {
-      final result =
-          await ref.read(extensionInstallerProvider).checkUpdates(force: force);
+      final result = await ref
+          .read(extensionInstallerProvider)
+          .checkUpdates(force: force);
       if (!ref.mounted) return;
       state = AsyncData(result);
       if (result.updated > 0) ref.invalidate(extensionCatalogProvider);
@@ -477,17 +522,21 @@ class ExtensionUpdatesController
   }
 }
 
-final extensionUpdatesProvider = NotifierProvider<ExtensionUpdatesController,
-    AsyncValue<ExtensionUpdateResult>>(ExtensionUpdatesController.new);
+final extensionUpdatesProvider =
+    NotifierProvider<
+      ExtensionUpdatesController,
+      AsyncValue<ExtensionUpdateResult>
+    >(ExtensionUpdatesController.new);
 
-final Provider<SourceRegistry> sourceRegistryProvider =
-    Provider<SourceRegistry>((ref) {
+final Provider<SourceRegistry>
+sourceRegistryProvider = Provider<SourceRegistry>((ref) {
   final client = ref.watch(httpClientProvider);
   final packs = ref.watch(sourcePacksProvider);
   // The catalogue follows the interface language: an Arabic reader gets the
   // Arabic scanlations first, and English stays as the fallback chapter track.
   final settings = ref.watch(settingsProvider);
-  final language = settings.languageCode ??
+  final language =
+      settings.languageCode ??
       WidgetsBinding.instance.platformDispatcher.locale.languageCode;
   // Only chosen sites are discoverable. The guide remains an explicit offline
   // demo, and the legacy MangaDex API is a by-id fallback for existing libraries.
@@ -495,7 +544,8 @@ final Provider<SourceRegistry> sourceRegistryProvider =
   final remoteSources =
       ref.watch(suwayomiSourcesProvider).value ?? const <SuwayomiSourceInfo>[];
   final extensionHost = ref.watch(extensionHostProvider);
-  final extensions = ref.watch(extensionCatalogProvider).value ??
+  final extensions =
+      ref.watch(extensionCatalogProvider).value ??
       const ExtensionCatalog.empty();
   final packageCounts = <String, int>{};
   for (final info in extensions.sources) {
@@ -503,50 +553,56 @@ final Provider<SourceRegistry> sourceRegistryProvider =
         (packageCounts[info.packageName] ?? 0) + 1;
   }
 
-  return SourceRegistry.fixed(<SourceAdapter>[
-    // A configured server leads: its sources are the ones the reader chose to
-    // bring, and they update with the server's extensions.
-    if (suwayomi != null)
-      for (final info in remoteSources)
-        SuwayomiSource(client: suwayomi, info: info),
-    for (final pack in packs) JsonSourceAdapter(pack: pack, client: client),
-    // Installed extensions sit beside the built-in catalogues: they are real
-    // sources the reader brought, and a library entry must keep resolving to the
-    // same adapter across launches.
-    // An extension like MangaDex exposes one source per language. Showing all of
-    // them would bury the catalogue under forty identical rows, so the shelf
-    // keeps the reader's language, the language-neutral bundles, and any
-    // single-source bundle the reader activated on purpose.
-    //
-    // Anime bundles remain visible whatever the interface language is.
-    for (final info in extensions.sources.where((info) =>
-        info.isAnime ||
-        extensionSourceVisible(
-          sourceLanguage: info.language,
-          interfaceLanguage: language,
-          packageSourceCount: packageCounts[info.packageName] ?? 1,
-        )))
-      ExtensionSourceAdapter(host: extensionHost, info: info),
-  ],
-      fallback: (id) {
-        if (id == 'mangadex') {
-          return MangaDexSource(
-              client: client, language: language == 'ar' ? 'ar' : 'en');
+  return SourceRegistry.fixed(
+    <SourceAdapter>[
+      // A configured server leads: its sources are the ones the reader chose to
+      // bring, and they update with the server's extensions.
+      if (suwayomi != null)
+        for (final info in remoteSources)
+          SuwayomiSource(client: suwayomi, info: info),
+      for (final pack in packs) JsonSourceAdapter(pack: pack, client: client),
+      // Installed extensions sit beside the built-in catalogues: they are real
+      // sources the reader brought, and a library entry must keep resolving to the
+      // same adapter across launches.
+      // An extension like MangaDex exposes one source per language. Showing all of
+      // them would bury the catalogue under forty identical rows, so the shelf
+      // keeps the reader's language, the language-neutral bundles, and any
+      // single-source bundle the reader activated on purpose.
+      //
+      // Anime bundles remain visible whatever the interface language is.
+      for (final info in extensions.sources.where(
+        (info) =>
+            info.isAnime ||
+            extensionSourceVisible(
+              sourceLanguage: info.language,
+              interfaceLanguage: language,
+              packageSourceCount: packageCounts[info.packageName] ?? 1,
+            ),
+      ))
+        ExtensionSourceAdapter(host: extensionHost, info: info),
+    ],
+    fallback: (id) {
+      if (id == 'mangadex') {
+        return MangaDexSource(
+          client: client,
+          language: language == 'ar' ? 'ar' : 'en',
+        );
+      }
+      // Display-language filtering must not strand stored works/downloads.
+      for (final info in extensions.sources) {
+        if (id == 'mihon:${info.sourceId}') {
+          return ExtensionSourceAdapter(host: extensionHost, info: info);
         }
-        // Display-language filtering must not strand stored works/downloads.
-        for (final info in extensions.sources) {
-          if (id == 'mihon:${info.sourceId}') {
-            return ExtensionSourceAdapter(host: extensionHost, info: info);
-          }
+      }
+      if (suwayomi != null) {
+        for (final info in remoteSources) {
+          final source = SuwayomiSource(client: suwayomi, info: info);
+          if (source.id == id) return source;
         }
-        if (suwayomi != null) {
-          for (final info in remoteSources) {
-            final source = SuwayomiSource(client: suwayomi, info: info);
-            if (source.id == id) return source;
-          }
-        }
-        return null;
-      });
+      }
+      return null;
+    },
+  );
 });
 
 class AppSettings {
@@ -639,32 +695,32 @@ class AppSettings {
   final bool readerAutoAdvance;
 
   ReaderPreferences get readerPreferences => ReaderPreferences(
-        mode: readerMode,
-        direction: readerDirection,
-        fit: readerFit,
-        background: readerBackground,
-        tapZones: readerTapZones,
-        tapZoneSize: readerTapZoneSize,
-        webtoonGap: readerWebtoonGap,
-        filterMode: readerFilterMode,
-        brightness: readerBrightness,
-        spreadMode: readerSpreadMode,
-        coverAlone: readerCoverAlone,
-      );
+    mode: readerMode,
+    direction: readerDirection,
+    fit: readerFit,
+    background: readerBackground,
+    tapZones: readerTapZones,
+    tapZoneSize: readerTapZoneSize,
+    webtoonGap: readerWebtoonGap,
+    filterMode: readerFilterMode,
+    brightness: readerBrightness,
+    spreadMode: readerSpreadMode,
+    coverAlone: readerCoverAlone,
+  );
 
   AppSettings withReaderPreferences(ReaderPreferences preferences) => copyWith(
-        readerMode: preferences.mode,
-        readerDirection: preferences.direction,
-        readerFit: preferences.fit,
-        readerBackground: preferences.background,
-        readerTapZones: preferences.tapZones,
-        readerTapZoneSize: preferences.tapZoneSize,
-        readerWebtoonGap: preferences.webtoonGap,
-        readerFilterMode: preferences.filterMode,
-        readerBrightness: preferences.brightness,
-        readerSpreadMode: preferences.spreadMode,
-        readerCoverAlone: preferences.coverAlone,
-      );
+    readerMode: preferences.mode,
+    readerDirection: preferences.direction,
+    readerFit: preferences.fit,
+    readerBackground: preferences.background,
+    readerTapZones: preferences.tapZones,
+    readerTapZoneSize: preferences.tapZoneSize,
+    readerWebtoonGap: preferences.webtoonGap,
+    readerFilterMode: preferences.filterMode,
+    readerBrightness: preferences.brightness,
+    readerSpreadMode: preferences.spreadMode,
+    readerCoverAlone: preferences.coverAlone,
+  );
 
   /// Real-time offline OCR and translation overlay on manga pages.
   final bool ocrTranslationEnabled;
@@ -781,15 +837,11 @@ class SettingsController extends Notifier<AppSettings> {
       wifiOnly: preferences?.getBool(_wifiOnlyKey) ?? false,
       storageCapGb: preferences?.getInt(_storageCapKey) ?? 0,
       suwayomiUrl: preferences?.getString(_suwayomiKey),
-      readerMode: ReaderMode.fromName(
-        preferences?.getString(_readerModeKey),
-      ),
+      readerMode: ReaderMode.fromName(preferences?.getString(_readerModeKey)),
       readerDirection: ReaderDirection.fromName(
         preferences?.getString(_readerDirectionKey),
       ),
-      readerFit: ReaderFit.fromName(
-        preferences?.getString(_readerFitKey),
-      ),
+      readerFit: ReaderFit.fromName(preferences?.getString(_readerFitKey)),
       readerBackground: ReaderBackground.fromName(
         preferences?.getString(_readerBackgroundKey),
       ),
@@ -799,8 +851,9 @@ class SettingsController extends Notifier<AppSettings> {
       ),
       readerKeepAwake: preferences?.getBool(_readerKeepAwakeKey) ?? true,
       readerPreload: preferences?.getBool(_readerPreloadKey) ?? true,
-      readerWebtoonGap:
-          (preferences?.getInt(_readerWebtoonGapKey) ?? 0).clamp(0, 32).toInt(),
+      readerWebtoonGap: (preferences?.getInt(_readerWebtoonGapKey) ?? 0)
+          .clamp(0, 32)
+          .toInt(),
       readerFilterMode: preferences?.getString(_readerFilterModeKey) ?? 'none',
       readerBrightness: preferences?.getInt(_readerBrightnessKey) ?? 0,
       readerSpreadMode: ReaderSpreadMode.fromName(
@@ -811,11 +864,13 @@ class SettingsController extends Notifier<AppSettings> {
       ocrTranslationEnabled: preferences?.getBool(_ocrTranslationKey) ?? false,
       biometricLockEnabled: preferences?.getBool(_biometricLockKey) ?? false,
       autoRefreshLibrary: preferences?.getBool(_autoRefreshKey) ?? true,
-      refreshIntervalHours:
-          (preferences?.getInt(_refreshIntervalKey) ?? 12).clamp(1, 168).toInt(),
+      refreshIntervalHours: (preferences?.getInt(_refreshIntervalKey) ?? 12)
+          .clamp(1, 168)
+          .toInt(),
       updateWifiOnly: preferences?.getBool(_updateWifiOnlyKey) ?? true,
-      downloadConcurrency:
-          (preferences?.getInt(_downloadConcurrencyKey) ?? 1).clamp(1, 4).toInt(),
+      downloadConcurrency: (preferences?.getInt(_downloadConcurrencyKey) ?? 1)
+          .clamp(1, 4)
+          .toInt(),
     );
   }
 
@@ -846,7 +901,8 @@ class SettingsController extends Notifier<AppSettings> {
 
   void setReaderMode(ReaderMode mode) {
     unawaited(
-        ref.read(preferencesProvider)?.setString(_readerModeKey, mode.name));
+      ref.read(preferencesProvider)?.setString(_readerModeKey, mode.name),
+    );
     state = state.copyWith(readerMode: mode);
   }
 
@@ -898,7 +954,9 @@ class SettingsController extends Notifier<AppSettings> {
 
   void setRefreshIntervalHours(int value) {
     final hours = value.clamp(1, 168).toInt();
-    unawaited(ref.read(preferencesProvider)?.setInt(_refreshIntervalKey, hours));
+    unawaited(
+      ref.read(preferencesProvider)?.setInt(_refreshIntervalKey, hours),
+    );
     state = state.copyWith(refreshIntervalHours: hours);
   }
 
@@ -1026,7 +1084,8 @@ class SettingsController extends Notifier<AppSettings> {
 
   void setOcrTranslationEnabled(bool value) {
     unawaited(
-        ref.read(preferencesProvider)?.setBool(_ocrTranslationKey, value));
+      ref.read(preferencesProvider)?.setBool(_ocrTranslationKey, value),
+    );
     state = state.copyWith(ocrTranslationEnabled: value);
   }
 
@@ -1102,24 +1161,28 @@ class ReaderProfilesController
 
   Future<void> _write(Map<String, ReaderPreferences> profiles) async {
     state = Map.unmodifiable(profiles);
-    final encoded =
-        profiles.map((id, profile) => MapEntry(id, profile.toJson()));
+    final encoded = profiles.map(
+      (id, profile) => MapEntry(id, profile.toJson()),
+    );
     await ref.read(preferencesProvider)?.setString(_key, jsonEncode(encoded));
   }
 }
 
 final readerProfilesProvider =
     NotifierProvider<ReaderProfilesController, Map<String, ReaderPreferences>>(
-  ReaderProfilesController.new,
-);
+      ReaderProfilesController.new,
+    );
 
 /// Presentation comes from the selected work; device-wide policy always comes
 /// from AppSettings. Merely opening a work never creates or overwrites a profile.
-final readerSettingsForProvider =
-    Provider.family<AppSettings, String>((ref, id) {
+final readerSettingsForProvider = Provider.family<AppSettings, String>((
+  ref,
+  id,
+) {
   final defaults = ref.watch(settingsProvider);
-  final profile =
-      ref.watch(readerProfilesProvider.select((profiles) => profiles[id]));
+  final profile = ref.watch(
+    readerProfilesProvider.select((profiles) => profiles[id]),
+  );
   return profile == null ? defaults : defaults.withReaderPreferences(profile);
 });
 
@@ -1132,16 +1195,19 @@ class ReaderSettingsController {
   void rememberForWork(bool value) {
     final controller = _ref.read(readerProfilesProvider.notifier);
     if (value) {
-      controller.save(mediaId,
-          _ref.read(readerSettingsForProvider(mediaId)).readerPreferences);
+      controller.save(
+        mediaId,
+        _ref.read(readerSettingsForProvider(mediaId)).readerPreferences,
+      );
     } else {
       controller.reset(mediaId);
     }
   }
 
   void _update(ReaderPreferences Function(ReaderPreferences) edit) {
-    final current =
-        _ref.read(readerSettingsForProvider(mediaId)).readerPreferences;
+    final current = _ref
+        .read(readerSettingsForProvider(mediaId))
+        .readerPreferences;
     final next = edit(current);
     if (_ref.read(readerProfilesProvider).containsKey(mediaId)) {
       _ref.read(readerProfilesProvider.notifier).save(mediaId, next);
@@ -1180,8 +1246,8 @@ class ReaderSettingsController {
 
 final readerSettingsControllerProvider =
     Provider.family<ReaderSettingsController, String>(
-  (ref, id) => ReaderSettingsController(ref, id),
-);
+      (ref, id) => ReaderSettingsController(ref, id),
+    );
 
 /// Pages the person marked while reading, keyed by unit id.
 ///
@@ -1202,13 +1268,14 @@ class ReaderBookmarksController extends Notifier<Map<String, List<int>>> {
       final result = <String, List<int>>{};
       decoded.forEach((dynamic key, dynamic value) {
         if (key is! String || value is! List) return;
-        final pages = value
-            .whereType<num>()
-            .map((number) => number.toInt())
-            .where((page) => page >= 0)
-            .toSet()
-            .toList()
-          ..sort();
+        final pages =
+            value
+                .whereType<num>()
+                .map((number) => number.toInt())
+                .where((page) => page >= 0)
+                .toSet()
+                .toList()
+              ..sort();
         if (pages.isNotEmpty) result[key] = List<int>.unmodifiable(pages);
       });
       return Map<String, List<int>>.unmodifiable(result);
@@ -1224,8 +1291,9 @@ class ReaderBookmarksController extends Notifier<Map<String, List<int>>> {
 
   Future<void> merge(Map<String, List<int>> imported) async {
     if (imported.isEmpty) return;
-    final merged = ReaderStateSnapshot(bookmarks: state)
-        .merge(ReaderStateSnapshot(bookmarks: imported));
+    final merged = ReaderStateSnapshot(
+      bookmarks: state,
+    ).merge(ReaderStateSnapshot(bookmarks: imported));
     state = merged.bookmarks;
     await ref.read(preferencesProvider)?.setString(_key, jsonEncode(state));
   }
@@ -1243,15 +1311,16 @@ class ReaderBookmarksController extends Notifier<Map<String, List<int>>> {
     }
     state = Map<String, List<int>>.unmodifiable(next);
     unawaited(
-        ref.read(preferencesProvider)?.setString(_key, jsonEncode(state)));
+      ref.read(preferencesProvider)?.setString(_key, jsonEncode(state)),
+    );
   }
 }
 
 final NotifierProvider<ReaderBookmarksController, Map<String, List<int>>>
-    readerBookmarksProvider =
+readerBookmarksProvider =
     NotifierProvider<ReaderBookmarksController, Map<String, List<int>>>(
-  ReaderBookmarksController.new,
-);
+      ReaderBookmarksController.new,
+    );
 
 class LibraryQueryController extends Notifier<LibraryQuery> {
   static const String _shelfKey = 'library.shelf';
@@ -1311,18 +1380,13 @@ class LibraryQueryController extends Notifier<LibraryQuery> {
   /// is remembered for the next launch.
   void setShelf(LibraryShelf shelf) {
     if (state.shelf == shelf) return;
-    state = state.copyWith(
-      shelf: shelf,
-      clearTag: true,
-      uncategorized: true,
-    );
+    state = state.copyWith(shelf: shelf, clearTag: true, uncategorized: true);
     unawaited(ref.read(preferencesProvider)?.setString(_shelfKey, shelf.name));
   }
 }
 
 final NotifierProvider<LibraryQueryController, LibraryQuery>
-    libraryQueryProvider =
-    NotifierProvider<LibraryQueryController, LibraryQuery>(
+libraryQueryProvider = NotifierProvider<LibraryQueryController, LibraryQuery>(
   LibraryQueryController.new,
 );
 
@@ -1417,10 +1481,10 @@ class SourceVisibilityController extends Notifier<Set<String>> {
 }
 
 final NotifierProvider<SourceVisibilityController, Set<String>>
-    sourceVisibilityProvider =
+sourceVisibilityProvider =
     NotifierProvider<SourceVisibilityController, Set<String>>(
-  SourceVisibilityController.new,
-);
+      SourceVisibilityController.new,
+    );
 
 /// What the last request to a source did.
 ///
@@ -1446,11 +1510,11 @@ class SourceHealth {
   bool get slow => !failed && lastSuccessAt > 0 && lastLatencyMs >= 4000;
 
   Map<String, Object?> toJson() => {
-        's': lastSuccessAt,
-        'f': lastFailureAt,
-        'e': lastError,
-        'l': lastLatencyMs,
-      };
+    's': lastSuccessAt,
+    'f': lastFailureAt,
+    'e': lastError,
+    'l': lastLatencyMs,
+  };
 
   static SourceHealth? fromJson(Object? raw) {
     if (raw is! Map) return null;
@@ -1536,12 +1600,14 @@ class SourceHealthController extends Notifier<Map<String, SourceHealth>> {
     final encoded = jsonEncode({
       for (final entry in state.entries) entry.key: entry.value.toJson(),
     });
-    _saveChain = _saveChain.then((_) async {
-      await preferences?.setString(_key, encoded);
-    }).catchError((Object _) {
-      // Evidence is disposable; a failed preference write must not break a
-      // catalogue request or surface as an unhandled async error.
-    });
+    _saveChain = _saveChain
+        .then((_) async {
+          await preferences?.setString(_key, encoded);
+        })
+        .catchError((Object _) {
+          // Evidence is disposable; a failed preference write must not break a
+          // catalogue request or surface as an unhandled async error.
+        });
   }
 
   static String _shortError(Object error) {
@@ -1552,10 +1618,10 @@ class SourceHealthController extends Notifier<Map<String, SourceHealth>> {
 }
 
 final NotifierProvider<SourceHealthController, Map<String, SourceHealth>>
-    sourceHealthProvider =
+sourceHealthProvider =
     NotifierProvider<SourceHealthController, Map<String, SourceHealth>>(
-  SourceHealthController.new,
-);
+      SourceHealthController.new,
+    );
 
 /// Categories are tags with a first-class name, kept apart per shelf: a manga
 /// category never appears on the anime shelf and the other way round.
@@ -1628,7 +1694,8 @@ abstract class ShelfCategoriesController extends Notifier<List<String>> {
   }
 
   static List<String> _clean(Iterable<String> names) => _dedupe(
-      names.map((name) => name.trim()).where((name) => name.isNotEmpty));
+    names.map((name) => name.trim()).where((name) => name.isNotEmpty),
+  );
 
   static List<String> _dedupe(Iterable<String> names) {
     final seen = <String>{};
@@ -1659,14 +1726,14 @@ class WatchingCategoriesController extends ShelfCategoriesController {
 
 final NotifierProvider<CategoriesController, List<String>> categoriesProvider =
     NotifierProvider<CategoriesController, List<String>>(
-  CategoriesController.new,
-);
+      CategoriesController.new,
+    );
 
 final NotifierProvider<WatchingCategoriesController, List<String>>
-    watchingCategoriesProvider =
+watchingCategoriesProvider =
     NotifierProvider<WatchingCategoriesController, List<String>>(
-  WatchingCategoriesController.new,
-);
+      WatchingCategoriesController.new,
+    );
 
 /// Categories hidden from the shelf. Local only, like everything else here.
 class HiddenCategoriesController extends Notifier<Set<String>> {
@@ -1710,10 +1777,10 @@ class HiddenCategoriesController extends Notifier<Set<String>> {
 }
 
 final NotifierProvider<HiddenCategoriesController, Set<String>>
-    hiddenCategoriesProvider =
+hiddenCategoriesProvider =
     NotifierProvider<HiddenCategoriesController, Set<String>>(
-  HiddenCategoriesController.new,
-);
+      HiddenCategoriesController.new,
+    );
 
 /// Reveals hidden categories for this session only. A restart locks them again,
 /// which is the point of a hidden category.
@@ -1744,10 +1811,10 @@ class LibraryShowEmptyController extends Notifier<bool> {
 }
 
 final NotifierProvider<LibraryShowEmptyController, bool>
-    libraryShowEmptyCategoriesProvider =
+libraryShowEmptyCategoriesProvider =
     NotifierProvider<LibraryShowEmptyController, bool>(
-  LibraryShowEmptyController.new,
-);
+      LibraryShowEmptyController.new,
+    );
 
 /// A category plus how many works currently carry it.
 class CategorySummary {
@@ -1780,112 +1847,113 @@ class ShelfTabs {
 /// the current shelf, so a list typed on a series page shows up here without
 /// extra bookkeeping. Hidden categories stay in the list: the manager needs
 /// them to show them again.
-final FutureProvider<ShelfTabs> libraryTabsProvider =
-    FutureProvider<ShelfTabs>((ref) async {
-  ref.watch(libraryChangesProvider);
-  final shelf = ref.watch(
-        libraryQueryProvider.select((query) => query.shelf),
-      ) ??
-      LibraryShelf.reading;
-  final entries = await ref.watch(allLibraryProvider.future);
-  final hidden = ref.watch(hiddenCategoriesProvider);
-  final registered = shelf == LibraryShelf.watching
-      ? ref.watch(watchingCategoriesProvider)
-      : ref.watch(categoriesProvider);
+final FutureProvider<ShelfTabs> libraryTabsProvider = FutureProvider<ShelfTabs>(
+  (ref) async {
+    ref.watch(libraryChangesProvider);
+    final shelf =
+        ref.watch(libraryQueryProvider.select((query) => query.shelf)) ??
+        LibraryShelf.reading;
+    final entries = await ref.watch(allLibraryProvider.future);
+    final hidden = ref.watch(hiddenCategoriesProvider);
+    final registered = shelf == LibraryShelf.watching
+        ? ref.watch(watchingCategoriesProvider)
+        : ref.watch(categoriesProvider);
 
-  final inShelf =
-      entries.where((entry) => shelf.contains(entry.media.kind)).toList();
-  final counts = <String, int>{};
-  final discovered = <String>[];
-  var uncategorized = 0;
-  for (final entry in inShelf) {
-    final names = [
-      for (final tag in entry.media.tags)
-        if (tag.trim().isNotEmpty) tag.trim(),
-    ];
-    if (names.isEmpty) uncategorized++;
-    for (final name in names) {
-      if (!counts.containsKey(name)) discovered.add(name);
-      counts[name] = (counts[name] ?? 0) + 1;
+    final inShelf = entries
+        .where((entry) => shelf.contains(entry.media.kind))
+        .toList();
+    final counts = <String, int>{};
+    final discovered = <String>[];
+    var uncategorized = 0;
+    for (final entry in inShelf) {
+      final names = [
+        for (final tag in entry.media.tags)
+          if (tag.trim().isNotEmpty) tag.trim(),
+      ];
+      if (names.isEmpty) uncategorized++;
+      for (final name in names) {
+        if (!counts.containsKey(name)) discovered.add(name);
+        counts[name] = (counts[name] ?? 0) + 1;
+      }
     }
-  }
 
-  final names = <String>[...registered];
-  for (final name in discovered) {
-    if (!names.contains(name)) names.add(name);
-  }
+    final names = <String>[...registered];
+    for (final name in discovered) {
+      if (!names.contains(name)) names.add(name);
+    }
 
-  return ShelfTabs(
-    total: inShelf.length,
-    uncategorized: uncategorized,
-    categories: List.unmodifiable([
-      for (final name in names)
-        CategorySummary(
-          name: name,
-          count: counts[name] ?? 0,
-          hidden: hidden.contains(name),
-        ),
-    ]),
-  );
-});
+    return ShelfTabs(
+      total: inShelf.length,
+      uncategorized: uncategorized,
+      categories: List.unmodifiable([
+        for (final name in names)
+          CategorySummary(
+            name: name,
+            count: counts[name] ?? 0,
+            hidden: hidden.contains(name),
+          ),
+      ]),
+    );
+  },
+);
 
 /// The on-screen strip, unlike the category manager, follows search/filter
 /// matches. Ignore the selected category when counting: other tabs must remain
 /// reachable. Hidden works must never contribute to a visible tab's count.
 final FutureProvider<ShelfTabs> libraryVisibleTabsProvider =
     FutureProvider<ShelfTabs>((ref) async {
-  final query = ref.watch(libraryQueryProvider);
-  final hidden = ref.watch(hiddenCategoriesProvider);
-  final reveal = ref.watch(revealHiddenProvider);
-  final showEmpty = ref.watch(libraryShowEmptyCategoriesProvider);
-  final tabsFuture = ref.watch(libraryTabsProvider.future);
-  final entriesFuture = ref.watch(allLibraryProvider.future);
-  final tabs = await tabsFuture;
-  final entries = await entriesFuture;
-  final matches = LibraryPolicy.apply(
-    entries,
-    query.copyWith(
-      clearTag: true,
-      uncategorized: false,
-      hiddenTags: hidden,
-      includeHidden: reveal,
-    ),
-  );
-  final counts = <String, int>{};
-  var uncategorized = 0;
-  for (final entry in matches) {
-    final names = {
-      for (final tag in entry.media.tags)
-        if (tag.trim().isNotEmpty) tag.trim(),
-    };
-    if (names.isEmpty) uncategorized++;
-    for (final name in names) {
-      counts[name] = (counts[name] ?? 0) + 1;
-    }
-  }
-  final narrowing = query.search.trim().isNotEmpty ||
-      query.filter != LibraryFilter.all;
-  return ShelfTabs(
-    total: matches.length,
-    uncategorized: uncategorized,
-    categories: List.unmodifiable([
-      for (final category in tabs.categories)
-        if (reveal || !category.hidden)
-          if (!narrowing || showEmpty || (counts[category.name] ?? 0) > 0)
-            CategorySummary(
-              name: category.name,
-              count: counts[category.name] ?? 0,
-              hidden: category.hidden,
-            ),
-    ]),
-  );
-});
+      final query = ref.watch(libraryQueryProvider);
+      final hidden = ref.watch(hiddenCategoriesProvider);
+      final reveal = ref.watch(revealHiddenProvider);
+      final showEmpty = ref.watch(libraryShowEmptyCategoriesProvider);
+      final tabsFuture = ref.watch(libraryTabsProvider.future);
+      final entriesFuture = ref.watch(allLibraryProvider.future);
+      final tabs = await tabsFuture;
+      final entries = await entriesFuture;
+      final matches = LibraryPolicy.apply(
+        entries,
+        query.copyWith(
+          clearTag: true,
+          uncategorized: false,
+          hiddenTags: hidden,
+          includeHidden: reveal,
+        ),
+      );
+      final counts = <String, int>{};
+      var uncategorized = 0;
+      for (final entry in matches) {
+        final names = {
+          for (final tag in entry.media.tags)
+            if (tag.trim().isNotEmpty) tag.trim(),
+        };
+        if (names.isEmpty) uncategorized++;
+        for (final name in names) {
+          counts[name] = (counts[name] ?? 0) + 1;
+        }
+      }
+      final narrowing =
+          query.search.trim().isNotEmpty || query.filter != LibraryFilter.all;
+      return ShelfTabs(
+        total: matches.length,
+        uncategorized: uncategorized,
+        categories: List.unmodifiable([
+          for (final category in tabs.categories)
+            if (reveal || !category.hidden)
+              if (!narrowing || showEmpty || (counts[category.name] ?? 0) > 0)
+                CategorySummary(
+                  name: category.name,
+                  count: counts[category.name] ?? 0,
+                  hidden: category.hidden,
+                ),
+        ]),
+      );
+    });
 
 /// The category list of the current shelf, for the manager and the pickers.
 final FutureProvider<List<CategorySummary>> libraryCategoriesProvider =
     FutureProvider<List<CategorySummary>>((ref) async {
-  return (await ref.watch(libraryTabsProvider.future)).categories;
-});
+      return (await ref.watch(libraryTabsProvider.future)).categories;
+    });
 
 /// A new event means some write landed; the shelf re-runs its query.
 final StreamProvider<int> libraryChangesProvider = StreamProvider<int>((ref) {
@@ -1898,54 +1966,55 @@ final StreamProvider<int> libraryChangesProvider = StreamProvider<int>((ref) {
 
 final FutureProvider<List<LibraryEntry>> libraryProvider =
     FutureProvider<List<LibraryEntry>>((ref) async {
-  ref.watch(libraryChangesProvider);
-  final repository = ref.watch(repositoryProvider);
-  final hidden = ref.watch(hiddenCategoriesProvider);
-  final reveal = ref.watch(revealHiddenProvider);
-  final query = ref.watch(libraryQueryProvider);
-  return repository.library(
-    hidden.isEmpty || reveal ? query : query.copyWith(hiddenTags: hidden),
-  );
-});
+      ref.watch(libraryChangesProvider);
+      final repository = ref.watch(repositoryProvider);
+      final hidden = ref.watch(hiddenCategoriesProvider);
+      final reveal = ref.watch(revealHiddenProvider);
+      final query = ref.watch(libraryQueryProvider);
+      return repository.library(
+        hidden.isEmpty || reveal ? query : query.copyWith(hiddenTags: hidden),
+      );
+    });
 
 /// Every work in the library, both shelves, with no tab, search or hidden
 /// filter. Downloads, recommendations and the settings count read this, so the
 /// library screen's own view never narrows them.
 final FutureProvider<List<LibraryEntry>> allLibraryProvider =
     FutureProvider<List<LibraryEntry>>((ref) async {
-  ref.watch(libraryChangesProvider);
-  return ref.watch(repositoryProvider).library(const LibraryQuery());
-});
+      ref.watch(libraryChangesProvider);
+      return ref.watch(repositoryProvider).library(const LibraryQuery());
+    });
 
 /// New unread chapters from works already on the shelf, newest first.
 final FutureProvider<List<LibraryUpdate>> libraryUpdatesProvider =
     FutureProvider<List<LibraryUpdate>>((ref) async {
-  ref.watch(libraryChangesProvider);
-  return ref.watch(repositoryProvider).libraryUpdates();
-});
+      ref.watch(libraryChangesProvider);
+      return ref.watch(repositoryProvider).libraryUpdates();
+    });
 
 /// The shelf, filtered by the same text a reader types into search. It is a
 /// separate provider so a search never disturbs the Library tab's own query.
-final librarySearchProvider =
-    FutureProvider.family<List<LibraryEntry>, String>((ref, query) async {
-  final text = query.trim();
-  if (text.isEmpty) return const <LibraryEntry>[];
-  ref.watch(libraryChangesProvider);
-  return ref.watch(repositoryProvider).library(LibraryQuery(search: text));
-});
+final librarySearchProvider = FutureProvider.family<List<LibraryEntry>, String>(
+  (ref, query) async {
+    final text = query.trim();
+    if (text.isEmpty) return const <LibraryEntry>[];
+    ref.watch(libraryChangesProvider);
+    return ref.watch(repositoryProvider).library(LibraryQuery(search: text));
+  },
+);
 
 final FutureProvider<List<ContinueEntry>> continueProvider =
     FutureProvider<List<ContinueEntry>>((ref) async {
-  ref.watch(libraryChangesProvider);
-  return ref.watch(repositoryProvider).continueReading();
-});
+      ref.watch(libraryChangesProvider);
+      return ref.watch(repositoryProvider).continueReading();
+    });
 
 /// The history keeps a longer list than the home rail, which shows six.
 final FutureProvider<List<ContinueEntry>> historyContinueProvider =
     FutureProvider<List<ContinueEntry>>((ref) async {
-  ref.watch(libraryChangesProvider);
-  return ref.watch(repositoryProvider).continueReading(limit: 40);
-});
+      ref.watch(libraryChangesProvider);
+      return ref.watch(repositoryProvider).continueReading(limit: 40);
+    });
 
 /// Where "continue" actually lands, not just where it stopped.
 ///
@@ -1981,8 +2050,8 @@ class ResumeSlot {
       : ContinueEntry(media: media, unit: unit, progress: progress!);
 }
 
-final FutureProvider<List<ResumeSlot>> resumeProvider =
-    FutureProvider<List<ResumeSlot>>((ref) async {
+final FutureProvider<List<ResumeSlot>>
+resumeProvider = FutureProvider<List<ResumeSlot>>((ref) async {
   ref.watch(libraryChangesProvider);
   final repository = ref.watch(repositoryProvider);
   final entries = await repository.continueReading(limit: 24);
@@ -2025,8 +2094,9 @@ final FutureProvider<List<ResumeSlot>> resumeProvider =
 });
 
 /// Everything opened recently, whether or not it is on the shelf.
-final FutureProvider<List<Media>> recentProvider =
-    FutureProvider<List<Media>>((ref) async {
+final FutureProvider<List<Media>> recentProvider = FutureProvider<List<Media>>((
+  ref,
+) async {
   ref.watch(libraryChangesProvider);
   return ref.watch(repositoryProvider).recent(limit: 40);
 });
@@ -2066,20 +2136,19 @@ class HistoryFilter {
     bool? onlyUnread,
     bool? onlyNotOnShelf,
     bool? onlyFavorites,
-  }) =>
-      HistoryFilter(
-        kind: kind ?? this.kind,
-        onlyUnread: onlyUnread ?? this.onlyUnread,
-        onlyNotOnShelf: onlyNotOnShelf ?? this.onlyNotOnShelf,
-        onlyFavorites: onlyFavorites ?? this.onlyFavorites,
-      );
+  }) => HistoryFilter(
+    kind: kind ?? this.kind,
+    onlyUnread: onlyUnread ?? this.onlyUnread,
+    onlyNotOnShelf: onlyNotOnShelf ?? this.onlyNotOnShelf,
+    onlyFavorites: onlyFavorites ?? this.onlyFavorites,
+  );
 
   Map<String, Object> toJson() => {
-        'kind': kind.name,
-        'onlyUnread': onlyUnread,
-        'onlyNotOnShelf': onlyNotOnShelf,
-        'onlyFavorites': onlyFavorites,
-      };
+    'kind': kind.name,
+    'onlyUnread': onlyUnread,
+    'onlyNotOnShelf': onlyNotOnShelf,
+    'onlyFavorites': onlyFavorites,
+  };
 
   factory HistoryFilter.fromJson(Map<String, Object?> json) {
     final kind = HistoryKindFilter.values.firstWhere(
@@ -2143,17 +2212,17 @@ class HistoryFilterController extends Notifier<HistoryFilter> {
 }
 
 final NotifierProvider<HistoryFilterController, HistoryFilter>
-    historyFilterProvider =
+historyFilterProvider =
     NotifierProvider<HistoryFilterController, HistoryFilter>(
-  HistoryFilterController.new,
-);
+      HistoryFilterController.new,
+    );
 
 /// Re-read after every write, including the one the manager makes per page.
 final FutureProvider<List<DownloadTask>> downloadsProvider =
     FutureProvider<List<DownloadTask>>((ref) async {
-  ref.watch(libraryChangesProvider);
-  return ref.watch(repositoryProvider).downloads();
-});
+      ref.watch(libraryChangesProvider);
+      return ref.watch(repositoryProvider).downloads();
+    });
 
 /// The download row for one unit, refreshed as the manager writes each page.
 /// The reader uses it to show whether the current chapter is available offline.
@@ -2178,12 +2247,12 @@ final browseProvider = FutureProvider.family<List<Media>, BrowseKey>((
   final query = key.query.trim();
   final started = DateTime.now();
   try {
-    final result =
-        query.isEmpty ? await source.popular() : await source.search(query);
-    ref.read(sourceHealthProvider.notifier).recordSuccess(
-          source.id,
-          DateTime.now().difference(started),
-        );
+    final result = query.isEmpty
+        ? await source.popular()
+        : await source.search(query);
+    ref
+        .read(sourceHealthProvider.notifier)
+        .recordSuccess(source.id, DateTime.now().difference(started));
     return result;
   } catch (error) {
     ref.read(sourceHealthProvider.notifier).recordFailure(source.id, error);
@@ -2213,8 +2282,8 @@ class DiscoverFeed {
   final bool live;
 }
 
-final FutureProvider<DiscoverFeed> discoverProvider =
-    FutureProvider<DiscoverFeed>((ref) async {
+final FutureProvider<DiscoverFeed>
+discoverProvider = FutureProvider<DiscoverFeed>((ref) async {
   final registry = ref.watch(sourceRegistryProvider);
   final works = <Media>[];
   final latest = <Media>[];
@@ -2225,9 +2294,11 @@ final FutureProvider<DiscoverFeed> discoverProvider =
   // Asking hundreds would hammer a server and turn one slow site into a slow
   // app; the Manga tab is where the complete list lives.
   final sources = registry.all
-      .where((source) =>
-          source.id != DemoSource.sourceId &&
-          !source.id.startsWith('suwayomi:'))
+      .where(
+        (source) =>
+            source.id != DemoSource.sourceId &&
+            !source.id.startsWith('suwayomi:'),
+      )
       .take(4)
       .toList();
 
@@ -2288,11 +2359,7 @@ final FutureProvider<DiscoverFeed> discoverProvider =
 /// would be an invented statistic. When the API is down the screen says so
 /// instead of falling back to a made-up order.
 class Rankings {
-  const Rankings({
-    this.works = const [],
-    this.live = false,
-    this.error,
-  });
+  const Rankings({this.works = const [], this.live = false, this.error});
 
   final List<Media> works;
   final bool live;
@@ -2301,8 +2368,9 @@ class Rankings {
   bool get isEmpty => works.isEmpty;
 }
 
-final FutureProvider<Rankings> rankingsProvider =
-    FutureProvider<Rankings>((ref) async {
+final FutureProvider<Rankings> rankingsProvider = FutureProvider<Rankings>((
+  ref,
+) async {
   final registry = ref.watch(sourceRegistryProvider);
   final source = registry.byId(MangaDexSource.sourceId);
   if (source is! MangaDexSource) {
@@ -2392,49 +2460,49 @@ String _publisherUrl(String repositoryUrl) {
 
 final FutureProvider<Publishers> publishersProvider =
     FutureProvider<Publishers>((ref) async {
-  final directory = await ref.watch(extensionDirectoryProvider.future);
-  final groups = <String, List<ExtensionEntry>>{};
-  for (final entry in directory.entries) {
-    final name = _publisherName(entry.repositoryUrl);
-    groups.putIfAbsent(name, () => <ExtensionEntry>[]).add(entry);
-  }
-  final items = <Publisher>[];
-  var sourceCount = 0;
-  for (final group in groups.entries) {
-    final entries = group.value;
-    final languages = <String>{};
-    final kinds = <String>{};
-    var sources = 0;
-    for (final entry in entries) {
-      sources += entry.sources.isEmpty ? 1 : entry.sources.length;
-      languages.addAll(entry.languages.where((code) => code.isNotEmpty));
-      kinds.add(entry.kind);
-    }
-    sourceCount += sources;
-    final sortedLanguages = languages.toList()..sort();
-    items.add(
-      Publisher(
-        name: group.key,
-        url: _publisherUrl(entries.first.repositoryUrl),
-        extensions: entries.length,
-        sources: sources,
-        languages: List.unmodifiable(sortedLanguages),
-        kinds: Set.unmodifiable(kinds),
-      ),
-    );
-  }
-  items.sort((a, b) {
-    final bySources = b.sources.compareTo(a.sources);
-    return bySources != 0 ? bySources : a.name.compareTo(b.name);
-  });
-  return Publishers(
-    items: List.unmodifiable(items),
-    extensions: directory.entries.length,
-    sources: sourceCount,
-    cached: directory.cached,
-    errors: directory.errors,
-  );
-});
+      final directory = await ref.watch(extensionDirectoryProvider.future);
+      final groups = <String, List<ExtensionEntry>>{};
+      for (final entry in directory.entries) {
+        final name = _publisherName(entry.repositoryUrl);
+        groups.putIfAbsent(name, () => <ExtensionEntry>[]).add(entry);
+      }
+      final items = <Publisher>[];
+      var sourceCount = 0;
+      for (final group in groups.entries) {
+        final entries = group.value;
+        final languages = <String>{};
+        final kinds = <String>{};
+        var sources = 0;
+        for (final entry in entries) {
+          sources += entry.sources.isEmpty ? 1 : entry.sources.length;
+          languages.addAll(entry.languages.where((code) => code.isNotEmpty));
+          kinds.add(entry.kind);
+        }
+        sourceCount += sources;
+        final sortedLanguages = languages.toList()..sort();
+        items.add(
+          Publisher(
+            name: group.key,
+            url: _publisherUrl(entries.first.repositoryUrl),
+            extensions: entries.length,
+            sources: sources,
+            languages: List.unmodifiable(sortedLanguages),
+            kinds: Set.unmodifiable(kinds),
+          ),
+        );
+      }
+      items.sort((a, b) {
+        final bySources = b.sources.compareTo(a.sources);
+        return bySources != 0 ? bySources : a.name.compareTo(b.name);
+      });
+      return Publishers(
+        items: List.unmodifiable(items),
+        extensions: directory.entries.length,
+        sources: sourceCount,
+        cached: directory.cached,
+        errors: directory.errors,
+      );
+    });
 
 /// Shelf-aware picks from a pool of real catalogue entries.
 ///
@@ -2455,50 +2523,44 @@ class Recommendations {
 
 final FutureProvider<Recommendations> recommendationsProvider =
     FutureProvider<Recommendations>((ref) async {
-  final entries = await ref.watch(allLibraryProvider.future);
-  final rankings = await ref.watch(rankingsProvider.future);
-  final feed = await ref.watch(discoverProvider.future);
+      final entries = await ref.watch(allLibraryProvider.future);
+      final rankings = await ref.watch(rankingsProvider.future);
+      final feed = await ref.watch(discoverProvider.future);
 
-  final wanted = <String>{};
-  final owned = <String>{};
-  for (final entry in entries) {
-    owned.add(entry.media.id);
-    for (final genre in entry.media.genres) {
-      final clean = genre.trim().toLowerCase();
-      if (clean.isNotEmpty) wanted.add(clean);
-    }
-  }
+      final wanted = <String>{};
+      final owned = <String>{};
+      for (final entry in entries) {
+        owned.add(entry.media.id);
+        for (final genre in entry.media.genres) {
+          final clean = genre.trim().toLowerCase();
+          if (clean.isNotEmpty) wanted.add(clean);
+        }
+      }
 
-  final pool = <Media>[];
-  final seen = <String>{};
-  for (final media in [
-    ...rankings.works,
-    ...feed.works,
-    ...feed.latest,
-  ]) {
-    if (owned.contains(media.id)) continue;
-    if (seen.add(media.id)) pool.add(media);
-  }
+      final pool = <Media>[];
+      final seen = <String>{};
+      for (final media in [...rankings.works, ...feed.works, ...feed.latest]) {
+        if (owned.contains(media.id)) continue;
+        if (seen.add(media.id)) pool.add(media);
+      }
 
-  if (wanted.isEmpty) {
-    return Recommendations(
-      works: List.unmodifiable(pool.take(12)),
-    );
-  }
+      if (wanted.isEmpty) {
+        return Recommendations(works: List.unmodifiable(pool.take(12)));
+      }
 
-  final matches = pool.where((media) {
-    for (final genre in media.genres) {
-      if (wanted.contains(genre.trim().toLowerCase())) return true;
-    }
-    return false;
-  }).toList();
+      final matches = pool.where((media) {
+        for (final genre in media.genres) {
+          if (wanted.contains(genre.trim().toLowerCase())) return true;
+        }
+        return false;
+      }).toList();
 
-  return Recommendations(
-    works: List.unmodifiable(matches.take(12)),
-    genres: List.unmodifiable(wanted.take(4)),
-    personalised: true,
-  );
-});
+      return Recommendations(
+        works: List.unmodifiable(matches.take(12)),
+        genres: List.unmodifiable(wanted.take(4)),
+        personalised: true,
+      );
+    });
 
 /// A week of local activity, framed as a challenge rather than a store.
 ///
@@ -2527,33 +2589,35 @@ class WeeklyRewards {
   double get progress => (weekPages / goal).clamp(0.0, 1.0);
 
   Set<RewardBadge> get earned => {
-        if (completedUnits > 0) RewardBadge.firstUnit,
-        if (streakDays >= 3) RewardBadge.streak3,
-        if (streakDays >= 7) RewardBadge.streak7,
-        if (lifetimePages >= 100) RewardBadge.pages100,
-        if (lifetimePages >= 300) RewardBadge.pages300,
-        if (lifetimePages >= 1000) RewardBadge.pages1000,
-      };
+    if (completedUnits > 0) RewardBadge.firstUnit,
+    if (streakDays >= 3) RewardBadge.streak3,
+    if (streakDays >= 7) RewardBadge.streak7,
+    if (lifetimePages >= 100) RewardBadge.pages100,
+    if (lifetimePages >= 300) RewardBadge.pages300,
+    if (lifetimePages >= 1000) RewardBadge.pages1000,
+  };
 }
 
 final FutureProvider<WeeklyRewards> weeklyRewardsProvider =
     FutureProvider<WeeklyRewards>((ref) async {
-  final stats = await ref.watch(readingStatsProvider.future);
-  return WeeklyRewards(
-    goal: 300,
-    weekPages: stats.weekPages,
-    streakDays: stats.streakDays,
-    completedUnits: stats.completedUnits,
-    lifetimePages: stats.pages,
-    works: stats.works,
-  );
-});
+      final stats = await ref.watch(readingStatsProvider.future);
+      return WeeklyRewards(
+        goal: 300,
+        weekPages: stats.weekPages,
+        streakDays: stats.streakDays,
+        completedUnits: stats.completedUnits,
+        lifetimePages: stats.pages,
+        works: stats.works,
+      );
+    });
 
 /// One search box over every installed source. Sources answer in parallel, so
 /// a slow pack cannot hold back the catalogue; a failure only removes that
 /// source's rows.
-final searchAllProvider =
-    FutureProvider.family<List<Media>, String>((ref, rawQuery) async {
+final searchAllProvider = FutureProvider.family<List<Media>, String>((
+  ref,
+  rawQuery,
+) async {
   final query = rawQuery.trim();
   if (query.isEmpty) return const <Media>[];
   final registry = ref.watch(sourceRegistryProvider);
@@ -2564,10 +2628,9 @@ final searchAllProvider =
       final page = await source
           .search(query)
           .timeout(const Duration(seconds: 15));
-      ref.read(sourceHealthProvider.notifier).recordSuccess(
-            source.id,
-            DateTime.now().difference(started),
-          );
+      ref
+          .read(sourceHealthProvider.notifier)
+          .recordSuccess(source.id, DateTime.now().difference(started));
       return page;
     } catch (error) {
       ref.read(sourceHealthProvider.notifier).recordFailure(source.id, error);
@@ -2607,77 +2670,83 @@ const String _curatedCacheKey = 'curated_v1';
 const String _curatedStampKey = 'curated_v1_at';
 const Duration _curatedTtl = Duration(hours: 12);
 
-final FutureProvider<List<Media>> curatedProvider =
-    FutureProvider<List<Media>>((ref) async {
-  final registry = ref.watch(sourceRegistryProvider);
-  final client = ref.watch(httpClientProvider);
-  final preferences = ref.watch(preferencesProvider);
+final FutureProvider<List<Media>> curatedProvider = FutureProvider<List<Media>>(
+  (ref) async {
+    final registry = ref.watch(sourceRegistryProvider);
+    final client = ref.watch(httpClientProvider);
+    final preferences = ref.watch(preferencesProvider);
 
-  var raw = '';
-  final cached = preferences?.getString(_curatedCacheKey);
-  final stamp = preferences?.getInt(_curatedStampKey) ?? 0;
-  final fresh = DateTime.now().millisecondsSinceEpoch - stamp <
-      _curatedTtl.inMilliseconds;
-  if (fresh && cached != null) {
-    raw = cached;
-  } else {
-    try {
-      final response = await client.get(
-        Uri.parse(kCuratedRemote),
-        headers: const {'Accept': 'application/json'},
-      ).timeout(const Duration(seconds: 8));
-      if (response.statusCode == 200) {
-        CuratedList.parse(response.body); // Validate before it is cached.
-        raw = response.body;
-        unawaited(preferences?.setString(_curatedCacheKey, raw));
-        unawaited(
-          preferences?.setInt(
-            _curatedStampKey,
-            DateTime.now().millisecondsSinceEpoch,
-          ),
-        );
+    var raw = '';
+    final cached = preferences?.getString(_curatedCacheKey);
+    final stamp = preferences?.getInt(_curatedStampKey) ?? 0;
+    final fresh =
+        DateTime.now().millisecondsSinceEpoch - stamp <
+        _curatedTtl.inMilliseconds;
+    if (fresh && cached != null) {
+      raw = cached;
+    } else {
+      try {
+        final response = await client
+            .get(
+              Uri.parse(kCuratedRemote),
+              headers: const {'Accept': 'application/json'},
+            )
+            .timeout(const Duration(seconds: 8));
+        if (response.statusCode == 200) {
+          CuratedList.parse(response.body); // Validate before it is cached.
+          raw = response.body;
+          unawaited(preferences?.setString(_curatedCacheKey, raw));
+          unawaited(
+            preferences?.setInt(
+              _curatedStampKey,
+              DateTime.now().millisecondsSinceEpoch,
+            ),
+          );
+        }
+      } catch (_) {
+        // Offline, a blocked host or a bad document: the bundled list stands.
       }
-    } catch (_) {
-      // Offline, a blocked host or a bad document: the bundled list stands.
+      if (raw.isEmpty) raw = cached ?? '';
     }
-    if (raw.isEmpty) raw = cached ?? '';
-  }
 
-  if (raw.isEmpty) {
+    if (raw.isEmpty) {
+      try {
+        raw = await rootBundle.loadString(kCuratedAsset);
+      } catch (_) {
+        return const <Media>[];
+      }
+    }
+
+    final CuratedList list;
     try {
-      raw = await rootBundle.loadString(kCuratedAsset);
-    } catch (_) {
+      list = CuratedList.parse(raw);
+    } on CuratedException {
       return const <Media>[];
     }
-  }
 
-  final CuratedList list;
-  try {
-    list = CuratedList.parse(raw);
-  } on CuratedException {
-    return const <Media>[];
-  }
+    final resolved = await Future.wait(
+      list.picks.map((pick) async {
+        if (!registry.all.any((s) => s.id == pick.sourceId)) return null;
+        final source = registry.byId(pick.sourceId);
+        if (source == null) return null;
+        try {
+          return await source.details(
+            Media(
+              ref: SourceRef(pick.sourceId, pick.id),
+              title: pick.id,
+              kind: MediaKind.manga,
+            ),
+          );
+        } catch (_) {
+          // One dead pick must not empty the shelf.
+          return null;
+        }
+      }),
+    );
 
-  final resolved = await Future.wait(list.picks.map((pick) async {
-    if (!registry.all.any((s) => s.id == pick.sourceId)) return null;
-    final source = registry.byId(pick.sourceId);
-    if (source == null) return null;
-    try {
-      return await source.details(
-        Media(
-          ref: SourceRef(pick.sourceId, pick.id),
-          title: pick.id,
-          kind: MediaKind.manga,
-        ),
-      );
-    } catch (_) {
-      // One dead pick must not empty the shelf.
-      return null;
-    }
-  }));
-
-  return List.unmodifiable(resolved.whereType<Media>());
-});
+    return List.unmodifiable(resolved.whereType<Media>());
+  },
+);
 
 typedef SeriesKey = ({String sourceId, String url});
 
@@ -2708,7 +2777,8 @@ final seriesProvider = FutureProvider.family<SeriesData, SeriesKey>((
   // A deep link can arrive before the work was ever listed on this device.
   // Starting from a placeholder lets the source fill it in instead of showing
   // an error page for a work the person can plainly see.
-  var media = stored ??
+  var media =
+      stored ??
       Media(
         ref: SourceRef(key.sourceId, key.url),
         title: key.url,
@@ -2725,13 +2795,12 @@ final seriesProvider = FutureProvider.family<SeriesData, SeriesKey>((
   final started = DateTime.now();
   final List<MediaUnit> units;
   try {
-    units = UnitNavigation.readingOrder(await source.units(media).timeout(
-          const Duration(seconds: 20),
-        ));
-    ref.read(sourceHealthProvider.notifier).recordSuccess(
-          source.id,
-          DateTime.now().difference(started),
-        );
+    units = UnitNavigation.readingOrder(
+      await source.units(media).timeout(const Duration(seconds: 20)),
+    );
+    ref
+        .read(sourceHealthProvider.notifier)
+        .recordSuccess(source.id, DateTime.now().difference(started));
   } catch (error) {
     ref.read(sourceHealthProvider.notifier).recordFailure(source.id, error);
     rethrow;
@@ -2780,35 +2849,33 @@ typedef MigrationSearchKey = ({String sourceId, String query});
 /// screen, and one failure is simply absent from the list.
 final migrationSearchProvider =
     FutureProvider.family<List<Media>, MigrationSearchKey>((ref, key) async {
-  final query = key.query.trim();
-  if (query.isEmpty) return const <Media>[];
-  final registry = ref.watch(sourceRegistryProvider);
-  final all = registry.all;
-  final sources = key.sourceId == '*'
-      ? all.where((source) => source.id != DemoSource.sourceId).toList()
-      : [
-          if (registry.byId(key.sourceId) case final source?) source,
-        ];
-  final pages = await Future.wait(<Future<List<Media>>>[
-    for (final source in sources)
-      source
-          .search(query)
-          .timeout(
-            const Duration(seconds: 14),
-            onTimeout: () => const <Media>[],
-          )
-          .catchError((Object _) => const <Media>[]),
-  ]);
+      final query = key.query.trim();
+      if (query.isEmpty) return const <Media>[];
+      final registry = ref.watch(sourceRegistryProvider);
+      final all = registry.all;
+      final sources = key.sourceId == '*'
+          ? all.where((source) => source.id != DemoSource.sourceId).toList()
+          : [if (registry.byId(key.sourceId) case final source?) source];
+      final pages = await Future.wait(<Future<List<Media>>>[
+        for (final source in sources)
+          source
+              .search(query)
+              .timeout(
+                const Duration(seconds: 14),
+                onTimeout: () => const <Media>[],
+              )
+              .catchError((Object _) => const <Media>[]),
+      ]);
 
-  final merged = <Media>[];
-  final seen = <String>{};
-  for (final page in pages) {
-    for (final media in page) {
-      if (seen.add(media.id)) merged.add(media);
-    }
-  }
-  return List.unmodifiable(merged.take(48));
-});
+      final merged = <Media>[];
+      final seen = <String>{};
+      for (final page in pages) {
+        for (final media in page) {
+          if (seen.add(media.id)) merged.add(media);
+        }
+      }
+      return List.unmodifiable(merged.take(48));
+    });
 
 typedef UnitKey = ({String sourceId, String url, String unitUrl});
 typedef ReaderKey = UnitKey;
@@ -2855,12 +2922,7 @@ Future<ResolvedUnit> _resolveUnit(
     orElse: () => throw StateError('This unit is not in the local catalogue.'),
   );
 
-  return ResolvedUnit(
-    media: media,
-    unit: unit,
-    source: source,
-    units: units,
-  );
+  return ResolvedUnit(media: media, unit: unit, source: source, units: units);
 }
 
 class ReaderData {
@@ -3030,8 +3092,10 @@ final watchProvider = FutureProvider.family<WatchData, WatchKey>((
 /// The series screen gets its data from a provider that also talks to the
 /// source; a plan change or a new list must not trigger a network refresh, so
 /// it watches this tiny query instead.
-final mediaByIdProvider =
-    FutureProvider.family<Media?, String>((ref, id) async {
+final mediaByIdProvider = FutureProvider.family<Media?, String>((
+  ref,
+  id,
+) async {
   ref.watch(libraryChangesProvider);
   return ref.watch(repositoryProvider).mediaById(id);
 });
@@ -3042,24 +3106,24 @@ final mediaByIdProvider =
 /// statistics screen can never disagree with what the library shows.
 final FutureProvider<ReadingStats> readingStatsProvider =
     FutureProvider<ReadingStats>((ref) async {
-  ref.watch(libraryChangesProvider);
-  final repository = ref.watch(repositoryProvider);
-  final entries = await repository.library();
-  final activity = await repository.activity();
-  var units = 0;
-  var completed = 0;
-  for (final entry in entries) {
-    units += entry.totalUnits;
-    completed += entry.completedUnits;
-  }
-  return ReadingStats.from(
-    activity: activity,
-    works: entries.length,
-    units: units,
-    completedUnits: completed,
-    today: DateTime.now(),
-  );
-});
+      ref.watch(libraryChangesProvider);
+      final repository = ref.watch(repositoryProvider);
+      final entries = await repository.library();
+      final activity = await repository.activity();
+      var units = 0;
+      var completed = 0;
+      for (final entry in entries) {
+        units += entry.totalUnits;
+        completed += entry.completedUnits;
+      }
+      return ReadingStats.from(
+        activity: activity,
+        works: entries.length,
+        units: units,
+        completedUnits: completed,
+        today: DateTime.now(),
+      );
+    });
 
 /// Export and restore live here so the screen only deals with text.
 class BackupController {
@@ -3102,8 +3166,10 @@ class BackupController {
     if (reinstallSources && document.sources.isNotEmpty) {
       _ref.read(sourcePacksProvider.notifier).addAll(document.sources);
     }
-    final report =
-        await restoreInto(_ref.read(repositoryProvider), document.snapshot);
+    final report = await restoreInto(
+      _ref.read(repositoryProvider),
+      document.snapshot,
+    );
     // A name goes back onto the shelf whose works carry it. A name no work
     // carries comes back as a manga category, the shelf it was made on first.
     final restoredWorks = await _ref.read(repositoryProvider).allMedia();
@@ -3222,10 +3288,10 @@ class LibraryRefreshController extends Notifier<RefreshProgress> {
 }
 
 final NotifierProvider<LibraryRefreshController, RefreshProgress>
-    libraryRefreshProvider =
+libraryRefreshProvider =
     NotifierProvider<LibraryRefreshController, RefreshProgress>(
-  LibraryRefreshController.new,
-);
+      LibraryRefreshController.new,
+    );
 
 /// Runs the shelf refresh on launch/resume, at most once per chosen interval.
 ///
@@ -3273,19 +3339,15 @@ class LibraryAutoRefreshController extends Notifier<DateTime?> {
 }
 
 final NotifierProvider<LibraryAutoRefreshController, DateTime?>
-    libraryAutoRefreshProvider =
+libraryAutoRefreshProvider =
     NotifierProvider<LibraryAutoRefreshController, DateTime?>(
-  LibraryAutoRefreshController.new,
-);
+      LibraryAutoRefreshController.new,
+    );
 
 /// Where the encrypted copy lives. The passphrase is deliberately absent: it is
 /// typed per upload, kept in a controller, and never written to disk.
 class SyncSettings {
-  const SyncSettings({
-    this.url = '',
-    this.username = '',
-    this.password = '',
-  });
+  const SyncSettings({this.url = '', this.username = '', this.password = ''});
 
   final String url;
   final String username;
@@ -3327,8 +3389,7 @@ class SyncSettingsController extends Notifier<SyncSettings> {
 }
 
 final NotifierProvider<SyncSettingsController, SyncSettings>
-    syncSettingsProvider =
-    NotifierProvider<SyncSettingsController, SyncSettings>(
+syncSettingsProvider = NotifierProvider<SyncSettingsController, SyncSettings>(
   SyncSettingsController.new,
 );
 
@@ -3374,10 +3435,9 @@ class SyncController {
     final sources = document.sources.isEmpty
         ? 0
         : _ref.read(sourcePacksProvider.notifier).addAll(document.sources);
-    await _ref.read(backupControllerProvider).restoreDocument(
-          document,
-          reinstallSources: false,
-        );
+    await _ref
+        .read(backupControllerProvider)
+        .restoreDocument(document, reinstallSources: false);
     return (
       works: document.snapshot.libraryCount,
       units: document.snapshot.units.length,

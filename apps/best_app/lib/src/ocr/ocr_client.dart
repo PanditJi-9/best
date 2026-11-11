@@ -1,6 +1,37 @@
 import 'package:best_domain/best_domain.dart';
 import 'package:flutter/services.dart';
 
+/// One vertical tile produced by the native webtoon decoder.
+class WebtoonSlice {
+  const WebtoonSlice({
+    required this.index,
+    required this.top,
+    required this.width,
+    required this.height,
+    required this.filePath,
+  });
+
+  final int index;
+  final int top;
+  final int width;
+  final int height;
+  final String filePath;
+
+  /// The source aspect ratio, kept from the decoder's original coordinates so
+  /// the tile can reserve its space before the JPEG is decoded.
+  double get aspectRatio => height > 0 ? width / height : 1;
+
+  factory WebtoonSlice.fromMap(Map<String, dynamic> map) {
+    return WebtoonSlice(
+      index: (map['index'] as num?)?.toInt() ?? 0,
+      top: (map['top'] as num?)?.toInt() ?? 0,
+      width: (map['width'] as num?)?.toInt() ?? 0,
+      height: (map['height'] as num?)?.toInt() ?? 0,
+      filePath: map['filePath'] as String? ?? '',
+    );
+  }
+}
+
 /// Dart client for native OCR and translation services.
 class OcrClient {
   OcrClient({LibraryRepository? repository}) : _repository = repository;
@@ -14,7 +45,9 @@ class OcrClient {
 
   Future<String> translateText(String text) async {
     try {
-      final res = await _channel.invokeMethod<String>('translateText', {'text': text});
+      final res = await _channel.invokeMethod<String>('translateText', {
+        'text': text,
+      });
       return res ?? '';
     } catch (_) {
       return '';
@@ -80,8 +113,9 @@ class OcrClient {
     final rawBubblesList =
         (ocrData['bubbles'] as List<Object?>? ?? const <Object?>[]);
 
-    final rawBubbles =
-        rawBubblesList.whereType<Map<Object?, Object?>>().map((Map<Object?, Object?> map) {
+    final rawBubbles = rawBubblesList.whereType<Map<Object?, Object?>>().map((
+      Map<Object?, Object?> map,
+    ) {
       final m = Map<String, dynamic>.from(map);
       return Bubble.fromJson(m);
     }).toList();
@@ -110,10 +144,9 @@ class OcrClient {
   /// Checks if an image is an excessively tall webtoon strip requiring slicing.
   Future<bool> shouldSliceWebtoon(Uint8List bytes) async {
     try {
-      final res = await _channel.invokeMethod<bool>(
-        'shouldSliceWebtoon',
-        {'bytes': bytes},
-      );
+      final res = await _channel.invokeMethod<bool>('shouldSliceWebtoon', {
+        'bytes': bytes,
+      });
       return res ?? false;
     } catch (_) {
       return false;
@@ -121,7 +154,7 @@ class OcrClient {
   }
 
   /// Slices an oversized webtoon strip into 2048px vertical tiles using native BitmapRegionDecoder.
-  Future<List<Map<String, dynamic>>> sliceWebtoon({
+  Future<List<WebtoonSlice>> sliceWebtoon({
     required Uint8List bytes,
     required String pageId,
   }) async {
@@ -130,12 +163,16 @@ class OcrClient {
         'sliceWebtoon',
         {'bytes': bytes, 'pageId': pageId},
       );
-      if (res == null) return const <Map<String, dynamic>>[];
+      if (res == null) return const <WebtoonSlice>[];
       return res
-          .map((Map<Object?, Object?> m) => Map<String, dynamic>.from(m))
+          .map(
+            (Map<Object?, Object?> m) =>
+                WebtoonSlice.fromMap(Map<String, dynamic>.from(m)),
+          )
+          .where((slice) => slice.filePath.isNotEmpty && slice.height > 0)
           .toList();
     } catch (_) {
-      return const <Map<String, dynamic>>[];
+      return const <WebtoonSlice>[];
     }
   }
 }
