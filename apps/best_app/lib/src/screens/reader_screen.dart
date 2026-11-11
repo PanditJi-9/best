@@ -2358,15 +2358,20 @@ class _OcrPageOverlayState extends ConsumerState<_OcrPageOverlay> {
 class _WebtoonSliceImage extends ConsumerStatefulWidget {
   const _WebtoonSliceImage({
     super.key,
-    required this.bytes,
+    this.bytes,
+    this.filePath,
     required this.pageId,
     required this.fallback,
     required this.index,
     required this.total,
     required this.cacheWidth,
-  });
+  }) : assert(bytes != null || filePath != null);
 
-  final Uint8List bytes;
+  /// Network/extension bytes, or a downloaded file. Downloaded webtoons need
+  /// the same protection; reading the file only after its size passes the
+  /// threshold avoids pulling every ordinary page into memory.
+  final Uint8List? bytes;
+  final String? filePath;
   final String pageId;
   final Widget fallback;
   final int index;
@@ -2393,20 +2398,38 @@ class _WebtoonSliceImageState extends ConsumerState<_WebtoonSliceImage> {
   @override
   void didUpdateWidget(_WebtoonSliceImage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.bytes != widget.bytes || oldWidget.pageId != widget.pageId) {
+    if (oldWidget.bytes != widget.bytes ||
+        oldWidget.filePath != widget.filePath ||
+        oldWidget.pageId != widget.pageId) {
       _future = _loadSlices();
     }
   }
 
   Future<List<WebtoonSlice>> _loadSlices() async {
-    if (widget.bytes.length < _sliceThresholdBytes) {
-      return const <WebtoonSlice>[];
+    final Uint8List bytes;
+    final source = widget.bytes;
+    if (source != null) {
+      bytes = source;
+      if (bytes.length < _sliceThresholdBytes) return const <WebtoonSlice>[];
+    } else {
+      final path = widget.filePath;
+      if (path == null) return const <WebtoonSlice>[];
+      try {
+        final file = File(path);
+        if (await file.length() < _sliceThresholdBytes) {
+          return const <WebtoonSlice>[];
+        }
+        bytes = await file.readAsBytes();
+      } catch (_) {
+        return const <WebtoonSlice>[];
+      }
+      if (bytes.length < _sliceThresholdBytes) return const <WebtoonSlice>[];
     }
     final client = ref.read(ocrClientProvider);
-    if (!await client.shouldSliceWebtoon(widget.bytes)) {
+    if (!await client.shouldSliceWebtoon(bytes)) {
       return const <WebtoonSlice>[];
     }
-    return client.sliceWebtoon(bytes: widget.bytes, pageId: widget.pageId);
+    return client.sliceWebtoon(bytes: bytes, pageId: widget.pageId);
   }
 
   void _reload() {
@@ -2415,7 +2438,10 @@ class _WebtoonSliceImageState extends ConsumerState<_WebtoonSliceImage> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.bytes.length < _sliceThresholdBytes) return widget.fallback;
+    final source = widget.bytes;
+    if (source != null && source.length < _sliceThresholdBytes) {
+      return widget.fallback;
+    }
     return FutureBuilder<List<WebtoonSlice>>(
       future: _future,
       builder: (context, snapshot) {
@@ -2773,6 +2799,48 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
     );
   }
 
+  Widget _fileImage(String path, {required int? cacheWidth}) {
+    final image = RepaintBoundary(
+      child: Image.file(
+        File(path),
+        key: ValueKey('file-$path-$_attempt'),
+        width: _imageWidth,
+        fit: _imageFit,
+        cacheWidth: cacheWidth,
+        filterQuality: FilterQuality.medium,
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) =>
+            _pageFrame(
+              context,
+              child,
+              frame,
+              wasSynchronouslyLoaded,
+              reserveHeight: _fitsWidth,
+              index: widget.index,
+              total: widget.total,
+            ),
+        errorBuilder: (BuildContext context, Object error, StackTrace? stack) {
+          _handleImageError();
+          return _PageError(
+            message: '$error',
+            onRetry: _retry,
+            index: widget.index,
+            total: widget.total,
+          );
+        },
+      ),
+    );
+    if (!widget.continuous) return image;
+    return _WebtoonSliceImage(
+      key: ValueKey('file-slices-$path-$_attempt'),
+      filePath: path,
+      pageId: _slicePageId,
+      fallback: image,
+      index: widget.index,
+      total: widget.total,
+      cacheWidth: cacheWidth,
+    );
+  }
+
   Widget _plainByteImage(Uint8List bytes, {required int? cacheWidth}) {
     return RepaintBoundary(
       child: Image.memory(
@@ -2872,36 +2940,7 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
         ),
       ),
       FileResource(:final path) => _pageBody(
-        Center(
-          child: Image.file(
-            File(path),
-            key: ValueKey('file-$path-$_attempt'),
-            width: _imageWidth,
-            fit: _imageFit,
-            cacheWidth: cacheWidth,
-            filterQuality: FilterQuality.medium,
-            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) =>
-                _pageFrame(
-                  context,
-                  child,
-                  frame,
-                  wasSynchronouslyLoaded,
-                  reserveHeight: _fitsWidth,
-                  index: widget.index,
-                  total: widget.total,
-                ),
-            errorBuilder:
-                (BuildContext context, Object error, StackTrace? stack) {
-                  _handleImageError();
-                  return _PageError(
-                    message: '$error',
-                    onRetry: retry,
-                    index: widget.index,
-                    total: widget.total,
-                  );
-                },
-          ),
-        ),
+        Center(child: _fileImage(path, cacheWidth: cacheWidth)),
       ),
       SyntheticPage(index: final pageIndex, label: final label) =>
         widget.continuous
