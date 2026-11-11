@@ -650,7 +650,9 @@ void main() {
     );
     int? width() => tester
         .widgetList<Image>(find.byType(Image))
-        .map((image) => image.cacheWidth)
+        .map((image) => image.image)
+        .whereType<ResizeImage>()
+        .map((image) => image.width)
         .firstWhere((width) => width != null);
 
     final before = width();
