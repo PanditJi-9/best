@@ -156,7 +156,8 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   bool _scrubbing = false;
   bool _freezeVerticalPositions = false;
   bool _zoomGestureEnded = false;
-  bool _zoomCorrectionScheduled = false;
+  bool _zoomCorrectionRunning = false;
+  bool _zoomCorrectionQueued = false;
   bool _manualScrollScheduled = false;
   bool _manualZoomScroll = false;
   double _pendingManualScroll = 0;
@@ -260,6 +261,9 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
       return;
     }
     if (_readerSettings.readerMode != ReaderMode.vertical) return;
+    // A zoom that begins after the previous gesture ended is a new gesture, so
+    // the point under its fingers is measured again rather than carried over.
+    if (_zoomGestureEnded) _zoomAnchor = null;
     _freezeVerticalPositions = true;
     _zoomGestureEnded = false;
     final height = _viewportKey.currentState?.viewportSize.height ?? 0;
@@ -290,56 +294,64 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 
   void _scheduleZoomCorrection() {
-    if (_zoomCorrectionScheduled || _zoomAnchor == null) return;
-    _zoomCorrectionScheduled = true;
-    final revision = _zoomRevision;
-    // Positioned-list item positions are published after layout. Wait for that
-    // publication, not an old height, before restoring the point under fingers.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (_zoomAnchor == null) return;
+    _zoomCorrectionQueued = true;
+    if (_zoomCorrectionRunning) return;
+    unawaited(_runZoomCorrections());
+  }
+
+  /// Corrections never overlap. Each one measures the list only after the
+  /// frames that applied the previous correction have been laid out and
+  /// published. Measuring earlier corrects against a stale layout, so the list
+  /// overshoots and swings back and forth on every frame.
+  Future<void> _runZoomCorrections() async {
+    _zoomCorrectionRunning = true;
+    try {
+      while (_zoomCorrectionQueued && mounted) {
+        _zoomCorrectionQueued = false;
+        await WidgetsBinding.instance.endOfFrame;
+        await WidgetsBinding.instance.endOfFrame;
         if (!mounted) return;
-        _zoomCorrectionScheduled = false;
-        if (revision != _zoomRevision) {
-          _scheduleZoomCorrection();
-          return;
-        }
-        unawaited(_correctZoomAnchor(revision));
-      });
-      WidgetsBinding.instance.scheduleFrame();
-    });
+        await _correctZoomAnchor(_zoomRevision);
+      }
+    } finally {
+      _zoomCorrectionRunning = false;
+    }
   }
 
   Future<void> _correctZoomAnchor(int revision) async {
     final anchor = _zoomAnchor;
     final viewport = _viewportKey.currentState;
-    if (anchor == null || viewport == null || !_verticalController.isAttached) {
-      return;
-    }
-    final positions = _verticalPositions.itemPositions.value.where(
-      (position) => position.index == anchor.index,
-    );
-    if (positions.isEmpty) return;
-    final item = positions.first;
-    final current =
-        item.itemLeadingEdge +
-        anchor.fraction * (item.itemTrailingEdge - item.itemLeadingEdge);
-    final correction =
-        (current - anchor.focal) *
-        viewport.viewportSize.height /
-        viewport.scale;
-    try {
-      if (correction.abs() > 0.5) {
-        await _verticalOffsetController.animateScroll(
-          offset: correction,
-          duration: const Duration(milliseconds: 1),
-        );
+    if (anchor != null && viewport != null && _verticalController.isAttached) {
+      final positions = _verticalPositions.itemPositions.value.where(
+        (position) => position.index == anchor.index,
+      );
+      if (positions.isNotEmpty) {
+        final item = positions.first;
+        final current =
+            item.itemLeadingEdge +
+            anchor.fraction * (item.itemTrailingEdge - item.itemLeadingEdge);
+        final correction =
+            (current - anchor.focal) *
+            viewport.viewportSize.height /
+            viewport.scale;
+        if (correction.abs() > 0.5) {
+          try {
+            await _verticalOffsetController.animateScroll(
+              offset: correction,
+              duration: const Duration(milliseconds: 1),
+            );
+          } catch (_) {
+            // A chapter or layout may have been replaced while its positions arrived.
+          }
+        }
       }
-    } catch (_) {
-      // A chapter or layout may have been replaced while its positions arrived.
     }
     if (!mounted || revision != _zoomRevision) return;
-    if (_zoomGestureEnded) _zoomAnchor = null;
+    // Once the gesture is over and no correction is still queued, the anchor
+    // has done its job on every path, including a missing item. Drop it so a
+    // stale anchor cannot pull the list back to an old item at the next zoom.
+    if (_zoomGestureEnded && !_zoomCorrectionQueued) _zoomAnchor = null;
   }
 
   void _onViewportZoomEnd() {
