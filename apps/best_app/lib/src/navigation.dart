@@ -37,11 +37,11 @@ abstract final class Routes {
   static String browseQuery(String query) =>
       '$browse?${Uri(queryParameters: {'q': query}).query}';
 
+  static String metaSearchFor(String query) =>
+      '$metaSearch?${Uri(queryParameters: {'q': query}).query}';
+
   static String metaWork(MetaSource source, String id) =>
-      '/meta/work?${Uri(queryParameters: {
-            'source': source.name,
-            'id': id
-          }).query}';
+      '/meta/work?${Uri(queryParameters: {'source': source.name, 'id': id}).query}';
 
   static String metaList(MetaListKind kind) =>
       '/meta/list?${Uri(queryParameters: {'kind': kind.name}).query}';
@@ -97,21 +97,25 @@ abstract final class Routes {
 
   static String migrateOf(Media media) => migrate(media.id);
 
-  static String readerOf(Media media, MediaUnit unit,
-          {bool fromStart = false}) =>
-      reader(
-        sourceId: media.ref.sourceId,
-        url: media.ref.url,
-        unitUrl: unit.url,
-        fromStart: fromStart,
-      );
+  static String readerOf(
+    Media media,
+    MediaUnit unit, {
+    bool fromStart = false,
+  }) => reader(
+    sourceId: media.ref.sourceId,
+    url: media.ref.url,
+    unitUrl: unit.url,
+    fromStart: fromStart,
+  );
 
-  static String watchOf(Media media, MediaUnit unit,
-          {bool fromStart = false}) =>
-      watch(
-        sourceId: media.ref.sourceId,
-        url: media.ref.url,
-        unitUrl: unit.url,
-        fromStart: fromStart,
-      );
+  static String watchOf(
+    Media media,
+    MediaUnit unit, {
+    bool fromStart = false,
+  }) => watch(
+    sourceId: media.ref.sourceId,
+    url: media.ref.url,
+    unitUrl: unit.url,
+    fromStart: fromStart,
+  );
 }

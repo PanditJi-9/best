@@ -47,6 +47,31 @@ class DatabaseScreen extends ConsumerWidget {
       ...?value?.failures,
       if (manhwaAsync.hasError) MetaSource.hwa: manhwaAsync.error.toString(),
     };
+    // Genres come from the works already on this page, so every chip opens a
+    // real catalogue search instead of a hard-coded, empty directory.
+    final genreCounts = <String, int>{};
+    for (final work in [
+      ...?value?.trending,
+      ...?value?.topAniList,
+      ...?value?.airing,
+      ...?value?.topMal,
+      ...manhwa,
+    ]) {
+      for (final genre in work.genres) {
+        final key = genre.trim();
+        if (key.isEmpty) continue;
+        genreCounts[key] = (genreCounts[key] ?? 0) + 1;
+      }
+    }
+    final genres = genreCounts.entries.toList()
+      ..sort((a, b) {
+        final byCount = b.value.compareTo(a.value);
+        return byCount != 0 ? byCount : a.key.compareTo(b.key);
+      });
+    final featuredGenres = genres
+        .take(10)
+        .map((entry) => entry.key)
+        .toList(growable: false);
 
     return SafeArea(
       bottom: false,
@@ -86,10 +111,10 @@ class DatabaseScreen extends ConsumerWidget {
                     onSource: value.hero!.siteUrl == null
                         ? null
                         : () => _openExternal(
-                              context,
-                              l10n,
-                              value.hero!.siteUrl!,
-                            ),
+                            context,
+                            l10n,
+                            value.hero!.siteUrl!,
+                          ),
                   ),
                 ),
               SliverToBoxAdapter(
@@ -99,6 +124,14 @@ class DatabaseScreen extends ConsumerWidget {
                   onRetry: () => ref.read(metaRefreshProvider.notifier).bump(),
                 ),
               ),
+              if (featuredGenres.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _GenreExplorer(
+                    genres: featuredGenres,
+                    onOpen: (genre) =>
+                        context.push(Routes.metaSearchFor(genre)),
+                  ),
+                ),
               if (value.trending.isNotEmpty) ...[
                 SliverToBoxAdapter(
                   child: MetaSectionHeader(
@@ -113,7 +146,26 @@ class DatabaseScreen extends ConsumerWidget {
                 ),
                 SliverToBoxAdapter(
                   child: _PosterRail(
-                    works: value.trending.take(10).toList(growable: false),
+                    works: value.trending.take(12).toList(growable: false),
+                    showRank: true,
+                    onOpen: (work) => _openWork(context, work),
+                  ),
+                ),
+              ],
+              if (value.topAniList.isNotEmpty) ...[
+                SliverToBoxAdapter(
+                  child: MetaSectionHeader(
+                    source: MetaSource.anilist,
+                    title: l10n.metaTopAnime,
+                    subtitle: l10n.metaTopAnimeSub,
+                    actionLabel: l10n.seeAll,
+                    onAction: () =>
+                        context.push(Routes.metaList(MetaListKind.anilistTop)),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: _PosterRail(
+                    works: value.topAniList.take(12).toList(growable: false),
                     showRank: true,
                     onOpen: (work) => _openWork(context, work),
                   ),
@@ -133,7 +185,7 @@ class DatabaseScreen extends ConsumerWidget {
                 ),
                 SliverToBoxAdapter(
                   child: _PosterRail(
-                    works: value.airing.take(10).toList(growable: false),
+                    works: value.airing.take(12).toList(growable: false),
                     onOpen: (work) => _openWork(context, work),
                   ),
                 ),
@@ -145,14 +197,13 @@ class DatabaseScreen extends ConsumerWidget {
                     title: l10n.metaMalTop,
                     subtitle: l10n.metaMalTopSub,
                     actionLabel: l10n.metaFullRanking,
-                    onAction: () => context.push(
-                      Routes.metaList(MetaListKind.malTop),
-                    ),
+                    onAction: () =>
+                        context.push(Routes.metaList(MetaListKind.malTop)),
                   ),
                 ),
                 SliverToBoxAdapter(
                   child: _MalRanking(
-                    works: value.topMal.take(5).toList(growable: false),
+                    works: value.topMal.take(10).toList(growable: false),
                     onOpen: (work) => _openWork(context, work),
                   ),
                 ),
@@ -164,14 +215,13 @@ class DatabaseScreen extends ConsumerWidget {
                     title: l10n.metaHwaTop,
                     subtitle: l10n.metaHwaTopSub,
                     actionLabel: l10n.seeAll,
-                    onAction: () => context.push(
-                      Routes.metaList(MetaListKind.hwaTop),
-                    ),
+                    onAction: () =>
+                        context.push(Routes.metaList(MetaListKind.hwaTop)),
                   ),
                 ),
                 SliverToBoxAdapter(
                   child: _PosterRail(
-                    works: manhwa.take(10).toList(growable: false),
+                    works: manhwa.take(12).toList(growable: false),
                     statusBadges: true,
                     onOpen: (work) => _openWork(context, work),
                   ),
@@ -415,6 +465,96 @@ class _SourceStrip extends StatelessWidget {
   }
 }
 
+/// A compact bridge from the front page to a real catalogue search. The
+/// genres are counted from the loaded works, so the strip never offers a shelf
+/// that has nothing behind it.
+class _GenreExplorer extends StatelessWidget {
+  const _GenreExplorer({required this.genres, required this.onOpen});
+
+  final List<String> genres;
+  final ValueChanged<String> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.local_offer_outlined,
+                size: 17,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  l10n.metaExploreGenres,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: BestType.tracking(context, -0.2),
+                  ),
+                ),
+              ),
+              Text(
+                '${genres.length}',
+                textDirection: TextDirection.ltr,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 10.5,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            l10n.metaExploreGenresBody,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              for (final genre in genres)
+                ActionChip(
+                  onPressed: () => onOpen(genre),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: theme.colorScheme.surfaceContainerLow,
+                  side: BorderSide(color: theme.colorScheme.outlineVariant),
+                  avatar: Icon(
+                    Icons.north_east_rounded,
+                    size: 12,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  label: Text(
+                    metaGenreLabel(genre, rtl),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Hero extends StatelessWidget {
   const _Hero({
     required this.work,
@@ -565,10 +705,12 @@ class _Hero extends StatelessWidget {
                     Text(
                       work.genres
                           .take(3)
-                          .map((genre) => metaGenreLabel(
-                                genre,
-                                Directionality.of(context) == TextDirection.rtl,
-                              ))
+                          .map(
+                            (genre) => metaGenreLabel(
+                              genre,
+                              Directionality.of(context) == TextDirection.rtl,
+                            ),
+                          )
                           .join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -590,8 +732,9 @@ class _Hero extends StatelessWidget {
                             minimumSize: const Size(0, 36),
                             padding: const EdgeInsets.symmetric(horizontal: 13),
                             shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(BestRadius.sm),
+                              borderRadius: BorderRadius.circular(
+                                BestRadius.sm,
+                              ),
                             ),
                           ),
                           icon: const Icon(
@@ -613,8 +756,9 @@ class _Hero extends StatelessWidget {
                               color: Colors.white.withValues(alpha: 0.28),
                             ),
                             shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(BestRadius.sm),
+                              borderRadius: BorderRadius.circular(
+                                BestRadius.sm,
+                              ),
                             ),
                           ),
                           icon: const Icon(Icons.search_rounded, size: 15),
@@ -730,8 +874,8 @@ class _PosterRail extends StatelessWidget {
             badge: showRank
                 ? '#${index + 1}'
                 : statusBadges && status.isNotEmpty
-                    ? status
-                    : null,
+                ? status
+                : null,
             onTap: () => onOpen(work),
           );
         },
@@ -820,8 +964,9 @@ class _Attribution extends StatelessWidget {
             Text(
               l10n.metaAttributionNote,
               style: theme.textTheme.labelSmall?.copyWith(
-                color:
-                    theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.72),
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.72,
+                ),
                 fontSize: 10,
                 height: 1.45,
                 fontWeight: FontWeight.w400,
@@ -934,8 +1079,8 @@ Future<void> _openExternal(
   if (uri == null) return;
   final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
   if (!opened && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(l10n.metaOpenFailed)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(l10n.metaOpenFailed)));
   }
 }

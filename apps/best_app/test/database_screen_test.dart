@@ -95,6 +95,7 @@ void main() {
       const MetaHome(
         trending: [_frieren],
         airing: [_frieren],
+        topAniList: [_frieren],
         topMal: [_frieren],
         topManhwa: [_solo],
         news: [_news],
@@ -108,10 +109,15 @@ void main() {
     expect(find.text('Frieren: Beyond Journey’s End'), findsWidgets);
     expect(find.text('9.2'), findsWidgets);
 
+    await _reveal(tester, 'Explore by genre');
+    expect(find.text('Fantasy'), findsWidgets);
+
     // The hero badge also says "Trending now", so scroll to the rail's
     // subtitle to land on the section itself.
     await _reveal(tester, 'By AniList');
     expect(find.text('Trending now'), findsWidgets);
+    await _reveal(tester, 'Top anime');
+    expect(find.text('Top anime'), findsOneWidget);
     await _reveal(tester, 'Top on MyAnimeList');
     expect(find.text('Full ranking'), findsOneWidget);
 

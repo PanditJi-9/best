@@ -8,25 +8,25 @@ enum MetaSource { anilist, myAnimeList, hwa, animeCorner }
 
 extension MetaSourceInfo on MetaSource {
   String get label => switch (this) {
-        MetaSource.anilist => 'AniList',
-        MetaSource.myAnimeList => 'MyAnimeList',
-        MetaSource.hwa => 'hwa.so',
-        MetaSource.animeCorner => 'Anime Corner',
-      };
+    MetaSource.anilist => 'AniList',
+    MetaSource.myAnimeList => 'MyAnimeList',
+    MetaSource.hwa => 'hwa.so',
+    MetaSource.animeCorner => 'Anime Corner',
+  };
 
   String get shortLabel => switch (this) {
-        MetaSource.anilist => 'AniList',
-        MetaSource.myAnimeList => 'MAL',
-        MetaSource.hwa => 'hwa.so',
-        MetaSource.animeCorner => 'Anime Corner',
-      };
+    MetaSource.anilist => 'AniList',
+    MetaSource.myAnimeList => 'MAL',
+    MetaSource.hwa => 'hwa.so',
+    MetaSource.animeCorner => 'Anime Corner',
+  };
 
   String get homeUrl => switch (this) {
-        MetaSource.anilist => 'https://anilist.co',
-        MetaSource.myAnimeList => 'https://myanimelist.net',
-        MetaSource.hwa => 'https://hwa.so',
-        MetaSource.animeCorner => 'https://animecorner.me',
-      };
+    MetaSource.anilist => 'https://anilist.co',
+    MetaSource.myAnimeList => 'https://myanimelist.net',
+    MetaSource.hwa => 'https://hwa.so',
+    MetaSource.animeCorner => 'https://animecorner.me',
+  };
 }
 
 enum MetaKind { anime, manga, manhwa, manhua, unknown }
@@ -190,6 +190,7 @@ class MetaHome {
   const MetaHome({
     this.trending = const [],
     this.airing = const [],
+    this.topAniList = const [],
     this.topMal = const [],
     this.topManhwa = const [],
     this.news = const [],
@@ -198,6 +199,9 @@ class MetaHome {
 
   final List<MetaWork> trending;
   final List<MetaWork> airing;
+
+  /// Highest community scores from AniList, sorted by that score.
+  final List<MetaWork> topAniList;
   final List<MetaWork> topMal;
 
   /// A fallback shelf for tests and previews. The live shelf is loaded by
@@ -210,6 +214,7 @@ class MetaHome {
   bool get isEmpty =>
       trending.isEmpty &&
       airing.isEmpty &&
+      topAniList.isEmpty &&
       topMal.isEmpty &&
       topManhwa.isEmpty &&
       news.isEmpty;
@@ -217,6 +222,7 @@ class MetaHome {
   MetaWork? get hero {
     if (trending.isNotEmpty) return trending.first;
     if (airing.isNotEmpty) return airing.first;
+    if (topAniList.isNotEmpty) return topAniList.first;
     if (topMal.isNotEmpty) return topMal.first;
     if (topManhwa.isNotEmpty) return topManhwa.first;
     return null;
@@ -246,11 +252,10 @@ enum MetaListKind { anilistTrending, anilistTop, anilistAiring, malTop, hwaTop }
 
 extension MetaListKindInfo on MetaListKind {
   MetaSource get source => switch (this) {
-        MetaListKind.anilistTrending ||
-        MetaListKind.anilistTop ||
-        MetaListKind.anilistAiring =>
-          MetaSource.anilist,
-        MetaListKind.malTop => MetaSource.myAnimeList,
-        MetaListKind.hwaTop => MetaSource.hwa,
-      };
+    MetaListKind.anilistTrending ||
+    MetaListKind.anilistTop ||
+    MetaListKind.anilistAiring => MetaSource.anilist,
+    MetaListKind.malTop => MetaSource.myAnimeList,
+    MetaListKind.hwaTop => MetaSource.hwa,
+  };
 }

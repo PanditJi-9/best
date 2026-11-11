@@ -36,207 +36,202 @@ import 'screens/watch_screen.dart';
 /// the navigation stack; a new app instance (a test, a second window) starts
 /// at the shelf instead of inheriting another instance's location.
 GoRouter buildRouter() => GoRouter(
-      initialLocation: Routes.home,
-      routes: [
-        StatefulShellRoute.indexedStack(
-          builder: (context, state, navigationShell) =>
-              ShellScreen(navigationShell: navigationShell),
-          branches: [
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                  path: Routes.home,
-                  builder: (context, state) => const HomeScreen(),
-                ),
-              ],
-            ),
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                  path: Routes.library,
-                  builder: (context, state) => const LibraryScreen(),
-                ),
-              ],
-            ),
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                  path: Routes.updates,
-                  builder: (context, state) => const LibraryUpdatesScreen(),
-                ),
-              ],
-            ),
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                  path: Routes.downloads,
-                  builder: (context, state) => const DownloadsScreen(),
-                ),
-              ],
-            ),
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                  path: Routes.database,
-                  builder: (context, state) => const DatabaseScreen(),
-                ),
-              ],
-            ),
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                  path: Routes.history,
-                  builder: (context, state) => const HistoryScreen(),
-                ),
-              ],
+  initialLocation: Routes.home,
+  routes: [
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) =>
+          ShellScreen(navigationShell: navigationShell),
+      branches: [
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: Routes.home,
+              builder: (context, state) => const HomeScreen(),
             ),
           ],
         ),
-        GoRoute(
-          path: Routes.manga,
-          builder: (context, state) => const MangaScreen(),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: Routes.library,
+              builder: (context, state) => const LibraryScreen(),
+            ),
+          ],
         ),
-        GoRoute(
-          path: Routes.metaSearch,
-          builder: (context, state) => const MetaSearchScreen(),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: Routes.updates,
+              builder: (context, state) => const LibraryUpdatesScreen(),
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/meta/work',
-          builder: (context, state) {
-            final query = state.uri.queryParameters;
-            MetaSource? source;
-            for (final value in MetaSource.values) {
-              if (value.name == query['source']) {
-                source = value;
-                break;
-              }
-            }
-            if (source == null || (query['id'] ?? '').isEmpty) {
-              return const MetaSearchScreen();
-            }
-            return MetaDetailScreen(source: source, id: query['id']!);
-          },
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: Routes.downloads,
+              builder: (context, state) => const DownloadsScreen(),
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/meta/list',
-          builder: (context, state) {
-            final query = state.uri.queryParameters;
-            MetaListKind? kind;
-            for (final value in MetaListKind.values) {
-              if (value.name == query['kind']) {
-                kind = value;
-                break;
-              }
-            }
-            return MetaListScreen(kind: kind ?? MetaListKind.anilistTrending);
-          },
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: Routes.database,
+              builder: (context, state) => const DatabaseScreen(),
+            ),
+          ],
         ),
-        GoRoute(
-          path: Routes.browse,
-          builder: (context, state) {
-            final query = state.uri.queryParameters;
-            return BrowseScreen(
-              initialSourceId: query['source'],
-              initialQuery: query['q'] ?? '',
-            );
-          },
-        ),
-        GoRoute(
-          path: Routes.about,
-          builder: (context, state) => const AboutScreen(),
-        ),
-        GoRoute(
-          path: Routes.topRated,
-          builder: (context, state) => const TopRatedScreen(),
-        ),
-        GoRoute(
-          path: Routes.news,
-          builder: (context, state) => const NewsScreen(),
-        ),
-        GoRoute(
-          path: Routes.contributors,
-          builder: (context, state) => const ContributorsScreen(),
-        ),
-        GoRoute(
-          path: Routes.sources,
-          builder: (context, state) => const SourceDirectoryScreen(),
-        ),
-        GoRoute(
-          path: Routes.manageSources,
-          builder: (context, state) => const ManageSourcesScreen(),
-        ),
-        GoRoute(
-          path: Routes.downloadsHistory,
-          builder: (context, state) => const DownloadHistoryScreen(),
-        ),
-        GoRoute(
-          path: Routes.settings,
-          builder: (context, state) => const SettingsScreen(),
-        ),
-        GoRoute(
-          path: '/series',
-          builder: (context, state) {
-            final query = state.uri.queryParameters;
-            return SeriesScreen(
-              sourceId: query['source'] ?? '',
-              url: query['url'] ?? '',
-            );
-          },
-        ),
-        GoRoute(
-          path: '/migrate',
-          builder: (context, state) {
-            final query = state.uri.queryParameters;
-            return MigrateScreen(mediaId: query['id'] ?? '');
-          },
-        ),
-        GoRoute(
-          path: '/read',
-          builder: (context, state) {
-            final query = state.uri.queryParameters;
-            return ReaderScreen(
-              sourceId: query['source'] ?? '',
-              url: query['url'] ?? '',
-              unitUrl: query['unit'] ?? '',
-              fromStart: query['start'] == '1',
-              startAtEnd: query['end'] == '1',
-            );
-          },
-        ),
-        GoRoute(
-          path: Routes.stats,
-          builder: (context, state) => const StatsScreen(),
-        ),
-        GoRoute(
-          path: Routes.backup,
-          builder: (context, state) => const BackupScreen(),
-        ),
-        GoRoute(
-          path: Routes.sync,
-          builder: (context, state) => const SyncScreen(),
-        ),
-        GoRoute(
-          path: '/watch',
-          builder: (context, state) {
-            final query = state.uri.queryParameters;
-            return WatchScreen(
-              sourceId: query['source'] ?? '',
-              url: query['url'] ?? '',
-              unitUrl: query['unit'] ?? '',
-              fromStart: query['start'] == '1',
-            );
-          },
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: Routes.history,
+              builder: (context, state) => const HistoryScreen(),
+            ),
+          ],
         ),
       ],
-      errorBuilder: (context, state) => Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Text(
-              state.error?.toString() ?? 'Not found',
-              textAlign: TextAlign.center,
-            ),
-          ),
+    ),
+    GoRoute(
+      path: Routes.manga,
+      builder: (context, state) => const MangaScreen(),
+    ),
+    GoRoute(
+      path: Routes.metaSearch,
+      builder: (context, state) =>
+          MetaSearchScreen(initialQuery: state.uri.queryParameters['q']),
+    ),
+    GoRoute(
+      path: '/meta/work',
+      builder: (context, state) {
+        final query = state.uri.queryParameters;
+        MetaSource? source;
+        for (final value in MetaSource.values) {
+          if (value.name == query['source']) {
+            source = value;
+            break;
+          }
+        }
+        if (source == null || (query['id'] ?? '').isEmpty) {
+          return const MetaSearchScreen();
+        }
+        return MetaDetailScreen(source: source, id: query['id']!);
+      },
+    ),
+    GoRoute(
+      path: '/meta/list',
+      builder: (context, state) {
+        final query = state.uri.queryParameters;
+        MetaListKind? kind;
+        for (final value in MetaListKind.values) {
+          if (value.name == query['kind']) {
+            kind = value;
+            break;
+          }
+        }
+        return MetaListScreen(kind: kind ?? MetaListKind.anilistTrending);
+      },
+    ),
+    GoRoute(
+      path: Routes.browse,
+      builder: (context, state) {
+        final query = state.uri.queryParameters;
+        return BrowseScreen(
+          initialSourceId: query['source'],
+          initialQuery: query['q'] ?? '',
+        );
+      },
+    ),
+    GoRoute(
+      path: Routes.about,
+      builder: (context, state) => const AboutScreen(),
+    ),
+    GoRoute(
+      path: Routes.topRated,
+      builder: (context, state) => const TopRatedScreen(),
+    ),
+    GoRoute(path: Routes.news, builder: (context, state) => const NewsScreen()),
+    GoRoute(
+      path: Routes.contributors,
+      builder: (context, state) => const ContributorsScreen(),
+    ),
+    GoRoute(
+      path: Routes.sources,
+      builder: (context, state) => const SourceDirectoryScreen(),
+    ),
+    GoRoute(
+      path: Routes.manageSources,
+      builder: (context, state) => const ManageSourcesScreen(),
+    ),
+    GoRoute(
+      path: Routes.downloadsHistory,
+      builder: (context, state) => const DownloadHistoryScreen(),
+    ),
+    GoRoute(
+      path: Routes.settings,
+      builder: (context, state) => const SettingsScreen(),
+    ),
+    GoRoute(
+      path: '/series',
+      builder: (context, state) {
+        final query = state.uri.queryParameters;
+        return SeriesScreen(
+          sourceId: query['source'] ?? '',
+          url: query['url'] ?? '',
+        );
+      },
+    ),
+    GoRoute(
+      path: '/migrate',
+      builder: (context, state) {
+        final query = state.uri.queryParameters;
+        return MigrateScreen(mediaId: query['id'] ?? '');
+      },
+    ),
+    GoRoute(
+      path: '/read',
+      builder: (context, state) {
+        final query = state.uri.queryParameters;
+        return ReaderScreen(
+          sourceId: query['source'] ?? '',
+          url: query['url'] ?? '',
+          unitUrl: query['unit'] ?? '',
+          fromStart: query['start'] == '1',
+          startAtEnd: query['end'] == '1',
+        );
+      },
+    ),
+    GoRoute(
+      path: Routes.stats,
+      builder: (context, state) => const StatsScreen(),
+    ),
+    GoRoute(
+      path: Routes.backup,
+      builder: (context, state) => const BackupScreen(),
+    ),
+    GoRoute(path: Routes.sync, builder: (context, state) => const SyncScreen()),
+    GoRoute(
+      path: '/watch',
+      builder: (context, state) {
+        final query = state.uri.queryParameters;
+        return WatchScreen(
+          sourceId: query['source'] ?? '',
+          url: query['url'] ?? '',
+          unitUrl: query['unit'] ?? '',
+          fromStart: query['start'] == '1',
+        );
+      },
+    ),
+  ],
+  errorBuilder: (context, state) => Scaffold(
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          state.error?.toString() ?? 'Not found',
+          textAlign: TextAlign.center,
         ),
       ),
-    );
+    ),
+  ),
+);

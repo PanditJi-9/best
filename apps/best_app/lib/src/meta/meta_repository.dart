@@ -92,11 +92,7 @@ class MetaRepository {
     );
   }
 
-  Future<MetaWork> detail(
-    MetaSource source,
-    String id, {
-    int generation = 0,
-  }) {
+  Future<MetaWork> detail(MetaSource source, String id, {int generation = 0}) {
     return _cached<MetaWork>(
       'detail:${source.name}:$id',
       const Duration(minutes: 30),
@@ -105,8 +101,8 @@ class MetaRepository {
         MetaSource.myAnimeList => _malDetail(int.tryParse(id)),
         MetaSource.hwa => _hwaDetail(id),
         MetaSource.animeCorner => throw const MetaException(
-            'Anime Corner publishes articles, not titles.',
-          ),
+          'Anime Corner publishes articles, not titles.',
+        ),
       },
       generation: generation,
     );
@@ -115,9 +111,7 @@ class MetaRepository {
   Future<MetaSearchResults> search(String rawQuery, {int generation = 0}) {
     final query = rawQuery.trim();
     if (query.length < 2) {
-      return Future<MetaSearchResults>.value(
-        MetaSearchResults(query: query),
-      );
+      return Future<MetaSearchResults>.value(MetaSearchResults(query: query));
     }
     return _cached<MetaSearchResults>(
       'search:${query.toLowerCase()}',
@@ -160,13 +154,19 @@ class MetaRepository {
       }
     }
 
-    Future<({List<MetaWork> trending, List<MetaWork> airing})>
-        guardAniList() async {
+    Future<
+      ({List<MetaWork> trending, List<MetaWork> airing, List<MetaWork> top})
+    >
+    guardAniList() async {
       try {
         return await _anilistHome();
       } catch (error) {
         failures[MetaSource.anilist] = _message(error);
-        return (trending: const <MetaWork>[], airing: const <MetaWork>[]);
+        return (
+          trending: const <MetaWork>[],
+          airing: const <MetaWork>[],
+          top: const <MetaWork>[],
+        );
       }
     }
 
@@ -189,18 +189,24 @@ class MetaRepository {
     ]);
 
     final ani =
-        results[0] as ({List<MetaWork> trending, List<MetaWork> airing});
+        results[0]
+            as ({
+              List<MetaWork> trending,
+              List<MetaWork> airing,
+              List<MetaWork> top,
+            });
     return MetaHome(
       trending: ani.trending,
       airing: ani.airing,
+      topAniList: ani.top,
       topMal: results[1] as List<MetaWork>,
       news: results[2] as List<MetaNews>,
       failures: Map.unmodifiable(failures),
     );
   }
 
-  Future<({List<MetaWork> trending, List<MetaWork> airing})>
-      _anilistHome() async {
+  Future<({List<MetaWork> trending, List<MetaWork> airing, List<MetaWork> top})>
+  _anilistHome() async {
     final data = await _anilist(
       r'''
       query {
@@ -213,6 +219,13 @@ class MetaRepository {
         }
         airing: Page(page: 1, perPage: 12) {
           media(type: ANIME, status: RELEASING, sort: POPULARITY_DESC, isAdult: false) {
+            ''' +
+          _anilistMediaFields +
+          r'''
+          }
+        }
+        top: Page(page: 1, perPage: 12) {
+          media(type: ANIME, sort: SCORE_DESC, isAdult: false) {
             ''' +
           _anilistMediaFields +
           r'''
@@ -233,12 +246,15 @@ class MetaRepository {
           .toList(growable: false);
     }
 
-    return (trending: read('trending'), airing: read('airing'));
+    return (
+      trending: read('trending'),
+      airing: read('airing'),
+      top: read('top'),
+    );
   }
 
   Future<List<MetaWork>> _anilistList(String sort, int limit) async {
-    final data = await _anilist(
-      '''
+    final data = await _anilist('''
       query {
         Page(page: 1, perPage: $limit) {
           media(type: ANIME, sort: $sort, isAdult: false) {
@@ -246,14 +262,12 @@ class MetaRepository {
           }
         }
       }
-      ''',
-    );
+      ''');
     return _anilistPage(data);
   }
 
   Future<List<MetaWork>> _anilistAiring(int limit) async {
-    final data = await _anilist(
-      '''
+    final data = await _anilist('''
       query {
         Page(page: 1, perPage: $limit) {
           media(type: ANIME, status: RELEASING, sort: POPULARITY_DESC, isAdult: false) {
@@ -261,8 +275,7 @@ class MetaRepository {
           }
         }
       }
-      ''',
-    );
+      ''');
     return _anilistPage(data);
   }
 
@@ -355,8 +368,9 @@ class MetaRepository {
 
     final studios = <String>[];
     final studioMap = _map(media['studios']);
-    for (final node
-        in _list(studioMap['nodes']).whereType<Map<String, dynamic>>()) {
+    for (final node in _list(
+      studioMap['nodes'],
+    ).whereType<Map<String, dynamic>>()) {
       final name = _string(node['name']);
       if (name != null) studios.add(name);
     }
@@ -370,16 +384,18 @@ class MetaRepository {
     tags.sort((a, b) => (b.rank ?? 0).compareTo(a.rank ?? 0));
 
     final links = <MetaLink>[];
-    for (final link
-        in _list(media['externalLinks']).whereType<Map<String, dynamic>>()) {
+    for (final link in _list(
+      media['externalLinks'],
+    ).whereType<Map<String, dynamic>>()) {
       final url = _string(link['url']);
       final site = _string(link['site']);
       if (url != null && site != null) {
         links.add(MetaLink(label: site, url: url, kind: 'official'));
       }
     }
-    for (final episode in _list(media['streamingEpisodes'])
-        .whereType<Map<String, dynamic>>()) {
+    for (final episode in _list(
+      media['streamingEpisodes'],
+    ).whereType<Map<String, dynamic>>()) {
       final url = _string(episode['url']);
       final site = _string(episode['site']);
       if (url != null && site != null) {
@@ -401,7 +417,8 @@ class MetaRepository {
         'ANIME' => MetaKind.anime,
         _ => MetaKind.unknown,
       },
-      title: _firstNonEmpty([
+      title:
+          _firstNonEmpty([
             _string(title['romaji']),
             _string(title['english']),
             _string(title['native']),
@@ -489,10 +506,12 @@ class MetaRepository {
   // MyAnimeList
 
   Future<List<MetaWork>> _malTop(int limit) async {
-    final response =
-        await _get(Uri.parse('$_malEndpoint/topanime.php?limit=0'));
-    final works =
-        _malCards(_text(response)).take(limit).toList(growable: false);
+    final response = await _get(
+      Uri.parse('$_malEndpoint/topanime.php?limit=0'),
+    );
+    final works = _malCards(
+      _text(response),
+    ).take(limit).toList(growable: false);
     // A top list is never empty. Zero rows means the page changed shape, and
     // saying so is better than showing a ranking with nothing in it.
     if (works.isEmpty) {
@@ -549,8 +568,9 @@ class MetaRepository {
           coverUrl: cover == null ? null : _decode(cover.group(1)!),
           synopsis: summary == null
               ? null
-              : _stripHtml(_decode(summary.group(1)!))
-                  .replaceAll(RegExp(r'\s*read more\.\s*$'), ''),
+              : _stripHtml(
+                  _decode(summary.group(1)!),
+                ).replaceAll(RegExp(r'\s*read more\.\s*$'), ''),
           score: score == null ? null : double.tryParse(score.group(1)!),
           scoreSource: score == null ? null : 'MyAnimeList',
           format: parsedType.$1,
@@ -584,7 +604,8 @@ class MetaRepository {
       final summary = RegExp(
         r'<li class="text mt8">([^<]*)</li>',
       ).firstMatch(chunk);
-      final image = RegExp(r'data-src="([^"]+)"').firstMatch(chunk) ??
+      final image =
+          RegExp(r'data-src="([^"]+)"').firstMatch(chunk) ??
           RegExp(r'<img[^>]+src="([^"]+)"').firstMatch(chunk);
       final parsedType = _malType(type?.group(1));
       works.add(
@@ -622,13 +643,16 @@ class MetaRepository {
       final link = RegExp(
         r'href="(https://myanimelist\.net/anime/(\d+)/[^"]+)"',
       ).firstMatch(chunk);
-      final title = RegExp(r'anime_ranking_h3[^>]*>\s*<a[^>]*>([^<]+)</a>')
-              .firstMatch(chunk) ??
+      final title =
+          RegExp(
+            r'anime_ranking_h3[^>]*>\s*<a[^>]*>([^<]+)</a>',
+          ).firstMatch(chunk) ??
           RegExp(r'<h3[^>]*>\s*<a[^>]*>([^<]+)</a>').firstMatch(chunk);
       if (link == null || title == null) continue;
       final cover = RegExp(r'data-src="([^"]+)"').firstMatch(chunk);
-      final rank =
-          RegExp(r'top-anime-rank-text[^"]*">\s*(\d+)').firstMatch(chunk);
+      final rank = RegExp(
+        r'top-anime-rank-text[^"]*">\s*(\d+)',
+      ).firstMatch(chunk);
       final info = RegExp(
         r'<div class="information di-ib mt4">\s*([^<]+)<br>',
       ).firstMatch(chunk);
@@ -713,43 +737,49 @@ class MetaRepository {
       timeout: const Duration(seconds: 22),
     );
     final html = _text(response);
-    final title = _metaContent(html, 'og:title') ??
+    final title =
+        _metaContent(html, 'og:title') ??
         RegExp(r'<title>([^<]+)</title>').firstMatch(html)?.group(1) ??
         'MyAnimeList #$id';
     final description = _metaContent(html, 'og:description') ?? '';
-    final cover = RegExp(
+    final cover =
+        RegExp(
           r'<div class="icon-thumb thumbs-zoom" itemprop="image" content="([^"]+)"',
         ).firstMatch(html)?.group(1) ??
         _metaContent(html, 'og:image');
-    final score = RegExp(
+    final score =
+        RegExp(
           r'class="score icon-score[^"]*"[^>]*>.*?</i>\s*([0-9.]+)\s*</span>',
           dotAll: true,
         ).firstMatch(html)?.group(1) ??
-        RegExp(r'class="score-label[^"]*">\s*([0-9.]+)')
-            .firstMatch(html)
-            ?.group(1);
+        RegExp(
+          r'class="score-label[^"]*">\s*([0-9.]+)',
+        ).firstMatch(html)?.group(1);
     final rank =
         RegExp(r'Ranked:</span>\s*#(\d+)').firstMatch(html)?.group(1) ??
-            RegExp(r'Ranked</span>\s*#(\d+)').firstMatch(html)?.group(1) ??
-            RegExp(r'Ranked</td>\s*<td[^>]*>\s*#(\d+)', dotAll: true)
-                .firstMatch(html)
-                ?.group(1);
+        RegExp(r'Ranked</span>\s*#(\d+)').firstMatch(html)?.group(1) ??
+        RegExp(
+          r'Ranked</td>\s*<td[^>]*>\s*#(\d+)',
+          dotAll: true,
+        ).firstMatch(html)?.group(1);
     final popularity =
         RegExp(r'Popularity:</span>\s*#(\d+)').firstMatch(html)?.group(1) ??
-            RegExp(r'Popularity</td>\s*<td[^>]*>\s*#(\d+)', dotAll: true)
-                .firstMatch(html)
-                ?.group(1);
+        RegExp(
+          r'Popularity</td>\s*<td[^>]*>\s*#(\d+)',
+          dotAll: true,
+        ).firstMatch(html)?.group(1);
     final favourites =
         RegExp(r'Favorites:</span>\s*([\d,]+)').firstMatch(html)?.group(1) ??
-            RegExp(r'Favorites</td>\s*<td[^>]*>\s*([\d,]+)', dotAll: true)
-                .firstMatch(html)
-                ?.group(1);
+        RegExp(
+          r'Favorites</td>\s*<td[^>]*>\s*([\d,]+)',
+          dotAll: true,
+        ).firstMatch(html)?.group(1);
     final members =
         RegExp(r'Members:</span>\s*([\d,]+)').firstMatch(html)?.group(1) ??
-            RegExp(r'\(([\d,]+) users\)').firstMatch(html)?.group(1) ??
-            RegExp(r'itemprop="ratingCount"[^>]*>([\d,]+)<')
-                .firstMatch(html)
-                ?.group(1);
+        RegExp(r'\(([\d,]+) users\)').firstMatch(html)?.group(1) ??
+        RegExp(
+          r'itemprop="ratingCount"[^>]*>([\d,]+)<',
+        ).firstMatch(html)?.group(1);
     final type = _malInfo(html, 'Type');
     final episodes = _malInfo(html, 'Episodes');
     final status = _malInfo(html, 'Status');
@@ -758,9 +788,8 @@ class MetaRepository {
     final duration = _malInfo(html, 'Duration');
     final source = _malInfo(html, 'Source');
     final rating = _malInfo(html, 'Rating');
-    final japanese = RegExp(r'Japanese:</span>\s*([^<]+)')
-            .firstMatch(html)
-            ?.group(1) ??
+    final japanese =
+        RegExp(r'Japanese:</span>\s*([^<]+)').firstMatch(html)?.group(1) ??
         RegExp(r'Japanese</span><br>\s*([^<]+)<br>').firstMatch(html)?.group(1);
     final studios = <String>[];
     final studioBlock = RegExp(
@@ -796,18 +825,20 @@ class MetaRepository {
       final genre = _decode(match.group(1)!);
       if (!genres.contains(genre)) genres.add(genre);
     }
-    final year =
-        RegExp(r'(\d{4})').firstMatch(premiered ?? aired ?? '')?.group(1);
-    final cleanDescription = _stripHtml(description)
-        .replaceAll(RegExp(r'\s*\[Written by MAL Rewrite\]\s*$'), '')
-        .trim();
+    final year = RegExp(
+      r'(\d{4})',
+    ).firstMatch(premiered ?? aired ?? '')?.group(1);
+    final cleanDescription = _stripHtml(
+      description,
+    ).replaceAll(RegExp(r'\s*\[Written by MAL Rewrite\]\s*$'), '').trim();
 
     return MetaWork(
       id: '$id',
       source: MetaSource.myAnimeList,
       kind: MetaKind.anime,
-      title:
-          _decode(title.replaceAll(RegExp(r'\s*-\s*MyAnimeList\.net\s*$'), '')),
+      title: _decode(
+        title.replaceAll(RegExp(r'\s*-\s*MyAnimeList\.net\s*$'), ''),
+      ),
       nativeTitle: japanese == null ? null : _decode(japanese.trim()),
       coverUrl: cover,
       synopsis: cleanDescription,
@@ -851,7 +882,8 @@ class MetaRepository {
       dotAll: true,
       caseSensitive: false,
     ).firstMatch(html);
-    final match = modern ??
+    final match =
+        modern ??
         RegExp(
           '>$label</td>\\s*<td[^>]*>(.*?)</td>',
           dotAll: true,
@@ -865,7 +897,8 @@ class MetaRepository {
   (String?, int?) _malType(String? raw) {
     if (raw == null) return (null, null);
     final text = _stripHtml(raw);
-    final episodes = RegExp(r'\((\d+)').firstMatch(text)?.group(1) ??
+    final episodes =
+        RegExp(r'\((\d+)').firstMatch(text)?.group(1) ??
         RegExp(r'(\d+)\s*eps').firstMatch(text)?.group(1);
     final format = text
         .replaceAll(RegExp(r'\(.*'), '')
@@ -873,7 +906,7 @@ class MetaRepository {
         .trim();
     return (
       format.isEmpty ? null : format,
-      episodes == null ? null : int.tryParse(episodes)
+      episodes == null ? null : int.tryParse(episodes),
     );
   }
 
@@ -882,8 +915,9 @@ class MetaRepository {
 
   Future<List<MetaWork>> _hwaTop(int limit) async {
     final response = await _get(Uri.parse('$_hwaEndpoint/series?sort=rating'));
-    final works =
-        _hwaCards(_text(response)).take(limit).toList(growable: false);
+    final works = _hwaCards(
+      _text(response),
+    ).take(limit).toList(growable: false);
     if (works.isEmpty) {
       throw const MetaException('hwa.so returned a page Best could not read.');
     }
@@ -907,10 +941,11 @@ class MetaRepository {
       if (slug.isEmpty || slug.contains('?') || !seen.add(slug)) continue;
       final title =
           RegExp(r'"aria-label":"([^"]+)"').firstMatch(part)?.group(1) ??
-              RegExp(r'<h3[^>]*title="([^"]+)"').firstMatch(part)?.group(1);
+          RegExp(r'<h3[^>]*title="([^"]+)"').firstMatch(part)?.group(1);
       if (title == null || title.isEmpty) continue;
-      final cover =
-          RegExp(r'"src":"(/api/media/[^"]+)"').firstMatch(part)?.group(1);
+      final cover = RegExp(
+        r'"src":"(/api/media/[^"]+)"',
+      ).firstMatch(part)?.group(1);
       final score = RegExp(
         r'MangaUpdates rating: ([0-9.]+) out of 10',
       ).firstMatch(part)?.group(1);
@@ -961,30 +996,34 @@ class MetaRepository {
     final image = _map(comic['image']);
     final description = _string(comic['description']) ?? '';
     final authors = <String>[];
-    for (final person
-        in _list(comic['author']).whereType<Map<String, dynamic>>()) {
+    for (final person in _list(
+      comic['author'],
+    ).whereType<Map<String, dynamic>>()) {
       final name = _string(person['name']);
       if (name != null) authors.add(name);
     }
     final artists = <String>[];
-    for (final person
-        in _list(comic['contributor']).whereType<Map<String, dynamic>>()) {
+    for (final person in _list(
+      comic['contributor'],
+    ).whereType<Map<String, dynamic>>()) {
       final name = _string(person['name']);
       if (name != null) artists.add(name);
     }
     final publishers = <String>[];
-    for (final org
-        in _list(comic['publisher']).whereType<Map<String, dynamic>>()) {
+    for (final org in _list(
+      comic['publisher'],
+    ).whereType<Map<String, dynamic>>()) {
       final name = _string(org['name']);
       if (name != null) publishers.add(name);
     }
 
-    final score = RegExp(
+    final score =
+        RegExp(
           r'MangaUpdates score ([0-9.]+) out of 10',
         ).firstMatch(html)?.group(1) ??
-        RegExp(r'MangaUpdates rating: ([0-9.]+) out of 10')
-            .firstMatch(html)
-            ?.group(1);
+        RegExp(
+          r'MangaUpdates rating: ([0-9.]+) out of 10',
+        ).firstMatch(html)?.group(1);
     final votes = RegExp(r'([\d.]+)k votes').firstMatch(html)?.group(1);
     final exactVotes = RegExp(r'([\d,]+) votes').firstMatch(html)?.group(1);
     final status = RegExp(r'"data-status":"(\w+)"').firstMatch(html)?.group(1);
@@ -1013,8 +1052,8 @@ class MetaRepository {
       votes: exactVotes != null
           ? _number(exactVotes)
           : votes == null
-              ? null
-              : (double.parse(votes) * 1000).round(),
+          ? null
+          : (double.parse(votes) * 1000).round(),
       status: status,
       chapters: chapters == null ? null : int.tryParse(chapters),
       year: date != null && date.length >= 4
@@ -1125,8 +1164,10 @@ class MetaRepository {
     final response = await _get(Uri.parse(_animeCornerFeed));
     final xml = _text(response);
     final items = <MetaNews>[];
-    for (final match
-        in RegExp(r'<item>(.*?)</item>', dotAll: true).allMatches(xml)) {
+    for (final match in RegExp(
+      r'<item>(.*?)</item>',
+      dotAll: true,
+    ).allMatches(xml)) {
       final item = match.group(1)!;
       final title = _xmlTag(item, 'title');
       final link = _xmlTag(item, 'link');
@@ -1143,8 +1184,9 @@ class MetaRepository {
         r'<description><!\[CDATA\[(.*?)\]\]></description>',
         dotAll: true,
       ).firstMatch(item)?.group(1);
-      final published =
-          RegExp(r'<pubDate>(.*?)</pubDate>').firstMatch(item)?.group(1);
+      final published = RegExp(
+        r'<pubDate>(.*?)</pubDate>',
+      ).firstMatch(item)?.group(1);
       items.add(
         MetaNews(
           title: _decode(title),
@@ -1279,10 +1321,7 @@ class MetaRepository {
     final response = await _client
         .post(
           Uri.parse(_anilistEndpoint),
-          headers: {
-            ..._headers,
-            'Content-Type': 'application/json',
-          },
+          headers: {..._headers, 'Content-Type': 'application/json'},
           body: jsonEncode({'query': query, 'variables': variables ?? {}}),
         )
         .timeout(const Duration(seconds: 18));
@@ -1301,7 +1340,8 @@ class MetaRepository {
       final first = errors.first;
       final message = first is Map ? first['message'] : null;
       throw MetaException(
-          message is String ? message : 'AniList rejected the query.');
+        message is String ? message : 'AniList rejected the query.',
+      );
     }
     final data = decoded['data'];
     if (data is! Map<String, dynamic>) {
@@ -1351,8 +1391,10 @@ class MetaRepository {
   }
 
   String? _metaContent(String html, String key) {
-    for (final match
-        in RegExp(r'<meta\b[^>]*>', caseSensitive: false).allMatches(html)) {
+    for (final match in RegExp(
+      r'<meta\b[^>]*>',
+      caseSensitive: false,
+    ).allMatches(html)) {
       final tag = match.group(0)!;
       if (!tag.contains('"$key"') && !tag.contains("'$key'")) continue;
       final content = RegExp(

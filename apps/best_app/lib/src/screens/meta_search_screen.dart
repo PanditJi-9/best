@@ -25,7 +25,11 @@ import '../providers.dart';
 /// and colour; an AniList entry and a MAL entry for the same anime are never
 /// stacked twice.
 class MetaSearchScreen extends ConsumerStatefulWidget {
-  const MetaSearchScreen({super.key});
+  const MetaSearchScreen({super.key, this.initialQuery});
+
+  /// Lets a genre or a shared link land directly on its results instead of an
+  /// empty field the person has to retype.
+  final String? initialQuery;
 
   @override
   ConsumerState<MetaSearchScreen> createState() => _MetaSearchScreenState();
@@ -47,6 +51,13 @@ class _MetaSearchScreenState extends ConsumerState<MetaSearchScreen> {
   @override
   void initState() {
     super.initState();
+    final initial = widget.initialQuery?.trim() ?? '';
+    if (initial.isNotEmpty) {
+      _query = initial;
+      _controller.text = initial;
+      _controller.selection = TextSelection.collapsed(offset: initial.length);
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focus.requestFocus();
     });
@@ -121,8 +132,9 @@ class _MetaSearchScreenState extends ConsumerState<MetaSearchScreen> {
                 suffixIcon: _controller.text.isEmpty
                     ? null
                     : IconButton(
-                        tooltip: MaterialLocalizations.of(context)
-                            .deleteButtonTooltip,
+                        tooltip: MaterialLocalizations.of(
+                          context,
+                        ).deleteButtonTooltip,
                         onPressed: () {
                           _controller.clear();
                           _debounce?.cancel();
@@ -133,22 +145,28 @@ class _MetaSearchScreenState extends ConsumerState<MetaSearchScreen> {
                       ),
                 filled: true,
                 fillColor: theme.colorScheme.surfaceContainerLow,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(BestRadius.md),
-                  borderSide:
-                      BorderSide(color: theme.colorScheme.outlineVariant),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.outlineVariant,
+                  ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(BestRadius.md),
-                  borderSide:
-                      BorderSide(color: theme.colorScheme.outlineVariant),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.outlineVariant,
+                  ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(BestRadius.md),
-                  borderSide:
-                      BorderSide(color: theme.colorScheme.primary, width: 1.4),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.primary,
+                    width: 1.4,
+                  ),
                 ),
               ),
             ),
@@ -164,8 +182,11 @@ class _MetaSearchScreenState extends ConsumerState<MetaSearchScreen> {
                     context.push(Routes.browseQuery(_query));
                   },
                   icon: const Icon(Icons.travel_explore_rounded, size: 20),
-                  label: Text(l10n.searchInSources(_query),
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                  label: Text(
+                    l10n.searchInSources(_query),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ),
@@ -184,9 +205,8 @@ class _MetaSearchScreenState extends ConsumerState<MetaSearchScreen> {
                         ref.read(metaRefreshProvider.notifier).bump(),
                     onRetryShelf: () =>
                         ref.invalidate(librarySearchProvider(_query)),
-                    onOpen: (work) => context.push(
-                      Routes.metaWork(work.source, work.id),
-                    ),
+                    onOpen: (work) =>
+                        context.push(Routes.metaWork(work.source, work.id)),
                     onOpenShelf: (entry) =>
                         openSeries(context, ref, entry.media),
                   ),
@@ -336,7 +356,8 @@ class _SearchResults extends StatelessWidget {
                   density: WorkCardDensity.row,
                   title: entry.media.displayTitle,
                   coverUrl: entry.media.coverUrl,
-                  subtitle: '${entry.completedUnits}/${entry.totalUnits} · '
+                  subtitle:
+                      '${entry.completedUnits}/${entry.totalUnits} · '
                       '${kindLabel(l10n, entry.media.kind)}',
                   onTap: () => onOpenShelf(entry),
                 ),
@@ -344,8 +365,10 @@ class _SearchResults extends StatelessWidget {
           ],
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 20, 18, 8),
-            child: Text(l10n.searchInCatalogues,
-                style: BestType.sectionTitle(context)),
+            child: Text(
+              l10n.searchInCatalogues,
+              style: BestType.sectionTitle(context),
+            ),
           ),
           if (catalogues.isLoading)
             const Padding(
@@ -354,9 +377,10 @@ class _SearchResults extends StatelessWidget {
             ),
           if (catalogues.hasError)
             _SearchError(
-                l10n: l10n,
-                message: catalogues.error.toString(),
-                onRetry: onRetry),
+              l10n: l10n,
+              message: catalogues.error.toString(),
+              onRetry: onRetry,
+            ),
           if (results != null) ...[
             MetaSourceNotice(
               failures: results.failures,

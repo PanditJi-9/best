@@ -98,7 +98,8 @@ const String _detailHtml = '''
 ''';
 
 MetaRepository _repository(
-    Future<http.Response> Function(http.Request) handler) {
+  Future<http.Response> Function(http.Request) handler,
+) {
   return MetaRepository(client: MockClient(handler));
 }
 
@@ -123,22 +124,26 @@ void main() {
     expect(first.episodes, 28);
     expect(first.coverUrl, startsWith('https://cdn.myanimelist.net/'));
     expect(
-        first.siteUrl, 'https://myanimelist.net/anime/52991/Sousou_no_Frieren');
+      first.siteUrl,
+      'https://myanimelist.net/anime/52991/Sousou_no_Frieren',
+    );
     expect(first.malId, 52991);
     expect(works[1].rank, 2);
   });
 
-  test('a top page that cannot be read is a failure, not an empty list',
-      () async {
-    final repository = _repository(
-      (request) async => http.Response('<html>Nothing here</html>', 200),
-    );
+  test(
+    'a top page that cannot be read is a failure, not an empty list',
+    () async {
+      final repository = _repository(
+        (request) async => http.Response('<html>Nothing here</html>', 200),
+      );
 
-    expect(
-      repository.list(MetaListKind.malTop),
-      throwsA(isA<MetaException>()),
-    );
-  });
+      expect(
+        repository.list(MetaListKind.malTop),
+        throwsA(isA<MetaException>()),
+      );
+    },
+  );
 
   test('the MyAnimeList search page is read from its table layout', () async {
     final repository = _repository((request) async {
@@ -165,6 +170,42 @@ void main() {
     expect(work.format, 'TV');
     expect(work.episodes, 28);
     expect(work.synopsis, contains('outlives her party'));
+  });
+
+  test('the home catalogue includes the highest-rated AniList rail', () async {
+    final repository = _repository((request) async {
+      if (request.method == 'POST') {
+        return http.Response(
+          '{"data":{'
+          '"trending":{"media":[{"id":1,"type":"ANIME","title":{"romaji":"Trending"}}]},'
+          '"airing":{"media":[{"id":2,"type":"ANIME","title":{"romaji":"Airing"}}]},'
+          '"top":{"media":[{"id":3,"type":"ANIME","title":{"romaji":"Top Score"},"averageScore":93}]}'
+          '}}',
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      if (request.url.path == '/topanime.php') {
+        return http.Response(_topHtml, 200);
+      }
+      if (request.url.path == '/feed/') {
+        return http.Response(
+          '<rss><channel><item><title>News</title>'
+          '<link>https://animecorner.me/example/</link>'
+          '<description><![CDATA[A story]]></description></item></channel></rss>',
+          200,
+        );
+      }
+      return http.Response('<html></html>', 200);
+    });
+
+    final home = await repository.home();
+
+    expect(home.trending.single.title, 'Trending');
+    expect(home.airing.single.title, 'Airing');
+    expect(home.topAniList.single.title, 'Top Score');
+    expect(home.topAniList.single.score, 9.3);
+    expect(home.topMal, isNotEmpty);
   });
 
   test('the MyAnimeList detail page is read from its current layout', () async {
