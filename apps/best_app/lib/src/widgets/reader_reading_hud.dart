@@ -104,7 +104,7 @@ class _ReaderReadingHudState extends State<ReaderReadingHud> {
                     color: BestColors.inkDeep.withValues(alpha: 0.88),
                     borderRadius: BorderRadius.circular(BestRadius.md),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.12),
+                      color: Colors.white.withValues(alpha: BestAlpha.border),
                       width: 0.8,
                     ),
                   ),
@@ -122,7 +122,9 @@ class _ReaderReadingHudState extends State<ReaderReadingHud> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.78),
+                              color: Colors.white.withValues(
+                                alpha: BestAlpha.supporting,
+                              ),
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),

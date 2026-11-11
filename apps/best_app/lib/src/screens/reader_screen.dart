@@ -125,7 +125,8 @@ class _VerticalZoomAnchor {
   double focal;
 }
 
-class _ReaderViewState extends ConsumerState<_ReaderView> {
+class _ReaderViewState extends ConsumerState<_ReaderView>
+    with WidgetsBindingObserver {
   /// Readers replace each other when a chapter ends, and the old one is
   /// disposed *after* the new one starts. Restoring the system UI or releasing
   /// the wakelock on every dispose would therefore undo the new chapter.
@@ -145,6 +146,13 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   late int _index;
   Timer? _saveTimer;
   Timer? _autoScrollTimer;
+
+  /// Reading time is local activity, like pages. Count visible minutes in
+  /// whole-minute steps so statistics and the streak include reading, not only
+  /// video. A partial minute is carried into the next flush.
+  Timer? _readingTimer;
+  DateTime? _readingSince;
+  int _pendingReadingSeconds = 0;
 
   /// Share of the strip above the reading line, from 0 to 1. A notifier keeps
   /// scrolling from rebuilding the whole reader for a percentage.
@@ -960,6 +968,8 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     }
     _furthest = _index;
     _verticalPositions.itemPositions.addListener(_onVerticalPositions);
+    WidgetsBinding.instance.addObserver(this);
+    _startReadingClock();
     _openReaders++;
     unawaited(
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky),
@@ -1015,7 +1025,56 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startReadingClock();
+      return;
+    }
+    // A phone in a pocket is not reading time. Flush before the process can be
+    // suspended so the last minute is not lost, then stop the clock.
+    _flushReadingTime();
+    _readingTimer?.cancel();
+    _readingSince = null;
+  }
+
+  @override
+  void didHaveMemoryPressure() {
+    // Flutter already drops its decoded-image cache; drop our byte cache too
+    // so a low-memory device keeps the reader alive instead of being killed.
+    ref.read(pageImageCacheProvider).trimMemory();
+    PaintingBinding.instance.imageCache.clear();
+  }
+
+  void _startReadingClock() {
+    if (_readingTimer != null || !mounted) return;
+    if (WidgetsBinding.instance.lifecycleState != null &&
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    _readingSince = DateTime.now();
+    _readingTimer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => _flushReadingTime(),
+    );
+  }
+
+  void _flushReadingTime() {
+    final since = _readingSince;
+    if (since == null) return;
+    final now = DateTime.now();
+    _readingSince = now;
+    _pendingReadingSeconds += now.difference(since).inSeconds;
+    if (_pendingReadingSeconds < 60) return;
+    final minutes = _pendingReadingSeconds ~/ 60;
+    _pendingReadingSeconds -= minutes * 60;
+    unawaited(_repository.recordActivity(minutes: minutes));
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _readingTimer?.cancel();
+    _flushReadingTime();
     _verticalProgress.dispose();
     _autoScrollTimer?.cancel();
     _saveTimer?.cancel();

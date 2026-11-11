@@ -148,6 +148,13 @@ class PageImageCache {
     }
   }
 
+  /// Drops decoded page bytes from RAM while keeping the disk copy. The OS can
+  /// ask for memory back at any time; a reader should not be the process that
+  /// ignores it. The next page paints from disk instead of the network.
+  void trimMemory() {
+    _memory.clear();
+  }
+
   Future<void> clear() async {
     _memory.clear();
     _inFlight.clear();

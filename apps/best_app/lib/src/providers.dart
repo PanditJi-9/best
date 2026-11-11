@@ -500,6 +500,47 @@ final readerAutoScrollSpeedProvider =
       ReaderAutoScrollSpeedController.new,
     );
 
+/// The last few universal searches, local to this device. The field is the same
+/// one that fans out to catalogues and sources, so the history never leaves
+/// the phone. Only committed searches are stored, not every keystroke.
+class SearchHistoryController extends Notifier<List<String>> {
+  static const String _key = 'meta_search_history_v1';
+  static const int _limit = 8;
+
+  @override
+  List<String> build() {
+    final stored = ref.watch(preferencesProvider)?.getStringList(_key);
+    if (stored == null) return const <String>[];
+    return stored
+        .map((value) => value.trim())
+        .where((value) => value.length >= 2)
+        .take(_limit)
+        .toList(growable: false);
+  }
+
+  void remember(String query) {
+    final value = query.trim();
+    if (value.length < 2) return;
+    final lower = value.toLowerCase();
+    final next = <String>[
+      value,
+      ...state.where((entry) => entry.toLowerCase() != lower),
+    ].take(_limit).toList(growable: false);
+    unawaited(ref.read(preferencesProvider)?.setStringList(_key, next));
+    state = next;
+  }
+
+  void clear() {
+    unawaited(ref.read(preferencesProvider)?.setStringList(_key, const []));
+    state = const <String>[];
+  }
+}
+
+final metaSearchHistoryProvider =
+    NotifierProvider<SearchHistoryController, List<String>>(
+      SearchHistoryController.new,
+    );
+
 class ExtensionUpdatesController
     extends Notifier<AsyncValue<ExtensionUpdateResult>> {
   @override

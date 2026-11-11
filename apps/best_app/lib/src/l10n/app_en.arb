@@ -1170,6 +1170,8 @@
   },
   "searchNoMatchBody": "Try a shorter word, or the original title.",
   "searchPartial": "Some catalogues did not answer. Results from the others are shown below.",
+  "searchRecent": "Recent searches",
+  "searchRecentClear": "Clear",
   "nextUp": "Next up",
   "guideBadge": "Built-in guide",
   "homeCaughtUpTitle": "Your next story starts here",

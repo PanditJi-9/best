@@ -998,6 +998,8 @@
   "searchNoMatch": "لا شيء يطابق «{query}»",
   "searchNoMatchBody": "جرّب كلمة أقصر أو العنوان الأصلي.",
   "searchPartial": "لم تُجب بعض الموسوعات. تظهر نتائج الجهات الأخرى أدناه.",
+  "searchRecent": "عمليات البحث الأخيرة",
+  "searchRecentClear": "مسح",
   "nextUp": "التالي",
   "guideBadge": "دليل مدمج",
   "homeCaughtUpTitle": "حكايتك القادمة تبدأ هنا",

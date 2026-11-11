@@ -85,6 +85,9 @@ class _MetaSearchScreenState extends ConsumerState<MetaSearchScreen> {
   void _submit(String value) {
     _debounce?.cancel();
     final next = value.trim();
+    if (next.length >= 2) {
+      ref.read(metaSearchHistoryProvider.notifier).remember(next);
+    }
     if (next == _query) return;
     setState(() => _query = next);
   }
@@ -195,7 +198,10 @@ class _MetaSearchScreenState extends ConsumerState<MetaSearchScreen> {
                 ? _SearchStart(
                     l10n: l10n,
                     examples: _examples,
+                    history: ref.watch(metaSearchHistoryProvider),
                     onExample: _useExample,
+                    onClearHistory: () =>
+                        ref.read(metaSearchHistoryProvider.notifier).clear(),
                   )
                 : _SearchResults(
                     catalogues: async!,
@@ -221,12 +227,16 @@ class _SearchStart extends StatelessWidget {
   const _SearchStart({
     required this.l10n,
     required this.examples,
+    required this.history,
     required this.onExample,
+    required this.onClearHistory,
   });
 
   final AppLocalizations l10n;
   final List<String> examples;
+  final List<String> history;
   final ValueChanged<String> onExample;
+  final VoidCallback onClearHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -258,6 +268,43 @@ class _SearchStart extends StatelessWidget {
             height: 1.5,
           ),
         ),
+        if (history.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.searchRecent,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: onClearHistory,
+                child: Text(l10n.searchRecentClear),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              for (final query in history)
+                ActionChip(
+                  key: ValueKey('recent-search-$query'),
+                  avatar: const Icon(Icons.history_rounded, size: 15),
+                  onPressed: () => onExample(query),
+                  label: Text(query, style: const TextStyle(fontSize: 11)),
+                  visualDensity: VisualDensity.compact,
+                  side: BorderSide(color: theme.colorScheme.outlineVariant),
+                  backgroundColor: theme.colorScheme.surfaceContainerLow,
+                ),
+            ],
+          ),
+        ],
         const SizedBox(height: 22),
         Text(
           l10n.metaTryExamples,

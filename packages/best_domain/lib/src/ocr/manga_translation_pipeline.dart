@@ -17,6 +17,12 @@ class MangaTranslationPipeline {
 
   final RawTranslator rawTranslator;
 
+  /// Machine translation is the slowest step and comic pages repeat short
+  /// bubbles constantly. A small LRU keeps a chapter's common lines local,
+  /// including the code-points that distinguish two series' names.
+  static const int _translationCacheLimit = 500;
+  static final Map<String, String> _translationCache = <String, String>{};
+
   static final RegExp _urlRegex = RegExp(
     r'\b(?:https?://|ftp://|www\.)\S+|(?:discord\.(?:gg|com/invite)|t\.me|patreon\.com)/[^\s<>]+',
     caseSensitive: false,
@@ -37,9 +43,38 @@ class MangaTranslationPipeline {
   }
 
   /// Translates a single text bubble from English to polished Arabic.
-  Future<String> translateBubbleText(String rawText, {String? seriesOrigin}) async {
+  Future<String> translateBubbleText(
+    String rawText, {
+    String? seriesOrigin,
+  }) async {
     final trimmed = rawText.trim();
     if (trimmed.isEmpty) return '';
+    final key = '${seriesOrigin ?? ''}\u0000$trimmed';
+    final cached = _translationCache.remove(key);
+    if (cached != null) {
+      _translationCache[key] = cached;
+      return cached;
+    }
+    final result = await _translateBubbleTextUncached(
+      trimmed,
+      seriesOrigin: seriesOrigin,
+    );
+    _rememberTranslation(key, result);
+    return result;
+  }
+
+  void _rememberTranslation(String key, String value) {
+    _translationCache.remove(key);
+    _translationCache[key] = value;
+    while (_translationCache.length > _translationCacheLimit) {
+      _translationCache.remove(_translationCache.keys.first);
+    }
+  }
+
+  Future<String> _translateBubbleTextUncached(
+    String trimmed, {
+    String? seriesOrigin,
+  }) async {
     if (isWatermarkOrUrl(trimmed)) return '';
 
     // Step 1: Clean comic OCR artifacts & typos
@@ -47,14 +82,16 @@ class MangaTranslationPipeline {
     if (cleaned.isEmpty) return '';
 
     // Step 2: Direct standalone idiom check
-    final directIdiom = MangaIdiomsDictionary.instance.getDirectIdiomTranslation(cleaned);
+    final directIdiom =
+        MangaIdiomsDictionary.instance.getDirectIdiomTranslation(cleaned);
     if (directIdiom != null) {
       return directIdiom;
     }
 
     // Step 3: Check if it's a character name
     if (ArabicNameTransliteration.instance.shouldTransliterateWord(cleaned)) {
-      final nameResult = ArabicNameTransliteration.instance.transliterateArabicName(cleaned, seriesOrigin);
+      final nameResult = ArabicNameTransliteration.instance
+          .transliterateArabicName(cleaned, seriesOrigin);
       if (nameResult.confidence != 'low') {
         return nameResult.arabic;
       }
@@ -62,10 +99,12 @@ class MangaTranslationPipeline {
 
     // Step 4: Handle stutters (e.g. W-What? -> What?)
     final hasStutter = ComicOcrPreprocessor.instance.hasLeadingStutter(cleaned);
-    final textForTranslation = ComicOcrPreprocessor.instance.cleanStutters(cleaned);
+    final textForTranslation =
+        ComicOcrPreprocessor.instance.cleanStutters(cleaned);
 
     // Step 5: Prepare text for machine translation
-    final prepared = MangaIdiomsDictionary.instance.prepareTextForMachineTranslation(textForTranslation);
+    final prepared = MangaIdiomsDictionary.instance
+        .prepareTextForMachineTranslation(textForTranslation);
 
     // Step 6: Invoke raw translator (ML Kit on-device or HTTP fallback)
     String rawArabic;
@@ -77,28 +116,34 @@ class MangaTranslationPipeline {
 
     if (rawArabic.trim().isEmpty) {
       // Fallback: transliterate remaining English words if machine translation fails
-      return ArabicNameTransliteration.instance.transliterateRemainingEnglishWords(cleaned, seriesOrigin);
+      return ArabicNameTransliteration.instance
+          .transliterateRemainingEnglishWords(cleaned, seriesOrigin);
     }
 
     // Step 7: Arabic post-polishing & punctuation
-    String polished = ArabicTranslationPolisher.instance.polishArabicTranslation(rawArabic);
+    String polished =
+        ArabicTranslationPolisher.instance.polishArabicTranslation(rawArabic);
 
     // Step 8: Transliterate any residual English names inside the Arabic text
-    polished = ArabicNameTransliteration.instance.transliterateRemainingEnglishWords(polished, seriesOrigin);
+    polished = ArabicNameTransliteration.instance
+        .transliterateRemainingEnglishWords(polished, seriesOrigin);
 
     // Step 9: Reapply stutter if original had one (e.g. "ن...نعم")
     if (hasStutter) {
-      polished = ComicOcrPreprocessor.instance.applyArabicStutterToFirstWord(polished);
+      polished =
+          ComicOcrPreprocessor.instance.applyArabicStutterToFirstWord(polished);
     }
 
     return polished.trim();
   }
 
   /// Translates all bubbles on a page and returns updated bubbles.
-  Future<List<Bubble>> translatePageBubbles(List<Bubble> bubbles, {String? seriesOrigin}) async {
+  Future<List<Bubble>> translatePageBubbles(List<Bubble> bubbles,
+      {String? seriesOrigin}) async {
     final translated = <Bubble>[];
     for (final bubble in bubbles) {
-      final arText = await translateBubbleText(bubble.text, seriesOrigin: seriesOrigin);
+      final arText =
+          await translateBubbleText(bubble.text, seriesOrigin: seriesOrigin);
       if (arText.isNotEmpty) {
         translated.add(bubble.copyWith(
           text: arText,
