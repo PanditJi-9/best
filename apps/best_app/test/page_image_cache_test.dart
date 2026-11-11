@@ -29,7 +29,18 @@ void main() {
   });
 
   tearDown(() async {
-    if (await directory.exists()) await directory.delete(recursive: true);
+    // Page writes are deliberately unawaited so a page can paint before its
+    // disk copy finishes. Give those writes a moment before removing the
+    // temporary directory; a leftover temp folder is not a test failure.
+    for (var attempt = 0; attempt < 20; attempt++) {
+      if (!await directory.exists()) return;
+      try {
+        await directory.delete(recursive: true);
+        return;
+      } on FileSystemException {
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
+    }
   });
 
   PageImageCache cache(http.Client client) =>
@@ -46,6 +57,7 @@ void main() {
     expect(await pages.load(page), const [1, 2, 3, 4]);
     expect(await pages.load(page), const [1, 2, 3, 4]);
     expect(calls, 1);
+    await _waitForDisk(directory);
   });
 
   test('an authenticated loader is cached without a second request', () async {
