@@ -229,6 +229,8 @@ class _WeekCard extends StatelessWidget {
                       peak: stats.weekPeak,
                       isToday: day.day == todayKey,
                       label: _weekday(format, day.day),
+                      pagesLabel: l10n.statsPagesLabel,
+                      minutesLabel: l10n.statsMinutesLabel,
                     ),
                   ),
               ],
@@ -251,12 +253,16 @@ class _DayBar extends StatelessWidget {
     required this.peak,
     required this.isToday,
     required this.label,
+    required this.pagesLabel,
+    required this.minutesLabel,
   });
 
   final DailyActivity day;
   final int peak;
   final bool isToday;
   final String label;
+  final String pagesLabel;
+  final String minutesLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -264,40 +270,43 @@ class _DayBar extends StatelessWidget {
     final load = day.pages + day.minutes;
     final fraction = (load / peak).clamp(0.0, 1.0);
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: Container(
-              width: 16,
-              height: load == 0 ? 4 : 8 + fraction * 60,
-              decoration: BoxDecoration(
-                color: load == 0
-                    ? theme.colorScheme.outlineVariant
-                    : (isToday
-                          ? BestColors.jade
-                          : BestColors.jade.withValues(alpha: 0.55)),
-                borderRadius: BorderRadius.circular(6),
+    return Semantics(
+      label: '${day.pages} $pagesLabel, ${day.minutes} $minutesLabel',
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                width: 16,
+                height: load == 0 ? 4 : 8 + fraction * 60,
+                decoration: BoxDecoration(
+                  color: load == 0
+                      ? theme.colorScheme.outlineVariant
+                      : (isToday
+                            ? BestColors.jade
+                            : BestColors.jade.withValues(alpha: 0.55)),
+                  borderRadius: BorderRadius.circular(6),
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.labelSmall?.copyWith(
-            fontSize: 10.5,
-            color: isToday
-                ? theme.colorScheme.onSurface
-                : theme.colorScheme.onSurfaceVariant,
-            fontWeight: isToday ? FontWeight.w800 : FontWeight.w500,
+          const SizedBox(height: 6),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontSize: 10.5,
+              color: isToday
+                  ? theme.colorScheme.onSurface
+                  : theme.colorScheme.onSurfaceVariant,
+              fontWeight: isToday ? FontWeight.w800 : FontWeight.w500,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -332,9 +341,12 @@ class _StatTile extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            // Live numbers use the mono face so digits never reflow while the
+            // value changes. Ported from Yokai's metric readout.
             style: theme.textTheme.titleLarge?.copyWith(
+              fontFamily: BestFontFamily.mono,
               fontWeight: FontWeight.w900,
-              letterSpacing: BestType.tracking(context, -0.5),
+              letterSpacing: 0,
             ),
           ),
           const SizedBox(height: 2),

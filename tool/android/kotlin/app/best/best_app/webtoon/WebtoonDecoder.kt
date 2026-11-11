@@ -63,6 +63,14 @@ object WebtoonDecoder {
             inSampleSize = sampleSize
         }
 
+        // A page can be re-sliced after a retry or a mode switch with a smaller
+        // tile count. Remove the old generation first so stale tail tiles are
+        // never shown or left behind in the cache directory.
+        val prefix = "slice_${pageIdentifier}_"
+        cacheDir.listFiles()
+            ?.filter { it.isFile && it.name.startsWith(prefix) }
+            ?.forEach { it.delete() }
+
         val sliceTargetHeight = SLICE_HEIGHT * sampleSize
         val slices = mutableListOf<SliceInfo>()
 
