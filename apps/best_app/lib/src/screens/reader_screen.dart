@@ -507,6 +507,12 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     _readerController.setReaderMode(
       current == ReaderMode.paged ? ReaderMode.vertical : ReaderMode.paged,
     );
+    // The new layout keeps the same scan bytes, but its neighbours may never
+    // have been decoded. Warm them now so the first scrolls after a switch do
+    // not each wait for a fresh decode.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _precacheAround(_index);
+    });
     unawaited(HapticFeedback.selectionClick());
   }
 
@@ -2447,32 +2453,34 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
   }
 
   Widget _byteImage(Uint8List bytes, {required int? cacheWidth}) {
-    return Image.memory(
-      bytes,
-      width: _imageWidth,
-      fit: _imageFit,
-      cacheWidth: cacheWidth,
-      filterQuality: FilterQuality.medium,
-      gaplessPlayback: true,
-      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) =>
-          _pageFrame(
-            context,
-            child,
-            frame,
-            wasSynchronouslyLoaded,
-            reserveHeight: _fitsWidth,
+    return RepaintBoundary(
+      child: Image.memory(
+        bytes,
+        width: _imageWidth,
+        fit: _imageFit,
+        cacheWidth: cacheWidth,
+        filterQuality: FilterQuality.medium,
+        gaplessPlayback: true,
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) =>
+            _pageFrame(
+              context,
+              child,
+              frame,
+              wasSynchronouslyLoaded,
+              reserveHeight: _fitsWidth,
+              index: widget.index,
+              total: widget.total,
+            ),
+        errorBuilder: (BuildContext context, Object error, StackTrace? stack) {
+          _handleImageError();
+          return _PageError(
+            message: '$error',
+            onRetry: _retry,
             index: widget.index,
             total: widget.total,
-          ),
-      errorBuilder: (BuildContext context, Object error, StackTrace? stack) {
-        _handleImageError();
-        return _PageError(
-          message: '$error',
-          onRetry: _retry,
-          index: widget.index,
-          total: widget.total,
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
