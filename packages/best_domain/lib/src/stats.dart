@@ -59,7 +59,7 @@ class ReadingStats {
   /// Lifetime page turns, from local activity only.
   final int pages;
 
-  /// Lifetime minutes of video, from local activity only.
+  /// Lifetime minutes of reading and video, from local activity only.
   final int minutes;
 
   /// Consecutive days with any activity, ending today or yesterday.

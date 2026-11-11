@@ -165,7 +165,9 @@ class _StreakCard extends StatelessWidget {
             ),
             child: Icon(
               Icons.local_fire_department_rounded,
-              color: active ? BestColors.ink : theme.colorScheme.onSurfaceVariant,
+              color: active
+                  ? BestColors.ink
+                  : theme.colorScheme.onSurfaceVariant,
               size: 30,
             ),
           ),
@@ -204,6 +206,14 @@ class _WeekCard extends StatelessWidget {
             l10n.statsWeek,
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            l10n.statsWeekSummary(stats.weekPages, stats.weekMinutes),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 11.5,
             ),
           ),
           const SizedBox(height: 14),
@@ -266,7 +276,9 @@ class _DayBar extends StatelessWidget {
               decoration: BoxDecoration(
                 color: load == 0
                     ? theme.colorScheme.outlineVariant
-                    : (isToday ? BestColors.jade : BestColors.jade.withValues(alpha: 0.55)),
+                    : (isToday
+                          ? BestColors.jade
+                          : BestColors.jade.withValues(alpha: 0.55)),
                 borderRadius: BorderRadius.circular(6),
               ),
             ),

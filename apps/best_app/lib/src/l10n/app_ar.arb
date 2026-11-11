@@ -340,8 +340,19 @@
   "statsTitle": "إحصاءات القراءة",
   "statsSubtitle": "الصفحات والدقائق وسلسلة أيامك",
   "statsWeek": "هذا الأسبوع",
+  "statsWeekSummary": "الصفحات {pages} · الدقائق {minutes}",
+  "@statsWeekSummary": {
+    "placeholders": {
+      "pages": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "statsPagesLabel": "صفحة مقروءة",
-  "statsMinutesLabel": "دقيقة مشاهدة",
+  "statsMinutesLabel": "دقيقة",
   "statsFinishedLabel": "وحدة مكتملة",
   "statsStreakTitle": "سلسلتك",
   "streakDays": "{days, plural, =0{لا سلسلة بعد} =1{يوم واحد متتالٍ} =2{يومان متتاليان} few{{days} أيام متتالية} many{{days} يوماً متتالياً} other{{days} يوم متتالٍ}}",
@@ -355,7 +366,7 @@
   },
   "streakEmpty": "اقلب صفحة واحدة لتبدأها.",
   "statsEmptyTitle": "لا قراءة بعد",
-  "statsEmptyBody": "الصفحات التي تقلبها والدقائق التي تشاهدها تُحسب هنا، على هذا الجهاز فقط.",
+  "statsEmptyBody": "الصفحات التي تقلبها والدقائق التي تقرأها أو تشاهدها تُحسب هنا، على هذا الجهاز فقط.",
   "backupTitle": "النسخ والاستعادة",
   "backupBody": "ملف واحد يجمع مكتبتك وفصولك ومواضع قراءتك وقوائمك وإحصاءاتك. بلا حساب وبلا خادم.",
   "backupDownloadsNote": "التنزيلات غير مشمولة: تلك الملفات تبقى في هذا الجهاز.",

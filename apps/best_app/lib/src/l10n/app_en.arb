@@ -357,8 +357,19 @@
   "statsTitle": "Reading statistics",
   "statsSubtitle": "Pages, minutes and your streak",
   "statsWeek": "This week",
+  "statsWeekSummary": "Pages {pages} · minutes {minutes}",
+  "@statsWeekSummary": {
+    "placeholders": {
+      "pages": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "statsPagesLabel": "Pages turned",
-  "statsMinutesLabel": "Minutes watched",
+  "statsMinutesLabel": "Minutes",
   "statsFinishedLabel": "Units finished",
   "statsStreakTitle": "Your streak",
   "streakDays": "{days, plural, =0{No streak yet} =1{1 day in a row} other{{days} days in a row}}",
@@ -372,7 +383,7 @@
   },
   "streakEmpty": "Turn one page to start it.",
   "statsEmptyTitle": "No reading yet",
-  "statsEmptyBody": "Pages you turn and minutes you watch are counted here, on this device only.",
+  "statsEmptyBody": "Pages you turn and minutes you read or watch are counted here, on this device only.",
   "backupTitle": "Backup & restore",
   "backupBody": "One file with your shelf, chapters, reading positions, lists and statistics. No account, no server.",
   "backupDownloadsNote": "Downloads are not included: those files stay on this phone.",
