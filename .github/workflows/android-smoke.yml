@@ -37,7 +37,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: 3.47.8
           cache: true
 
       # CI already checks widgets, the runtime JVM ABI and the signature. Only
