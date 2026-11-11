@@ -16,16 +16,17 @@ import 'package:path_provider/path_provider.dart';
 /// and the headers that authenticate it, and returns the same byte buffer for
 /// a page so the decoded image cache can reuse it too.
 ///
-/// Extension pages are deliberately excluded by the caller: those requests
-/// must go through the extension's own signing client.
+/// Extension pages go through [loadWith], which stores the bytes returned by
+/// the extension's own signing client. They still never receive a second,
+/// differently-signed HTTP request from this class.
 class PageImageCache {
   PageImageCache({
     required http.Client client,
     Directory? directory,
     this.maxBytes = 160 * 1024 * 1024,
-    this.memoryEntries = 10,
-  })  : _client = client,
-        _directory = directory;
+    this.memoryEntries = 24,
+  }) : _client = client,
+       _directory = directory;
 
   final http.Client _client;
   final int maxBytes;
@@ -41,21 +42,56 @@ class PageImageCache {
   /// Returns cached bytes, or fetches and stores them. A failed request is not
   /// cached, so the page's retry can ask the source again.
   Future<Uint8List?> load(ImageResource resource) {
+    return _loadCached(resource, () => _download(resource));
+  }
+
+  /// Returns cached bytes, or stores bytes produced by an authenticated loader
+  /// such as the extension host. The loader is called at most once per page,
+  /// and a failed or empty result is never cached.
+  Future<Uint8List?> loadWith(
+    ImageResource resource,
+    Future<Uint8List?> Function() fetch,
+  ) {
+    return _loadCached(resource, fetch);
+  }
+
+  /// The already-remembered bytes for a page, if any. The reader uses this to
+  /// paint a page immediately when switching between paged and continuous
+  /// layouts instead of showing a one-frame spinner.
+  Uint8List? memoryBytes(ImageResource resource) {
+    final key = _key(resource);
+    final remembered = _memory[key];
+    if (remembered != null) _touchMemory(key, remembered);
+    return remembered;
+  }
+
+  Future<Uint8List?> _loadCached(
+    ImageResource resource,
+    Future<Uint8List?> Function() fetch,
+  ) {
     final key = _key(resource);
     final remembered = _memory[key];
     if (remembered != null) {
       _touchMemory(key, remembered);
       return Future<Uint8List?>.value(remembered);
     }
-    return _inFlight.putIfAbsent(
-      key,
-      () => _load(key, resource).whenComplete(() {
-        _inFlight.remove(key);
-      }),
-    );
+    return _inFlight.putIfAbsent(key, () {
+      final future = _load(key, fetch);
+      unawaited(
+        future.whenComplete(() {
+          // A retry may have evicted this key and started a new load while the
+          // old one was still running; never delete the newer request.
+          if (identical(_inFlight[key], future)) _inFlight.remove(key);
+        }),
+      );
+      return future;
+    });
   }
 
-  Future<Uint8List?> _load(String key, ImageResource resource) async {
+  Future<Uint8List?> _load(
+    String key,
+    Future<Uint8List?> Function() fetch,
+  ) async {
     File file;
     try {
       file = await _fileFor(key);
@@ -76,22 +112,27 @@ class PageImageCache {
     }
 
     try {
-      final response = await _client
-          .get(
-            Uri.parse(resource.url),
-            headers: resource.headers.isEmpty ? null : resource.headers,
-          )
-          .timeout(const Duration(seconds: 30));
-      if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
-        return null;
-      }
-      final bytes = response.bodyBytes;
+      final bytes = await fetch();
+      if (bytes == null || bytes.isEmpty) return null;
       _remember(key, bytes);
       unawaited(_write(file, bytes));
       return bytes;
     } catch (_) {
       return null;
     }
+  }
+
+  Future<Uint8List?> _download(ImageResource resource) async {
+    final response = await _client
+        .get(
+          Uri.parse(resource.url),
+          headers: resource.headers.isEmpty ? null : resource.headers,
+        )
+        .timeout(const Duration(seconds: 30));
+    if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+      return null;
+    }
+    return response.bodyBytes;
   }
 
   /// Forgets one page. Called by a retry so a damaged file is not replayed.
@@ -165,10 +206,19 @@ class PageImageCache {
     if (existing != null) return existing;
     Directory directory;
     try {
-      final temporary = await getTemporaryDirectory();
-      directory = Directory(p.join(temporary.path, 'best-reader-cache'));
+      // Application support survives a process restart and the OS clearing
+      // temporary files, so a chapter reopened tomorrow still has its pages.
+      final support = await getApplicationSupportDirectory();
+      directory = Directory(p.join(support.path, 'reader-cache'));
     } catch (_) {
-      directory = Directory(p.join(Directory.systemTemp.path, 'best-reader-cache'));
+      try {
+        final temporary = await getTemporaryDirectory();
+        directory = Directory(p.join(temporary.path, 'best-reader-cache'));
+      } catch (_) {
+        directory = Directory(
+          p.join(Directory.systemTemp.path, 'best-reader-cache'),
+        );
+      }
     }
     await directory.create(recursive: true);
     _directory = directory;
@@ -213,7 +263,10 @@ class PageImageCache {
         try {
           final stat = await file.stat();
           total += stat.size;
-          entries.add((file: file, modified: stat.modified.millisecondsSinceEpoch));
+          entries.add((
+            file: file,
+            modified: stat.modified.millisecondsSinceEpoch,
+          ));
         } catch (_) {
           // A file removed by another cleanup is simply skipped.
         }

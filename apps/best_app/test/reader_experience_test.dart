@@ -603,6 +603,65 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('a new twenty-page chapter opens on the first scan', (
+    tester,
+  ) async {
+    await _openReader(tester, pages: 20, preferences: {'reader_mode': 'paged'});
+    expect(find.text('Scan 1'), findsOneWidget);
+    expect(find.text('Page 1 of 20'), findsOneWidget);
+    expect(
+      tester.widget<PageView>(find.byType(PageView)).controller!.page,
+      closeTo(0, 0.01),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('switching layouts keeps the exact page instead of page 2 or 3', (
+    tester,
+  ) async {
+    await _openReader(
+      tester,
+      pages: 20,
+      initialPage: 4,
+      preferences: {'reader_mode': 'paged'},
+    );
+    expect(find.text('Page 5 of 20'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('reader-quick-mode')));
+    await tester.pumpAndSettle();
+    expect(find.text('Scan 5'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('reader-quick-mode')));
+    await tester.pumpAndSettle();
+    expect(find.text('Page 5 of 20'), findsOneWidget);
+    expect(
+      tester.widget<PageView>(find.byType(PageView)).controller!.page,
+      closeTo(4, 0.01),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('pinching keeps the same decoded scan and shows no reload', (
+    tester,
+  ) async {
+    await _openReader(
+      tester,
+      pages: 3,
+      showControls: false,
+      scanBytes: _scanFixture,
+    );
+    int? width() => tester
+        .widgetList<Image>(find.byType(Image))
+        .map((image) => image.cacheWidth)
+        .firstWhere((width) => width != null);
+
+    final before = width();
+    await _pinch(tester, 2);
+    expect(_viewport(tester).scale, closeTo(2, 0.01));
+    expect(width(), before);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byType(RawImage), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final fit in ['screen', 'width', 'height', 'original']) {
     testWidgets('real decoded scans pinch in $fit mode without a page turn', (
       tester,

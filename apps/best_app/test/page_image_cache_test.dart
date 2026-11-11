@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:best_app/src/reader/page_image_cache.dart';
 import 'package:best_domain/best_domain.dart';
@@ -31,10 +32,8 @@ void main() {
     if (await directory.exists()) await directory.delete(recursive: true);
   });
 
-  PageImageCache cache(http.Client client) => PageImageCache(
-        client: client,
-        directory: directory,
-      );
+  PageImageCache cache(http.Client client) =>
+      PageImageCache(client: client, directory: directory);
 
   test('a page is fetched once and then served from memory', () async {
     final client = MockClient((request) async {
@@ -47,6 +46,66 @@ void main() {
     expect(await pages.load(page), const [1, 2, 3, 4]);
     expect(await pages.load(page), const [1, 2, 3, 4]);
     expect(calls, 1);
+  });
+
+  test('an authenticated loader is cached without a second request', () async {
+    var loads = 0;
+    final pages = cache(
+      MockClient((request) async {
+        fail('the HTTP client must never be used for an extension page');
+      }),
+    );
+    const page = ImageResource('https://ext.test/signed/page.jpg');
+    Future<Uint8List?> fetch() async {
+      loads++;
+      return Uint8List.fromList(const [3, 1, 4]);
+    }
+
+    final first = await pages.loadWith(page, fetch);
+    expect(first, const [3, 1, 4]);
+    expect(identical(pages.memoryBytes(page), first), isTrue);
+    expect(await pages.loadWith(page, fetch), const [3, 1, 4]);
+    expect(loads, 1);
+  });
+
+  test('an authenticated loader survives a new cache instance', () async {
+    var loads = 0;
+    const page = ImageResource('https://ext.test/signed/disk.jpg');
+    Future<Uint8List?> fetch() async {
+      loads++;
+      return Uint8List.fromList(const [2, 7, 1]);
+    }
+
+    await cache(
+      MockClient((_) async => http.Response('', 500)),
+    ).loadWith(page, fetch);
+    await _waitForDisk(directory);
+
+    final reopened = cache(MockClient((_) async => http.Response('', 500)));
+    expect(await reopened.loadWith(page, fetch), const [2, 7, 1]);
+    expect(loads, 1);
+  });
+
+  test('a failed authenticated load is not cached', () async {
+    var loads = 0;
+    final pages = cache(MockClient((_) async => http.Response('', 500)));
+    const page = ImageResource('https://ext.test/signed/missing.jpg');
+
+    expect(
+      await pages.loadWith(page, () async {
+        loads++;
+        return null;
+      }),
+      isNull,
+    );
+    expect(
+      await pages.loadWith(page, () async {
+        loads++;
+        return Uint8List.fromList(const [9]);
+      }),
+      const [9],
+    );
+    expect(loads, 2);
   });
 
   test('concurrent loads share one request and the same byte buffer', () async {
@@ -67,8 +126,10 @@ void main() {
     expect(calls, 1);
     response.complete(http.Response.bytes(const [4, 5, 6], 200));
 
-    final results = await Future.wait([first, second])
-        .timeout(const Duration(seconds: 5));
+    final results = await Future.wait([
+      first,
+      second,
+    ]).timeout(const Duration(seconds: 5));
     expect(results.first, const [4, 5, 6]);
     expect(identical(results.first, results.last), isTrue);
     expect(identical(await pages.load(page), results.first), isTrue);

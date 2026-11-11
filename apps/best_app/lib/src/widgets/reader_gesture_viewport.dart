@@ -9,14 +9,12 @@ import 'package:flutter/material.dart';
 class ReaderViewportGeometry {
   const ReaderViewportGeometry({
     required this.scale,
-    required this.decodeScale,
     required this.inputLocked,
     required this.focalPoint,
     required this.manualScroll,
   });
 
   final double scale;
-  final double decodeScale;
   final bool inputLocked;
   final Offset focalPoint;
   final double manualScroll;
@@ -82,7 +80,6 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
   Timer? _scrollCooldown;
   Size _size = Size.zero;
   double _scale = 1;
-  double _decodeScale = 1;
   Offset _offset = Offset.zero;
   Offset _focalPoint = Offset.zero;
   double _manualScroll = 0;
@@ -121,7 +118,6 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
       ..addListener(_animateTick)
       ..addStatusListener((status) {
         if (status == AnimationStatus.completed && mounted) {
-          setState(() => _decodeScale = _scale);
           widget.onZoomEnd();
         }
       });
@@ -133,19 +129,20 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
     if (oldWidget.contentKey != widget.contentKey) {
       _animation.stop();
       _scale = 1;
-      _decodeScale = 1;
       _offset = Offset.zero;
       // Do not forget a held pointer: its release must not become a menu tap.
       _tapBlocked = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        widget.onZoom(ReaderZoomChange(
-          oldScale: 1,
-          scale: 1,
-          beforeFocal: Offset.zero,
-          focalPoint: Offset.zero,
-          preserveContent: false,
-        ));
+        widget.onZoom(
+          ReaderZoomChange(
+            oldScale: 1,
+            scale: 1,
+            beforeFocal: Offset.zero,
+            focalPoint: Offset.zero,
+            preserveContent: false,
+          ),
+        );
       });
     }
   }
@@ -158,17 +155,23 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
   }
 
   Offset _bounded(Offset offset, double scale) => scale <= 1
-      ? Offset(_size.width * (1 - scale) / 2,
-          widget.scrollableContent ? 0 : _size.height * (1 - scale) / 2)
+      ? Offset(
+          _size.width * (1 - scale) / 2,
+          widget.scrollableContent ? 0 : _size.height * (1 - scale) / 2,
+        )
       : Offset(
-        offset.dx.clamp(-_size.width * (scale - 1), 0).toDouble(),
-        widget.scrollableContent
-            ? 0
-            : offset.dy.clamp(-_size.height * (scale - 1), 0).toDouble(),
-      );
+          offset.dx.clamp(-_size.width * (scale - 1), 0).toDouble(),
+          widget.scrollableContent
+              ? 0
+              : offset.dy.clamp(-_size.height * (scale - 1), 0).toDouble(),
+        );
 
-  void _setZoom(double scale, Offset offset, Offset focal,
-      {bool preserveContent = true}) {
+  void _setZoom(
+    double scale,
+    Offset offset,
+    Offset focal, {
+    bool preserveContent = true,
+  }) {
     final next = scale.clamp(0.5, 4.0).toDouble();
     final old = _scale;
     final beforeFocal = _focalPoint;
@@ -178,21 +181,21 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
       _focalPoint = focal;
     });
     if ((old - next).abs() > 0.00001 || !preserveContent) {
-      widget.onZoom(ReaderZoomChange(
-        oldScale: old,
-        scale: next,
-        beforeFocal: beforeFocal,
-        focalPoint: focal,
-        preserveContent: preserveContent,
-      ));
+      widget.onZoom(
+        ReaderZoomChange(
+          oldScale: old,
+          scale: next,
+          beforeFocal: beforeFocal,
+          focalPoint: focal,
+          preserveContent: preserveContent,
+        ),
+      );
     }
   }
 
   void reset({bool preserveContent = false}) {
     _animation.stop();
-    _setZoom(1, Offset.zero, _focalPoint,
-        preserveContent: preserveContent);
-    _decodeScale = 1;
+    _setZoom(1, Offset.zero, _focalPoint, preserveContent: preserveContent);
   }
 
   void panBy(Offset delta) {
@@ -268,20 +271,20 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
     if (_pointers.length == 1 && _quickScaleEligible && distance > 8) {
       _quickScaling = true;
       _readingDrag();
-      final next = (_quickScale *
-              math.exp(-((event.localPosition.dy - _quickStart.dy) / 200)))
-          .clamp(0.5, 4.0)
-          .toDouble();
+      final next =
+          (_quickScale *
+                  math.exp(-((event.localPosition.dy - _quickStart.dy) / 200)))
+              .clamp(0.5, 4.0)
+              .toDouble();
       final content = (_quickStart - _quickOffset) / _quickScale;
       _setZoom(next, _quickStart - content * next, _quickStart);
     } else if (_pointers.length >= 2) {
       final points = _pointers.values.take(2).toList();
       final focal = (points[0] + points[1]) / 2;
-      final next = (_pinchScale *
-              (points[0] - points[1]).distance /
-              _pinchDistance)
-          .clamp(0.5, 4.0)
-          .toDouble();
+      final next =
+          (_pinchScale * (points[0] - points[1]).distance / _pinchDistance)
+              .clamp(0.5, 4.0)
+              .toDouble();
       if ((next - _scale).abs() > 0.005) _readingDrag();
       final content = (_pinchFocal - _pinchOffset) / _pinchScale;
       _setZoom(next, focal - content * next, focal);
@@ -304,7 +307,6 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
     if (_pointers.isEmpty) {
       _longHeld = event.timeStamp - _downTime > kLongPressTimeout;
       if (_longHeld) _tapBlocked = true;
-      setState(() => _decodeScale = _scale);
       _lock(false);
       widget.onZoomEnd();
     }
@@ -326,7 +328,10 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
   }
 
   void _tap(TapUpDetails details) {
-    if (_tapBlocked || _moved || _hadMultiplePointers || _inputLocked ||
+    if (_tapBlocked ||
+        _moved ||
+        _hadMultiplePointers ||
+        _inputLocked ||
         _pointers.isNotEmpty) {
       return;
     }
@@ -361,8 +366,8 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
 
   void _animateTick() {
     final t = BestMotion.curve.transform(_animation.value);
-    final next = _animationStartScale +
-        (_animationEndScale - _animationStartScale) * t;
+    final next =
+        _animationStartScale + (_animationEndScale - _animationStartScale) * t;
     _setZoom(
       next,
       Offset.lerp(_animationStartOffset, _animationEndOffset, t)!,
@@ -372,56 +377,59 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final size = constraints.biggest;
-      if (_size != size) {
-        _size = size;
-        _offset = _bounded(_offset, _scale);
-      }
-      final geometry = ReaderViewportGeometry(
-        scale: _scale,
-        decodeScale: _decodeScale,
-        inputLocked: _inputLocked,
-        focalPoint: _focalPoint,
-        manualScroll: _manualScroll,
-      );
-      final height = widget.scrollableContent ? size.height / _scale : size.height;
-      return NotificationListener<ScrollNotification>(
-        onNotification: _scrollNotification,
-        child: Listener(
-          behavior: HitTestBehavior.opaque,
-          onPointerDown: _pointerDown,
-          onPointerMove: _pointerMove,
-          onPointerUp: _pointerEnd,
-          onPointerCancel: _pointerEnd,
-          child: GestureDetector(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = constraints.biggest;
+        if (_size != size) {
+          _size = size;
+          _offset = _bounded(_offset, _scale);
+        }
+        final geometry = ReaderViewportGeometry(
+          scale: _scale,
+          inputLocked: _inputLocked,
+          focalPoint: _focalPoint,
+          manualScroll: _manualScroll,
+        );
+        final height = widget.scrollableContent
+            ? size.height / _scale
+            : size.height;
+        return NotificationListener<ScrollNotification>(
+          onNotification: _scrollNotification,
+          child: Listener(
             behavior: HitTestBehavior.opaque,
-            onTapUp: _tap,
-            onDoubleTapDown: _doubleTap,
-            onDoubleTap: _zoomDoubleTap,
-            child: ClipRect(
-              child: OverflowBox(
-                alignment: Alignment.topLeft,
-                minWidth: size.width,
-                maxWidth: size.width,
-                minHeight: height,
-                maxHeight: height,
-                child: Transform(
-                  key: const ValueKey('reader-zoom-transform'),
+            onPointerDown: _pointerDown,
+            onPointerMove: _pointerMove,
+            onPointerUp: _pointerEnd,
+            onPointerCancel: _pointerEnd,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: _tap,
+              onDoubleTapDown: _doubleTap,
+              onDoubleTap: _zoomDoubleTap,
+              child: ClipRect(
+                child: OverflowBox(
                   alignment: Alignment.topLeft,
-                  transform: Matrix4.diagonal3Values(_scale, _scale, 1)
-                    ..setTranslationRaw(_offset.dx, _offset.dy, 0),
-                  child: SizedBox(
-                    width: size.width,
-                    height: height,
-                    child: widget.builder(context, geometry),
+                  minWidth: size.width,
+                  maxWidth: size.width,
+                  minHeight: height,
+                  maxHeight: height,
+                  child: Transform(
+                    key: const ValueKey('reader-zoom-transform'),
+                    alignment: Alignment.topLeft,
+                    transform: Matrix4.diagonal3Values(_scale, _scale, 1)
+                      ..setTranslationRaw(_offset.dx, _offset.dy, 0),
+                    child: SizedBox(
+                      width: size.width,
+                      height: height,
+                      child: widget.builder(context, geometry),
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   }
 }

@@ -131,6 +131,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   PageController? _pagedController;
   ReaderPageLayout? _pagedLayout;
   ReaderDirection? _pagedDirection;
+  ReaderMode? _lastMode;
   late final LibraryRepository _repository;
   final ItemScrollController _verticalController = ItemScrollController();
   final ScrollOffsetController _verticalOffsetController =
@@ -182,11 +183,11 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
 
   int get _lastVisiblePage => _pagedLayout?.lastVisiblePage(_index) ?? _index;
 
-  /// Decode scans at screen resolution instead of their full source size.
-  ///
-  /// Full-size scans may contain far more pixels than the display. Original size is
-  /// the exception: it exists to inspect the whole scan, so it keeps the full
-  /// resolution. Returns null when the full image should be decoded.
+  /// Decode scans once at twice the display width instead of their full source
+  /// size. Zooming then magnifies the pixels that are already decoded; it must
+  /// never swap the image provider and make the page look like it reloaded.
+  /// Original size is the exception: it exists to inspect the whole scan, so
+  /// it keeps the full resolution. Returns null for that full decode.
   int? get _decodeWidth {
     final settings = _readerSettings;
     if (settings.readerMode == ReaderMode.paged &&
@@ -195,9 +196,9 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     }
     final media = MediaQuery.maybeOf(context);
     if (media == null) return null;
-    return (media.size.width * media.devicePixelRatio)
+    return (media.size.width * media.devicePixelRatio * 2)
         .round()
-        .clamp(320, 2048)
+        .clamp(720, 1600)
         .toInt();
   }
 
@@ -285,7 +286,10 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     } else {
       _zoomAnchor!.focal = after;
     }
-    _scheduleZoomCorrection();
+    // During a pinch the viewport is already rebuilding every frame. Starting
+    // a scroll animation on each of those frames fights the fingers and shows
+    // up as shake; correct the anchor once when the gesture ends instead.
+    if (!_gestureInputLocked) _scheduleZoomCorrection();
   }
 
   void _scheduleZoomCorrection() {
@@ -737,17 +741,18 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
 
   /// Warm the disk cache and the decoded image cache around the current page.
   ///
-  /// Extension pages are deliberately skipped: the host fetches those with the
-  /// extension's own signing client, so a plain HTTP warm-up would issue a
-  /// second, differently-signed request. Ordinary image URLs are written to
-  /// [PageImageCache] and then decoded with the same width the page will use,
-  /// so the next swipe can paint immediately instead of showing a spinner.
+  /// Ordinary image URLs and extension pages are both written to
+  /// [PageImageCache]. Extension pages use the host's signed response through
+  /// [PageImageCache.loadWith], so the warm-up never issues a second,
+  /// differently-signed request. Bytes are then decoded at the same stable
+  /// width the page will use, so the next swipe or mode switch paints at once.
   void _precacheAround(int index) {
     if (!mounted) return;
     if (!_readerSettings.readerPreload) return;
     final total = _resources.length;
     if (total == 0) return;
     final extension = extensionSourceIdOf(widget.data.media.ref.sourceId);
+    final host = extension == null ? null : ref.read(extensionHostProvider);
     final cache = ref.read(pageImageCacheProvider);
     final cacheWidth = _decodeWidth;
     for (final offset in const <int>[1, 2, 3, -1, -2]) {
@@ -756,10 +761,19 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
       if (!_prefetched.add(target)) continue;
       final resource = _resources[target];
       try {
-        if (resource is ImageResource && extension == null) {
+        if (resource is ImageResource) {
           unawaited(() async {
             try {
-              final bytes = await cache.load(resource);
+              final bytes = extension == null
+                  ? await cache.load(resource)
+                  : await cache.loadWith(
+                      resource,
+                      () => host!.imageBytes(
+                        extension,
+                        resource.url,
+                        headers: resource.headers,
+                      ),
+                    );
               if (!mounted || bytes == null || bytes.isEmpty) return;
               ImageProvider<Object> provider = MemoryImage(bytes);
               if (cacheWidth != null) {
@@ -1066,6 +1080,32 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
   }
 
   void _configurePagedLayout(AppSettings settings, Size viewport) {
+    if (_lastMode != null && _lastMode != settings.readerMode) {
+      // A new scroll view is laid out before it knows which page is under the
+      // reader's eyes. Freeze position callbacks and place the saved page
+      // explicitly, so a layout switch can never report page 2 or 3 as the
+      // starting page or persist a phantom scroll position.
+      _verticalRestoreRevision++;
+      if (settings.readerMode == ReaderMode.vertical) {
+        _restoringVerticalPosition = true;
+        final revision = _verticalRestoreRevision;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || revision != _verticalRestoreRevision) return;
+          if (_verticalController.isAttached) {
+            _verticalController.jumpTo(index: _index);
+          }
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted || revision != _verticalRestoreRevision) return;
+            _restoringVerticalPosition = false;
+            _onVerticalPositions();
+          });
+          WidgetsBinding.instance.scheduleFrame();
+        });
+      } else {
+        _restoringVerticalPosition = false;
+      }
+    }
+    _lastMode = settings.readerMode;
     final next =
         settings.readerMode == ReaderMode.paged && _resources.isNotEmpty
         ? ReaderPageLayout(
@@ -1247,9 +1287,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
               fit: settings.readerFit,
               colorFilter: _colorFilter,
               viewportScale: geometry.scale,
-              decodeScale: activePages.contains(page)
-                  ? geometry.decodeScale
-                  : 1,
               inputLocked: geometry.inputLocked,
               zoomFocal: geometry.focalPoint,
               manualScroll: geometry.manualScroll,
@@ -1324,7 +1361,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
                       fit: settings.readerFit,
                       colorFilter: _colorFilter,
                       viewportScale: geometry.scale,
-                      decodeScale: geometry.decodeScale,
                       inputLocked: geometry.inputLocked,
                       zoomFocal: geometry.focalPoint,
                       manualScroll: geometry.manualScroll,
@@ -2144,7 +2180,6 @@ class _ResourcePage extends ConsumerStatefulWidget {
     this.fit = ReaderFit.screen,
     this.colorFilter = const ReaderColorFilter(),
     this.viewportScale = 1,
-    this.decodeScale = 1,
     this.inputLocked = false,
     this.zoomFocal = Offset.zero,
     this.manualScroll = 0,
@@ -2160,7 +2195,6 @@ class _ResourcePage extends ConsumerStatefulWidget {
   final ReaderFit fit;
   final ReaderColorFilter colorFilter;
   final double viewportScale;
-  final double decodeScale;
   final bool inputLocked;
   final Offset zoomFocal;
   final double manualScroll;
@@ -2178,6 +2212,10 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
   /// Bytes for an image page: the extension host's signed response, or the
   /// shared disk cache for an ordinary source. Null for files and videos.
   Future<Uint8List?>? _bytes;
+
+  /// Present when the shared page cache already holds this page in memory.
+  /// Painting it synchronously removes the flash on a mode switch.
+  Uint8List? _memoryBytes;
 
   /// Bumped by a retry so a failed network page is requested again instead of
   /// replaying the failed image from the flutter image cache.
@@ -2222,6 +2260,7 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
       _autoRetried = false;
       _attempt++;
       _bytes = null;
+      _memoryBytes = null;
       _loadSignedImage();
     }
   }
@@ -2257,23 +2296,29 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
   }
 
   void _loadSignedImage() {
+    _memoryBytes = null;
     final resource = widget.resource;
     if (resource is FileResource) {
-      // A repair replaces bytes at the same path. FileImage's cache key does
-      // not include modification time or contents; reopen the actual scan.
-      PaintingBinding.instance.imageCache.evict(FileImage(File(resource.path)));
+      // Keep FileImage's decoded scan alive when switching layouts. A repair
+      // evicts it explicitly in _retry before reading the path again.
       return;
     }
     if (resource is! ImageResource) return;
+    final cache = ref.read(pageImageCacheProvider);
+    _memoryBytes = cache.memoryBytes(resource);
     final source = extensionSourceIdOf(widget.sourceId);
     if (source != null) {
-      _bytes = ref
-          .read(extensionHostProvider)
-          .imageBytes(source, resource.url, headers: resource.headers);
+      // Extension pages are signed by the host, so cache the bytes it returned
+      // rather than issuing a second request with the wrong signature.
+      final host = ref.read(extensionHostProvider);
+      _bytes = cache.loadWith(
+        resource,
+        () => host.imageBytes(source, resource.url, headers: resource.headers),
+      );
     } else {
       // Ordinary pages share a disk cache keyed by URL and headers, so a
       // reopened chapter paints from storage instead of the network.
-      _bytes = ref.read(pageImageCacheProvider).load(resource);
+      _bytes = cache.load(resource);
     }
   }
 
@@ -2315,32 +2360,40 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
   void _retry() {
     _retryTimer?.cancel();
     final resource = widget.resource;
-    final extension = extensionSourceIdOf(widget.sourceId);
     unawaited(() async {
       // A retry after a decode failure must not read the same damaged file
-      // again. Drop it before asking the source for a fresh copy.
-      if (resource is ImageResource && extension == null) {
+      // again. Drop it before asking the source for a fresh copy, including
+      // extension pages that now live in the shared cache.
+      if (resource is ImageResource) {
         await ref.read(pageImageCacheProvider).evict(resource);
+      } else if (resource is FileResource) {
+        // The file was repaired in place; FileImage does not include bytes or
+        // mtime in its key, so drop the decoded copy before reading it again.
+        PaintingBinding.instance.imageCache.evict(
+          FileImage(File(resource.path)),
+        );
       }
       if (!mounted) return;
       setState(() {
         _attempt++;
         _bytes = null;
+        _memoryBytes = null;
         _loadSignedImage();
       });
     }());
   }
 
-  /// The width a page should be decoded at. Original-size mode keeps the full
-  /// scan. Other modes can request a sharper decode after a zoom completes,
-  /// without re-decoding on every finger movement or exceeding the width cap.
+  /// One decode width for the life of the page, independent of pinch scale.
+  /// Two screen widths, capped at 1600 pixels, keep a 2× zoom reasonably sharp
+  /// on a weak phone without swapping the provider (and flashing a loading
+  /// card) mid-gesture.
   int? get _cacheWidth {
     if (widget.fit == ReaderFit.original && !widget.continuous) return null;
     final media = MediaQuery.maybeOf(context);
     if (media == null) return null;
-    return (media.size.width * media.devicePixelRatio * widget.decodeScale)
+    return (media.size.width * media.devicePixelRatio * 2)
         .round()
-        .clamp(320, 2048)
+        .clamp(720, 1600)
         .toInt();
   }
 
@@ -2396,6 +2449,36 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
     };
   }
 
+  Widget _byteImage(Uint8List bytes, {required int? cacheWidth}) {
+    return Image.memory(
+      bytes,
+      width: _imageWidth,
+      fit: _imageFit,
+      cacheWidth: cacheWidth,
+      filterQuality: FilterQuality.medium,
+      gaplessPlayback: true,
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) =>
+          _pageFrame(
+            context,
+            child,
+            frame,
+            wasSynchronouslyLoaded,
+            reserveHeight: _fitsWidth,
+            index: widget.index,
+            total: widget.total,
+          ),
+      errorBuilder: (BuildContext context, Object error, StackTrace? stack) {
+        _handleImageError();
+        return _PageError(
+          message: '$error',
+          onRetry: _retry,
+          index: widget.index,
+          total: widget.total,
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final resource = widget.resource;
@@ -2418,6 +2501,8 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                   index: widget.index,
                   total: widget.total,
                 )
+              : _memoryBytes != null
+              ? _byteImage(_memoryBytes!, cacheWidth: cacheWidth)
               : FutureBuilder<Uint8List?>(
                   key: ValueKey('bytes-$_attempt'),
                   future: _bytes,
@@ -2455,39 +2540,7 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
                         total: widget.total,
                       );
                     }
-                    return Image.memory(
-                      bytes,
-                      width: _imageWidth,
-                      fit: _imageFit,
-                      cacheWidth: cacheWidth,
-                      filterQuality: FilterQuality.medium,
-                      gaplessPlayback: true,
-                      frameBuilder:
-                          (context, child, frame, wasSynchronouslyLoaded) =>
-                              _pageFrame(
-                                context,
-                                child,
-                                frame,
-                                wasSynchronouslyLoaded,
-                                reserveHeight: _fitsWidth,
-                                index: widget.index,
-                                total: widget.total,
-                              ),
-                      errorBuilder:
-                          (
-                            BuildContext context,
-                            Object error,
-                            StackTrace? stack,
-                          ) {
-                            _handleImageError();
-                            return _PageError(
-                              message: '$error',
-                              onRetry: retry,
-                              index: widget.index,
-                              total: widget.total,
-                            );
-                          },
-                    );
+                    return _byteImage(bytes, cacheWidth: cacheWidth);
                   },
                 ),
         ),
