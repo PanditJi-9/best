@@ -114,10 +114,7 @@ class _ReaderReadingHudState extends State<ReaderReadingHud> {
                       vertical: BestSpace.sm,
                     ),
                     child: Text.rich(
-                      key: const ValueKey('reader-hud-label'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      text: TextSpan(
+                      TextSpan(
                         children: [
                           TextSpan(
                             text: widget.chapterTitle,
@@ -150,6 +147,9 @@ class _ReaderReadingHudState extends State<ReaderReadingHud> {
                           ),
                         ],
                       ),
+                      key: const ValueKey('reader-hud-label'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
