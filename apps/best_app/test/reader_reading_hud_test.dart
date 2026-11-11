@@ -20,7 +20,10 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Chapter 7'), findsOneWidget);
+    final label = tester.widget<Text>(
+      find.byKey(const ValueKey('reader-hud-label')),
+    );
+    expect(label.textSpan?.toPlainText(), contains('Chapter 7'));
     expect(find.text('Page 12 of 48'), findsOneWidget);
     expect(_opacity(tester), 1);
 

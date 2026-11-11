@@ -113,14 +113,14 @@ class _ReaderReadingHudState extends State<ReaderReadingHud> {
                       horizontal: BestSpace.md,
                       vertical: BestSpace.sm,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            widget.chapterTitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                    child: Text.rich(
+                      key: const ValueKey('reader-hud-label'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: widget.chapterTitle,
                             style: TextStyle(
                               color: Colors.white.withValues(
                                 alpha: BestAlpha.supporting,
@@ -129,20 +129,27 @@ class _ReaderReadingHudState extends State<ReaderReadingHud> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: BestSpace.sm),
-                        Text(
-                          widget.pageLabel,
-                          maxLines: 1,
-                          textDirection: TextDirection.ltr,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontFamily: BestFontFamily.mono,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: Padding(
+                              padding: const EdgeInsetsDirectional.only(
+                                start: BestSpace.sm,
+                              ),
+                              child: Text(
+                                widget.pageLabel,
+                                maxLines: 1,
+                                textDirection: TextDirection.ltr,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontFamily: BestFontFamily.mono,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
