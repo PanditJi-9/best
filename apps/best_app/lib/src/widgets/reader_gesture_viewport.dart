@@ -308,6 +308,9 @@ class ReaderGestureViewportState extends State<ReaderGestureViewport>
       _longHeld = event.timeStamp - _downTime > kLongPressTimeout;
       if (_longHeld) _tapBlocked = true;
       _lock(false);
+      // Rebuild once after releasing the pinch so children receive
+      // inputLocked=false and can take scroll handoff immediately.
+      setState(() {});
       widget.onZoomEnd();
     }
   }

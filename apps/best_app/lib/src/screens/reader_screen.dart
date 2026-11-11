@@ -286,10 +286,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView> {
     } else {
       _zoomAnchor!.focal = after;
     }
-    // During a pinch the viewport is already rebuilding every frame. Starting
-    // a scroll animation on each of those frames fights the fingers and shows
-    // up as shake; correct the anchor once when the gesture ends instead.
-    if (!_gestureInputLocked) _scheduleZoomCorrection();
+    _scheduleZoomCorrection();
   }
 
   void _scheduleZoomCorrection() {
