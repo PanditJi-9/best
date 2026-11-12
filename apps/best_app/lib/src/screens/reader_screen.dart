@@ -235,10 +235,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView>
   /// on every scroll tick would be wasted work.
   final Set<int> _prefetched = <int>{};
 
-  /// The next chapter whose opening pages were warmed. Kept separate from the
-  /// page set because it belongs to another unit.
-  String? _prefetchedNextUnit;
-
   void _toggleChrome() {
     if (_gestureInputLocked || ModalRoute.of(context)?.isCurrent == false) {
       return;
@@ -984,7 +980,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _precacheAround(_index);
-        _maybePrefetchNextUnit(_index);
       }
     });
   }
@@ -1108,7 +1103,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView>
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 320), _saveNow);
     _precacheAround(pages.last);
-    _maybePrefetchNextUnit(pages.last);
   }
 
   /// Continuous mode has no page callback, so the item under the top of the
@@ -1162,69 +1156,6 @@ class _ReaderViewState extends ConsumerState<_ReaderView>
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 320), _saveNow);
     _precacheAround(index);
-    _maybePrefetchNextUnit(index);
-  }
-
-  /// Warm the first pages of the next chapter when the reader is close to its
-  /// end, so auto-advance and the end-card tap do not open on a spinner. It is
-  /// best effort: a failed request leaves the normal chapter load untouched.
-  void _maybePrefetchNextUnit(int page) {
-    if (!mounted ||
-        !_readerSettings.readerPreload ||
-        widget.data.partial ||
-        widget.data.offline) {
-      return;
-    }
-    final total = _chapterTotal;
-    if (total <= 0 || page < total - 3) return;
-    final next = _nextUnit;
-    if (next == null || _prefetchedNextUnit == next.id) return;
-    _prefetchedNextUnit = next.id;
-    unawaited(() async {
-      try {
-        final key = (
-          sourceId: widget.data.media.ref.sourceId,
-          url: widget.data.media.ref.url,
-          unitUrl: next.url,
-        );
-        final data = await ref.read(readerProvider(key).future);
-        if (!mounted) return;
-        final extension = extensionSourceIdOf(widget.data.media.ref.sourceId);
-        final host = extension == null ? null : ref.read(extensionHostProvider);
-        final cache = ref.read(pageImageCacheProvider);
-        final cacheWidth = _decodeWidth;
-        for (final resource in data.resources.take(2)) {
-          if (!mounted) return;
-          if (resource is ImageResource) {
-            final bytes = extension == null
-                ? await cache.load(resource)
-                : await cache.loadWith(
-                    resource,
-                    () => host!.imageBytes(
-                      extension,
-                      resource.url,
-                      headers: resource.headers,
-                    ),
-                  );
-            if (!mounted || bytes == null || bytes.isEmpty) continue;
-            ImageProvider<Object> provider = MemoryImage(bytes);
-            if (cacheWidth != null) {
-              provider = ResizeImage(provider, width: cacheWidth);
-            }
-            await precacheImage(provider, context, onError: (_, __) {});
-          } else if (resource is FileResource) {
-            ImageProvider<Object> provider = FileImage(File(resource.path));
-            if (cacheWidth != null) {
-              provider = ResizeImage(provider, width: cacheWidth);
-            }
-            await precacheImage(provider, context, onError: (_, __) {});
-          }
-        }
-      } catch (_) {
-        // The next chapter will load normally when the reader asks for it.
-        _prefetchedNextUnit = null;
-      }
-    }());
   }
 
   void _markRead(int index) {
