@@ -1,6 +1,5 @@
 package app.best.best_app.ocr
 
-import android.content.Context
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.common.model.RemoteModelManager
@@ -10,6 +9,10 @@ import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
 import com.google.mlkit.nl.translate.TranslatorOptions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
@@ -19,10 +22,24 @@ import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 /**
- * On-device translation engine using Google ML Kit English -> Arabic,
- * with model management and HTTP fallback. Ported from HikariManga 1.4.2.
+ * English -> Arabic translation with a local-first policy.
+ *
+ * Both ML Kit language models are optional downloads. An online reader can use
+ * the HTTP client immediately while the models download in the background; once
+ * those models are present, every page works with no connection. Requests are
+ * bounded so a page with ten bubbles does not create ten competing engines, and
+ * a failed network attempt opens a short circuit instead of making every bubble
+ * wait for the same timeout.
  */
-class TranslateEngineManager(private val context: Context) {
+class TranslateEngineManager {
+
+    companion object {
+        private const val LOCAL_TIMEOUT_MS = 4_000L
+        private const val MODEL_DOWNLOAD_TIMEOUT_MS = 60_000L
+        private const val HTTP_COOLDOWN_MS = 30_000L
+        private const val MODEL_RETRY_MS = 5 * 60_000L
+        private const val MAX_CONCURRENT_TRANSLATIONS = 3
+    }
 
     private val options = TranslatorOptions.Builder()
         .setSourceLanguage(TranslateLanguage.ENGLISH)
@@ -34,81 +51,141 @@ class TranslateEngineManager(private val context: Context) {
     }
 
     private val modelManager = RemoteModelManager.getInstance()
-    private val arabicModel = TranslateRemoteModel.Builder(TranslateLanguage.ARABIC).build()
+    private val englishModel =
+        TranslateRemoteModel.Builder(TranslateLanguage.ENGLISH).build()
+    private val arabicModel =
+        TranslateRemoteModel.Builder(TranslateLanguage.ARABIC).build()
+
+    private val modelLock = Mutex()
+    private val translationSlots = Semaphore(MAX_CONCURRENT_TRANSLATIONS)
+
+    @Volatile private var modelReady = false
+    @Volatile private var modelChecked = false
+    @Volatile private var lastDownloadAttemptMs = 0L
+    @Volatile private var httpBlockedUntilMs = 0L
 
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(8, TimeUnit.SECONDS)
+        .connectTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(6, TimeUnit.SECONDS)
+        .callTimeout(9, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
+    /** True only when both the source and target models are on the device. */
     suspend fun isModelDownloaded(): Boolean = withContext(Dispatchers.IO) {
-        try {
-            Tasks.await(modelManager.isModelDownloaded(arabicModel))
-        } catch (e: Exception) {
-            false
+        val installed = modelsInstalled()
+        if (installed) modelReady = true
+        modelChecked = true
+        installed
+    }
+
+    /**
+     * Downloads both models. Callers should not block a page on this; it is the
+     * background preparation that turns online translation into offline
+     * translation after the first run.
+     */
+    suspend fun downloadModel(force: Boolean = false): Boolean = withContext(Dispatchers.IO) {
+        if (modelReady) return@withContext true
+        val now = System.currentTimeMillis()
+        if (!force && now - lastDownloadAttemptMs < MODEL_RETRY_MS) {
+            return@withContext false
+        }
+        lastDownloadAttemptMs = now
+        modelLock.withLock {
+            if (modelReady) return@withLock true
+            val installed = withTimeoutOrNull(MODEL_DOWNLOAD_TIMEOUT_MS) {
+                try {
+                    Tasks.await(
+                        translator.downloadModelIfNeeded(
+                            DownloadConditions.Builder().build()
+                        )
+                    )
+                    true
+                } catch (_: Exception) {
+                    false
+                }
+            } ?: false
+            modelReady = installed
+            modelChecked = true
+            installed
         }
     }
 
-    suspend fun downloadModel(): Boolean = withContext(Dispatchers.IO) {
-        val conditions = DownloadConditions.Builder().build()
-        try {
-            Tasks.await(translator.downloadModelIfNeeded(conditions))
-            true
-        } catch (e: Exception) {
-            false
-        }
+    suspend fun translate(text: String): String = translationSlots.withPermit {
+        withContext(Dispatchers.IO) { translateInternal(text) }
     }
 
-    suspend fun translate(text: String): String = withContext(Dispatchers.IO) {
+    private suspend fun translateInternal(text: String): String {
         val trimmed = text.trim()
-        if (trimmed.isEmpty()) return@withContext ""
+        if (trimmed.isEmpty()) return ""
 
-        // 1. Try ML Kit on-device translation with 5 second timeout
-        val mlKitResult = withTimeoutOrNull(5000L) {
-            try {
-                Tasks.await(translator.translate(trimmed))
-            } catch (e: Exception) {
-                null
+        // A reader who already downloaded the models gets the local engine even
+        // after a process restart. Checking once avoids a model-manager query on
+        // every bubble.
+        if (!modelReady && !modelChecked) {
+            modelReady = modelsInstalled()
+            modelChecked = true
+        }
+
+        if (modelReady) {
+            val local = withTimeoutOrNull(LOCAL_TIMEOUT_MS) {
+                try {
+                    Tasks.await(translator.translate(trimmed))
+                } catch (_: Exception) {
+                    null
+                }
             }
+            if (!local.isNullOrBlank()) return local
         }
 
-        if (!mlKitResult.isNullOrBlank()) {
-            return@withContext mlKitResult
-        }
-
-        // 2. HTTP Fallback (client API)
-        val httpResult = translateViaHttp(trimmed)
-        if (httpResult.isNotBlank()) {
-            return@withContext httpResult
-        }
-
-        return@withContext ""
+        return translateViaHttp(trimmed)
     }
 
-    private fun translateViaHttp(text: String): String {
-        return try {
-            val encoded = URLEncoder.encode(text, "UTF-8")
-            val url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ar&dt=t&q=$encoded"
-            val request = Request.Builder()
-                .url(url)
-                .header("User-Agent", "Mozilla/5.0")
-                .build()
+    private suspend fun modelsInstalled(): Boolean = try {
+        Tasks.await(modelManager.isModelDownloaded(englishModel)) &&
+            Tasks.await(modelManager.isModelDownloaded(arabicModel))
+    } catch (_: Exception) {
+        false
+    }
 
+    /**
+     * The Google web endpoint is the emergency path when the offline model is
+     * absent or broken. A short circuit prevents an offline phone from paying
+     * a timeout for every bubble in a page.
+     */
+    private fun translateViaHttp(text: String): String {
+        if (System.currentTimeMillis() < httpBlockedUntilMs) return ""
+
+        val encoded = URLEncoder.encode(text, "UTF-8")
+        val url =
+            "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ar&dt=t&q=$encoded"
+        val request = Request.Builder()
+            .url(url)
+            .header("Accept", "application/json")
+            .header("User-Agent", "Best/2.0 (Android)")
+            .build()
+
+        return try {
             httpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return ""
+                if (!response.isSuccessful) {
+                    httpBlockedUntilMs =
+                        System.currentTimeMillis() + HTTP_COOLDOWN_MS
+                    return ""
+                }
                 val body = response.body?.string() ?: return ""
                 val json = JSONArray(body)
                 val sentences = json.optJSONArray(0) ?: return ""
-                val sb = StringBuffer()
+                val result = StringBuilder()
                 for (i in 0 until sentences.length()) {
-                    val s = sentences.optJSONArray(i)
-                    if (s != null) {
-                        sb.append(s.optString(0))
-                    }
+                    val sentence = sentences.optJSONArray(i)
+                    if (sentence != null) result.append(sentence.optString(0))
                 }
-                sb.toString().trim()
+                val translated = result.toString().trim()
+                if (translated.isNotEmpty()) httpBlockedUntilMs = 0L
+                translated
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
+            httpBlockedUntilMs = System.currentTimeMillis() + HTTP_COOLDOWN_MS
             ""
         }
     }

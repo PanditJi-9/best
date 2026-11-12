@@ -977,6 +977,11 @@ class _ReaderViewState extends ConsumerState<_ReaderView>
     if (settings.readerKeepAwake) {
       unawaited(_setAwake(true));
     }
+    if (settings.ocrTranslationEnabled) {
+      // Finish the one-time model download while the reader is already
+      // translating online. Future chapters then work in airplane mode.
+      unawaited(ref.read(translationModelClientProvider).downloadModel());
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _precacheAround(_index);
@@ -1403,6 +1408,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView>
               unitId: widget.data.unit.id,
               resource: _resources[page],
               sourceId: widget.data.media.ref.sourceId,
+              seriesOrigin: widget.data.media.displayTitle,
               index: page,
               total: _chapterTotal,
               fit: settings.readerFit,
@@ -1486,6 +1492,7 @@ class _ReaderViewState extends ConsumerState<_ReaderView>
                       unitId: widget.data.unit.id,
                       resource: _resources[index],
                       sourceId: widget.data.media.ref.sourceId,
+                      seriesOrigin: widget.data.media.displayTitle,
                       index: index,
                       total: _chapterTotal,
                       continuous: true,
@@ -2141,6 +2148,7 @@ class _OcrPageOverlay extends ConsumerStatefulWidget {
     required this.index,
     required this.getBytes,
     required this.continuous,
+    this.seriesOrigin,
     required this.child,
   });
 
@@ -2148,6 +2156,7 @@ class _OcrPageOverlay extends ConsumerStatefulWidget {
   final int index;
   final Future<Uint8List?> Function() getBytes;
   final bool continuous;
+  final String? seriesOrigin;
   final Widget child;
 
   @override
@@ -2212,6 +2221,7 @@ class _OcrPageOverlayState extends ConsumerState<_OcrPageOverlay> {
           unitId: widget.unitId,
           pageIndex: widget.index,
           imageBytes: bytes,
+          seriesOrigin: widget.seriesOrigin,
         );
         if (mounted) {
           setState(() {
@@ -2514,6 +2524,7 @@ class _ResourcePage extends ConsumerStatefulWidget {
     this.zoomFocal = Offset.zero,
     this.manualScroll = 0,
     this.active = true,
+    this.seriesOrigin,
   });
 
   final String unitId;
@@ -2529,6 +2540,7 @@ class _ResourcePage extends ConsumerStatefulWidget {
   final Offset zoomFocal;
   final double manualScroll;
   final bool active;
+  final String? seriesOrigin;
 
   @override
   ConsumerState<_ResourcePage> createState() => _ResourcePageState();
@@ -2736,6 +2748,7 @@ class _ResourcePageState extends ConsumerState<_ResourcePage> {
       index: widget.index,
       getBytes: _getImageBytes,
       continuous: _fitsWidth,
+      seriesOrigin: widget.seriesOrigin,
       child: child,
     );
     final withFilter = ReaderColorFilterOverlay(

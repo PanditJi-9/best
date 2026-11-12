@@ -55,6 +55,14 @@ final Provider<OcrClient> ocrClientProvider = Provider<OcrClient>((ref) {
   return OcrClient(repository: ref.watch(repositoryProvider));
 });
 
+/// Model management is independent of the library database. Keeping a separate
+/// client lets settings prepare the offline engine even when a screen has no
+/// repository (and keeps unit tests from touching SQLite just to read a model
+/// flag). The native model state is shared by both clients.
+final Provider<OcrClient> translationModelClientProvider = Provider<OcrClient>(
+  (ref) => OcrClient(),
+);
+
 final Provider<BackgroundDownloadClient> backgroundDownloadClientProvider =
     Provider<BackgroundDownloadClient>(
       (ref) => const BackgroundDownloadClient(),
@@ -1139,6 +1147,12 @@ class SettingsController extends Notifier<AppSettings> {
       ref.read(preferencesProvider)?.setBool(_ocrTranslationKey, value),
     );
     state = state.copyWith(ocrTranslationEnabled: value);
+    if (value) {
+      // Prepare the on-device models in the background. The reader can translate
+      // online immediately; once this one-time download finishes the same pages
+      // keep working with no connection.
+      unawaited(ref.read(translationModelClientProvider).downloadModel());
+    }
   }
 
   void setBiometricLockEnabled(bool value) {

@@ -22,7 +22,7 @@ class OcrHost(private val context: Context) : MethodChannel.MethodCallHandler {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val ocrManager = OcrManager()
-    private val translateManager = TranslateEngineManager(context)
+    private val translateManager = TranslateEngineManager()
 
     fun attach(messenger: BinaryMessenger) {
         val channel = MethodChannel(messenger, CHANNEL)
@@ -83,7 +83,9 @@ class OcrHost(private val context: Context) : MethodChannel.MethodCallHandler {
 
             "downloadModel" -> {
                 scope.launch {
-                    val success = translateManager.downloadModel()
+                    val success = translateManager.downloadModel(
+                        force = call.argument<Boolean>("force") ?: false
+                    )
                     result.success(success)
                 }
             }

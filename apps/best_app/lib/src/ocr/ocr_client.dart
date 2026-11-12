@@ -63,9 +63,11 @@ class OcrClient {
     }
   }
 
-  Future<bool> downloadModel() async {
+  Future<bool> downloadModel({bool force = false}) async {
     try {
-      final res = await _channel.invokeMethod<bool>('downloadModel');
+      final res = await _channel.invokeMethod<bool>('downloadModel', {
+        'force': force,
+      });
       return res ?? false;
     } catch (_) {
       return false;
@@ -83,9 +85,10 @@ class OcrClient {
     // 1. Check cache
     if (_repository != null) {
       final cached = await _repository.getPageOcr(unitId, pageIndex);
-      if (cached != null && cached.bubbles.isNotEmpty) {
-        return cached;
-      }
+      // A page can legitimately contain no speech bubbles. Caching that empty
+      // result is what keeps cover art and silent spreads from being sent
+      // through OCR again on every rebuild.
+      if (cached != null) return cached;
     }
 
     // 2. Call native ML Kit OCR

@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * Android OCR engine using ML Kit Latin text recognition with image tiling and
@@ -28,6 +29,11 @@ class OcrManager {
         const val OCR_TILE_THRESHOLD_PX = 2500
         const val OCR_TILE_HEIGHT_PX = 1600
         const val OCR_TILE_OVERLAP_PX = 250
+
+        // Recognition quality plateaus well below a raw 3–4K scan width, while
+        // the bitmap copy and ML Kit inference keep getting slower. Downscale
+        // only for recognition, then scale the boxes back to image space.
+        const val OCR_MAX_RECOGNITION_WIDTH = 1600
     }
 
     data class BubbleColors(
@@ -46,6 +52,9 @@ class OcrManager {
         val bgGradientEndHex: String?,
         val textHex: String
     ) {
+        val right: Double get() = left + width
+        val bottom: Double get() = top + height
+
         fun toMap(): Map<String, Any?> = mapOf(
             "text" to text,
             "box" to mapOf(
@@ -110,40 +119,64 @@ class OcrManager {
     }
 
     private fun extractBubblesDirect(bitmapTile: Bitmap, yOffsetGlobal: Int, totalImageHeight: Int): List<RawBubble> {
-        val inputImage = InputImage.fromBitmap(bitmapTile, 0)
-        val visionText: Text = try {
-            Tasks.await(recognizer.process(inputImage))
-        } catch (e: Exception) {
-            return emptyList()
+        val scale = if (bitmapTile.width > OCR_MAX_RECOGNITION_WIDTH) {
+            OCR_MAX_RECOGNITION_WIDTH.toDouble() / bitmapTile.width
+        } else {
+            1.0
         }
-
-        val list = mutableListOf<RawBubble>()
-        for (block in visionText.textBlocks) {
-            val text = block.text.trim()
-            if (text.isEmpty()) continue
-
-            val box = block.boundingBox ?: continue
-            val left = box.left.toDouble()
-            val top = (box.top + yOffsetGlobal).toDouble()
-            val width = box.width().toDouble()
-            val height = box.height().toDouble()
-
-            val colors = sampleBubbleColors(bitmapTile, box)
-
-            list.add(
-                RawBubble(
-                    text = text,
-                    left = left,
-                    top = top,
-                    width = width,
-                    height = height,
-                    bgHex = colors.bgHex,
-                    bgGradientEndHex = colors.bgGradientEndHex,
-                    textHex = colors.textHex
-                )
+        val ocrBitmap = if (scale < 0.999) {
+            Bitmap.createScaledBitmap(
+                bitmapTile,
+                OCR_MAX_RECOGNITION_WIDTH,
+                max(1, (bitmapTile.height * scale).roundToInt()),
+                true
             )
+        } else {
+            bitmapTile
         }
-        return list
+
+        try {
+            val inputImage = InputImage.fromBitmap(ocrBitmap, 0)
+            val visionText: Text = try {
+                Tasks.await(recognizer.process(inputImage))
+            } catch (e: Exception) {
+                return emptyList()
+            }
+
+            val list = mutableListOf<RawBubble>()
+            for (block in visionText.textBlocks) {
+                val text = block.text.trim()
+                if (text.isEmpty()) continue
+
+                val box = block.boundingBox ?: continue
+                // Boxes are in the downscaled bitmap; return them to the page's
+                // coordinate system so overlays line up at any zoom level.
+                val left = box.left / scale
+                val top = box.top / scale + yOffsetGlobal
+                val width = box.width() / scale
+                val height = box.height() / scale
+
+                val colors = sampleBubbleColors(ocrBitmap, box)
+
+                list.add(
+                    RawBubble(
+                        text = text,
+                        left = left,
+                        top = top,
+                        width = width,
+                        height = height,
+                        bgHex = colors.bgHex,
+                        bgGradientEndHex = colors.bgGradientEndHex,
+                        textHex = colors.textHex
+                    )
+                )
+            }
+            return list
+        } finally {
+            if (ocrBitmap !== bitmapTile && !ocrBitmap.isRecycled) {
+                ocrBitmap.recycle()
+            }
+        }
     }
 
     /**
@@ -223,41 +256,60 @@ class OcrManager {
         return Color.rgb((r / count).toInt(), (g / count).toInt(), (b / count).toInt())
     }
 
+    /**
+     * Tile overlap produces the same block twice, and ML Kit can split one
+     * balloon into a short line inside a larger one. Merge only when the words
+     * are the same or one box is almost entirely inside the other; nearby but
+     * distinct balloons must stay separate or two speakers become one.
+     */
     private fun deduplicateAndMerge(bubbles: List<RawBubble>): List<RawBubble> {
         if (bubbles.size <= 1) return bubbles
-        val sorted = bubbles.sortedBy { it.top }
+        val sorted = bubbles.sortedWith(compareBy({ it.top }, { it.left }))
         val result = mutableListOf<RawBubble>()
 
         for (curr in sorted) {
-            if (result.isEmpty()) {
-                result.add(curr)
-                continue
-            }
-            val last = result.last()
-            // Check if curr and last significantly overlap vertically and horizontally
-            val verticalGap = curr.top - (last.top + last.height)
-            val horizontalOverlap = max(0.0, min(last.left + last.width, curr.left + curr.width) - max(last.left, curr.left))
-            val minWidth = min(last.width, curr.width)
+            var merged = false
+            for (i in result.indices.reversed()) {
+                val previous = result[i]
+                if (curr.top - previous.top > max(previous.height, curr.height) * 1.25 + 8) {
+                    break
+                }
 
-            if (verticalGap in -20.0..40.0 && horizontalOverlap > 0.3 * minWidth) {
-                // Merge bubbles
-                val newLeft = min(last.left, curr.left)
-                val newTop = min(last.top, curr.top)
-                val newRight = max(last.left + last.width, curr.left + curr.width)
-                val newBottom = max(last.top + last.height, curr.top + curr.height)
-                val mergedText = "${last.text} ${curr.text}"
+                val overlapX = max(0.0, min(previous.right, curr.right) - max(previous.left, curr.left))
+                val overlapY = max(0.0, min(previous.bottom, curr.bottom) - max(previous.top, curr.top))
+                val intersection = overlapX * overlapY
+                if (intersection <= 0.0) continue
 
-                result[result.size - 1] = last.copy(
+                val previousArea = previous.width * previous.height
+                val currentArea = curr.width * curr.height
+                val smallerArea = min(previousArea, currentArea)
+                val unionArea = previousArea + currentArea - intersection
+                val overlapOfSmaller = if (smallerArea > 0) intersection / smallerArea else 0.0
+                val iou = if (unionArea > 0) intersection / unionArea else 0.0
+                val sameText = normalizeText(previous.text) == normalizeText(curr.text)
+
+                if (!(sameText && iou >= 0.18) && overlapOfSmaller < 0.72) continue
+
+                val mergedText = if (sameText) previous.text else "${previous.text} ${curr.text}"
+                val newLeft = min(previous.left, curr.left)
+                val newTop = min(previous.top, curr.top)
+                val newRight = max(previous.right, curr.right)
+                val newBottom = max(previous.bottom, curr.bottom)
+                result[i] = previous.copy(
                     text = mergedText,
                     left = newLeft,
                     top = newTop,
                     width = newRight - newLeft,
                     height = newBottom - newTop
                 )
-            } else {
-                result.add(curr)
+                merged = true
+                break
             }
+            if (!merged) result.add(curr)
         }
         return result
     }
+
+    private fun normalizeText(text: String): String =
+        text.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), "").ifEmpty { text.lowercase() }
 }

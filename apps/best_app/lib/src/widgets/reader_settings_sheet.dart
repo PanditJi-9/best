@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../providers.dart';
 import 'reader_download_tile.dart';
+import 'translation_model_card.dart';
 
 /// Everything that changes how a chapter is read, in one place.
 ///
@@ -419,6 +420,8 @@ class ReaderSettingsSheet extends ConsumerWidget {
               title: Text(l10n.readerOcrTitle),
               subtitle: Text(l10n.readerOcrBody),
             ),
+            if (settings.ocrTranslationEnabled)
+              const TranslationModelCard(compact: true),
             const SizedBox(height: BestSpace.sm),
             Material(
               color: theme.colorScheme.surfaceContainerHigh,

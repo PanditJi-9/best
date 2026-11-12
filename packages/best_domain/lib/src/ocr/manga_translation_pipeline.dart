@@ -23,6 +23,18 @@ class MangaTranslationPipeline {
   static const int _translationCacheLimit = 500;
   static final Map<String, String> _translationCache = <String, String>{};
 
+  /// A page often repeats the same shout or reaction. Sharing the in-flight
+  /// future avoids sending that line to the network twice while the first
+  /// copy is still being translated.
+  static final Map<String, Future<String>> _inFlightTranslations =
+      <String, Future<String>>{};
+
+  /// A page often contains four to ten balloons. Translating them one after
+  /// another made the slowest bubble set the page latency; a small pool keeps
+  /// the order deterministic without letting a whole chapter compete for the
+  /// translation engine.
+  static const int _pageTranslationConcurrency = 4;
+
   static final RegExp _urlRegex = RegExp(
     r'\b(?:https?://|ftp://|www\.)\S+|(?:discord\.(?:gg|com/invite)|t\.me|patreon\.com)/[^\s<>]+',
     caseSensitive: false,
@@ -46,21 +58,32 @@ class MangaTranslationPipeline {
   Future<String> translateBubbleText(
     String rawText, {
     String? seriesOrigin,
-  }) async {
+  }) {
     final trimmed = rawText.trim();
-    if (trimmed.isEmpty) return '';
+    if (trimmed.isEmpty) return Future<String>.value('');
     final key = '${seriesOrigin ?? ''}\u0000$trimmed';
     final cached = _translationCache.remove(key);
     if (cached != null) {
       _translationCache[key] = cached;
-      return cached;
+      return Future<String>.value(cached);
     }
-    final result = await _translateBubbleTextUncached(
+    final inFlight = _inFlightTranslations[key];
+    if (inFlight != null) return inFlight;
+
+    final future = _translateBubbleTextUncached(
       trimmed,
       seriesOrigin: seriesOrigin,
-    );
-    _rememberTranslation(key, result);
-    return result;
+    ).then((result) {
+      // An empty result usually means the network was down or the on-device
+      // model was still downloading. Caching it would permanently hide the
+      // translation after connectivity returns.
+      if (result.isNotEmpty) _rememberTranslation(key, result);
+      return result;
+    }).whenComplete(() {
+      _inFlightTranslations.remove(key);
+    });
+    _inFlightTranslations[key] = future;
+    return future;
   }
 
   void _rememberTranslation(String key, String value) {
@@ -115,9 +138,15 @@ class MangaTranslationPipeline {
     }
 
     if (rawArabic.trim().isEmpty) {
-      // Fallback: transliterate remaining English words if machine translation fails
-      return ArabicNameTransliteration.instance
-          .transliterateRemainingEnglishWords(cleaned, seriesOrigin);
+      // Keep a one- or two-word name readable, but never turn a whole English
+      // sentence into Arabic letters: that looks translated without being
+      // translated. The original bubble will stay visible instead.
+      final words = cleaned.split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+      if (words.length <= 2) {
+        return ArabicNameTransliteration.instance
+            .transliterateRemainingEnglishWords(cleaned, seriesOrigin);
+      }
+      return '';
     }
 
     // Step 7: Arabic post-polishing & punctuation
@@ -137,22 +166,43 @@ class MangaTranslationPipeline {
     return polished.trim();
   }
 
-  /// Translates all bubbles on a page and returns updated bubbles.
-  Future<List<Bubble>> translatePageBubbles(List<Bubble> bubbles,
-      {String? seriesOrigin}) async {
-    final translated = <Bubble>[];
-    for (final bubble in bubbles) {
-      final arText =
-          await translateBubbleText(bubble.text, seriesOrigin: seriesOrigin);
-      if (arText.isNotEmpty) {
-        translated.add(bubble.copyWith(
-          text: arText,
-          rawEnglishText: bubble.text,
-        ));
-      } else {
-        translated.add(bubble);
+  /// Translates all bubbles on a page and returns updated bubbles in image
+  /// order. Work is bounded rather than unbounded: the native engine already
+  /// serialises its model work, and a page of twenty bubbles should not launch
+  /// twenty HTTP requests.
+  Future<List<Bubble>> translatePageBubbles(
+    List<Bubble> bubbles, {
+    String? seriesOrigin,
+  }) async {
+    if (bubbles.isEmpty) return const <Bubble>[];
+    final translated = List<Bubble>.filled(bubbles.length, bubbles.first);
+    var next = 0;
+
+    Future<void> worker() async {
+      while (true) {
+        final index = next;
+        if (index >= bubbles.length) return;
+        next++;
+        final bubble = bubbles[index];
+        String arText;
+        try {
+          arText = await translateBubbleText(
+            bubble.text,
+            seriesOrigin: seriesOrigin,
+          );
+        } catch (_) {
+          arText = '';
+        }
+        translated[index] = arText.isNotEmpty
+            ? bubble.copyWith(text: arText, rawEnglishText: bubble.text)
+            : bubble;
       }
     }
+
+    final workers = bubbles.length < _pageTranslationConcurrency
+        ? bubbles.length
+        : _pageTranslationConcurrency;
+    await Future.wait([for (var i = 0; i < workers; i++) worker()]);
     return translated;
   }
 }

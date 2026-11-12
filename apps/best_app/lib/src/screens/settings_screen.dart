@@ -10,6 +10,7 @@ import '../navigation.dart';
 import '../labels.dart';
 import '../providers.dart';
 import '../updates.dart';
+import '../widgets/translation_model_card.dart';
 
 /// Settings is the "your copy of Best" screen: identity and numbers first, then
 /// three compact groups. Choices are segmented instead of three stacked rows so
@@ -171,6 +172,11 @@ class SettingsScreen extends ConsumerWidget {
                       end: 2,
                     ),
                   ),
+                  if (settings.ocrTranslationEnabled) ...[
+                    const SizedBox(height: BestSpace.sm),
+                    const TranslationModelCard(),
+                    const SizedBox(height: BestSpace.sm),
+                  ],
                   const Divider(height: 1),
                   SwitchListTile.adaptive(
                     value: settings.readerAutoAdvance,
