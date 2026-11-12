@@ -162,7 +162,8 @@ class TranslateEngineManager {
         val request = Request.Builder()
             .url(url)
             .header("Accept", "application/json")
-            .header("User-Agent", "Best/2.0 (Android)")
+            // The public endpoint is picky about non-browser agents.
+            .header("User-Agent", "Mozilla/5.0")
             .build()
 
         return try {

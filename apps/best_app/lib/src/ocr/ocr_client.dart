@@ -136,8 +136,15 @@ class OcrClient {
       bubbles: translatedBubbles,
     );
 
-    // 4. Save to SQLite cache
-    if (_repository != null) {
+    // 4. Save to SQLite cache only when every translatable bubble was handled.
+    // A page translated while the model was still downloading (or offline) must
+    // be retried later, not frozen as English for every future open.
+    final complete = translatedBubbles.every(
+      (bubble) =>
+          bubble.rawEnglishText != null ||
+          !RegExp(r'[A-Za-z]').hasMatch(bubble.text),
+    );
+    if (_repository != null && complete) {
       await _repository.savePageOcr(unitId, result);
     }
 
