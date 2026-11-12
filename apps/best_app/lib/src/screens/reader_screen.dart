@@ -1030,7 +1030,12 @@ class _ReaderViewState extends ConsumerState<_ReaderView>
       _startReadingClock();
       return;
     }
-    // A phone in a pocket is not reading time. Flush before the process can be
+    // The process can be killed while backgrounded. Save the page now instead
+    // of relying on dispose, and stop auto-scroll so returning does not resume
+    // a strip that moved while the reader was away.
+    _saveNow();
+    _stopAutoScroll();
+    // A phone in a pocket is not reading time. Flush before the process is
     // suspended so the last minute is not lost, then stop the clock.
     _flushReadingTime();
     _readingTimer?.cancel();
