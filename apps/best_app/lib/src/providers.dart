@@ -530,6 +530,17 @@ class SearchHistoryController extends Notifier<List<String>> {
     state = next;
   }
 
+  void remove(String query) {
+    final value = query.trim();
+    if (value.isEmpty) return;
+    final next = state
+        .where((entry) => entry.toLowerCase() != value.toLowerCase())
+        .toList(growable: false);
+    if (next.length == state.length) return;
+    unawaited(ref.read(preferencesProvider)?.setStringList(_key, next));
+    state = next;
+  }
+
   void clear() {
     unawaited(ref.read(preferencesProvider)?.setStringList(_key, const []));
     state = const <String>[];

@@ -202,6 +202,9 @@ class _MetaSearchScreenState extends ConsumerState<MetaSearchScreen> {
                     onExample: _useExample,
                     onClearHistory: () =>
                         ref.read(metaSearchHistoryProvider.notifier).clear(),
+                    onRemoveHistory: (query) => ref
+                        .read(metaSearchHistoryProvider.notifier)
+                        .remove(query),
                   )
                 : _SearchResults(
                     catalogues: async!,
@@ -230,6 +233,7 @@ class _SearchStart extends StatelessWidget {
     required this.history,
     required this.onExample,
     required this.onClearHistory,
+    required this.onRemoveHistory,
   });
 
   final AppLocalizations l10n;
@@ -237,6 +241,7 @@ class _SearchStart extends StatelessWidget {
   final List<String> history;
   final ValueChanged<String> onExample;
   final VoidCallback onClearHistory;
+  final ValueChanged<String> onRemoveHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -293,10 +298,14 @@ class _SearchStart extends StatelessWidget {
             runSpacing: 7,
             children: [
               for (final query in history)
-                ActionChip(
+                InputChip(
                   key: ValueKey('recent-search-$query'),
                   avatar: const Icon(Icons.history_rounded, size: 15),
                   onPressed: () => onExample(query),
+                  onDeleted: () => onRemoveHistory(query),
+                  deleteButtonTooltipMessage: MaterialLocalizations.of(
+                    context,
+                  ).deleteButtonTooltip,
                   label: Text(query, style: const TextStyle(fontSize: 11)),
                   visualDensity: VisualDensity.compact,
                   side: BorderSide(color: theme.colorScheme.outlineVariant),
